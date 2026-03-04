@@ -1,0 +1,24 @@
+<div class="auth-page">
+    <div class="auth-card">
+        <h1 class="brand-name">Fitness App</h1>
+
+        <h2 class="auth-title">@Title</h2>
+        <p class="auth-subtitle">@Subtitle</p>
+
+        @ChildContent
+
+        <div class="auth-footer">
+            <span>@FooterText</span>
+            <a href="@FooterLinkHref">@FooterLinkText</a>
+        </div>
+    </div>
+</div>
+
+@code {
+    [Parameter] public string Title { get; set; } = "";
+    [Parameter] public string Subtitle { get; set; } = "";
+    [Parameter] public string FooterText { get; set; } = "";
+    [Parameter] public string FooterLinkText { get; set; } = "";
+    [Parameter] public string FooterLinkHref { get; set; } = "";
+    [Parameter] public RenderFragment? ChildContent { get; set; }
+}
