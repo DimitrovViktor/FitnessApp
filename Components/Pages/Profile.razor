@@ -1,0 +1,323 @@
+@page "/profile"
+@inject ProfileService ProfileService
+@inject CustomAuthStateProvider AuthState
+@inject NavigationManager Navigation
+
+<PageTitle>Profile - Fitness App</PageTitle>
+
+@if (_isLoading)
+{
+    <div class="loading-state">
+        <p>Loading...</p>
+    </div>
+}
+else
+{
+    <div class="profile-page">
+        <div class="profile-header">
+            <h1>Personal Information</h1>
+            <p class="profile-subtitle">Manage your profile and fitness preferences</p>
+        </div>
+
+        @if (!string.IsNullOrEmpty(_message))
+        {
+            <div class="@(_isError ? "msg-error" : "msg-success")">@_message</div>
+        }
+
+        <div class="profile-section">
+            <h2 class="section-title">About You</h2>
+
+            <div class="field-grid">
+                <div class="form-group">
+                    <label class="form-label">Full Name</label>
+                    <input class="form-input" @bind="_data.FullName" disabled="@(!_isEditing)" />
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Date of Birth</label>
+                    <input type="date" class="form-input" value="@_dobString" @onchange="OnDobChanged" max="@_maxDob" min="@_minDob" disabled="@(!_isEditing)" />
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Weight (kg)</label>
+                    <input type="number" class="form-input" @bind="_data.WeightKg" min="20" max="350" step="0.1" disabled="@(!_isEditing)" />
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Height (cm)</label>
+                    <input type="number" class="form-input" @bind="_data.HeightCm" min="100" max="250" step="0.1" disabled="@(!_isEditing)" />
+                </div>
+            </div>
+        </div>
+
+        <div class="profile-section">
+            <h2 class="section-title">Fitness Profile</h2>
+
+            <div class="form-group">
+                <label class="form-label">Fitness Level</label>
+                <div class="option-group">
+                    @foreach (var level in Enum.GetValues<FitnessLevel>())
+                    {
+                        <button type="button"
+                                class="option-btn @(_data.FitnessLevel == level ? "selected" : "")"
+                                disabled="@(!_isEditing)"
+                                @onclick="() => _data.FitnessLevel = level">
+                            @level
+                        </button>
+                    }
+                </div>
+            </div>
+
+            <div class="form-group">
+                <label class="form-label">Primary Goal</label>
+                <div class="option-group">
+                    @foreach (var goal in Enum.GetValues<PrimaryGoal>())
+                    {
+                        <button type="button"
+                                class="option-btn @(_data.PrimaryGoal == goal ? "selected" : "")"
+                                disabled="@(!_isEditing)"
+                                @onclick="() => _data.PrimaryGoal = goal">
+                            @FormatGoal(goal)
+                        </button>
+                    }
+                </div>
+            </div>
+
+            <div class="form-group">
+                <label class="form-label">Training Days Per Week</label>
+                <div class="option-group">
+                    @for (int d = 1; d <= 7; d++)
+                    {
+                        var day = d;
+                        <button type="button"
+                                class="option-btn option-btn-sm @(_data.TrainingDaysPerWeek == day ? "selected" : "")"
+                                disabled="@(!_isEditing)"
+                                @onclick="() => _data.TrainingDaysPerWeek = day">
+                            @day
+                        </button>
+                    }
+                </div>
+            </div>
+        </div>
+
+        <div class="profile-section">
+            <h2 class="section-title">Available Equipment</h2>
+
+            <div class="equipment-grid">
+                @foreach (var eq in _equipment)
+                {
+                    var isSelected = _data.SelectedEquipmentIds.Contains(eq.Id);
+                    <button type="button"
+                            class="equipment-btn @(isSelected ? "selected" : "")"
+                            disabled="@(!_isEditing)"
+                            @onclick="() => ToggleEquipment(eq.Id)">
+                        @eq.Name
+                    </button>
+                }
+            </div>
+        </div>
+
+        <div class="profile-section">
+            <h2 class="section-title">Injuries & Limitations</h2>
+
+            @if (_data.Injuries.Count == 0 && !_isEditing)
+            {
+                <p class="empty-text">No injuries or limitations recorded.</p>
+            }
+
+            @foreach (var injury in _data.Injuries)
+            {
+                var idx = _data.Injuries.IndexOf(injury);
+                <div class="injury-row">
+                    <div class="injury-fields">
+                        <div class="form-group">
+                            <label class="form-label">Description</label>
+                            <input class="form-input" @bind="_data.Injuries[idx].Description" disabled="@(!_isEditing)" />
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">Affected Area</label>
+                            <input class="form-input" @bind="_data.Injuries[idx].AffectedArea" disabled="@(!_isEditing)" />
+                        </div>
+                    </div>
+                    @if (_isEditing)
+                    {
+                        <button type="button" class="remove-btn" @onclick="() => RemoveInjury(idx)">Remove</button>
+                    }
+                </div>
+            }
+
+            @if (_isEditing)
+            {
+                <button type="button" class="add-btn" @onclick="AddInjury">+ Add Injury</button>
+            }
+        </div>
+
+        <div class="profile-section">
+            <h2 class="section-title">Bio</h2>
+            <div class="form-group">
+                <textarea class="form-input form-textarea" @bind="_data.Bio" rows="3" disabled="@(!_isEditing)" placeholder="Tell us about yourself..."></textarea>
+            </div>
+        </div>
+
+        <div class="profile-actions">
+            @if (_isEditing)
+            {
+                <button type="button" class="btn-cancel" @onclick="CancelEdit">Cancel</button>
+                <button type="button" class="btn-save" @onclick="SaveProfile" disabled="@_isSaving">
+                    @(_isSaving ? "Saving..." : "Save Changes")
+                </button>
+            }
+            else
+            {
+                <button type="button" class="btn-edit" @onclick="StartEdit">Edit Profile</button>
+            }
+        </div>
+    </div>
+}
+
+@code {
+    private ProfileData _data = new();
+    private ProfileData _backup = new();
+    private List<Equipment> _equipment = new();
+    private bool _isLoading = true;
+    private bool _isEditing;
+    private bool _isSaving;
+    private string? _message;
+    private bool _isError;
+    private int _userId;
+    private string _dobString = "";
+    private string _dobBackup = "";
+    private readonly string _maxDob = DateOnly.FromDateTime(DateTime.Today.AddYears(-13)).ToString("yyyy-MM-dd");
+    private readonly string _minDob = DateOnly.FromDateTime(DateTime.Today.AddYears(-100)).ToString("yyyy-MM-dd");
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!firstRender) return;
+
+        var state = await AuthState.GetAuthenticationStateAsync();
+        if (state.User.Identity is not { IsAuthenticated: true })
+        {
+            try { Navigation.NavigateTo("/login", forceLoad: true); } catch { }
+            return;
+        }
+
+        _userId = int.Parse(state.User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)!.Value);
+        _equipment = await ProfileService.GetAllEquipmentAsync();
+        await LoadProfile();
+        _isLoading = false;
+        StateHasChanged();
+    }
+
+    private async Task LoadProfile()
+    {
+        var user = await ProfileService.GetUserWithProfileAsync(_userId);
+        if (user is null) return;
+
+        _data = new ProfileData
+        {
+            FullName = user.FullName,
+            DateOfBirth = user.DateOfBirth,
+            WeightKg = user.WeightKg,
+            HeightCm = user.HeightCm,
+            FitnessLevel = user.FitnessLevel,
+            PrimaryGoal = user.PrimaryGoal,
+            TrainingDaysPerWeek = user.TrainingDaysPerWeek,
+            Bio = user.Bio,
+            SelectedEquipmentIds = user.UserEquipment.Select(ue => ue.EquipmentId).ToList(),
+            Injuries = user.Injuries.Select(i => new InjuryEntry
+            {
+                Description = i.Description,
+                AffectedArea = i.AffectedArea,
+                IsActive = i.IsActive
+            }).ToList()
+        };
+        _dobString = user.DateOfBirth?.ToString("yyyy-MM-dd") ?? "";
+    }
+
+    private void StartEdit()
+    {
+        _message = null;
+        _dobBackup = _dobString;
+        _backup = new ProfileData
+        {
+            FullName = _data.FullName,
+            DateOfBirth = _data.DateOfBirth,
+            WeightKg = _data.WeightKg,
+            HeightCm = _data.HeightCm,
+            FitnessLevel = _data.FitnessLevel,
+            PrimaryGoal = _data.PrimaryGoal,
+            TrainingDaysPerWeek = _data.TrainingDaysPerWeek,
+            Bio = _data.Bio,
+            SelectedEquipmentIds = new List<int>(_data.SelectedEquipmentIds),
+            Injuries = _data.Injuries.Select(i => new InjuryEntry
+            {
+                Description = i.Description,
+                AffectedArea = i.AffectedArea,
+                IsActive = i.IsActive
+            }).ToList()
+        };
+        _isEditing = true;
+    }
+
+    private void CancelEdit()
+    {
+        _data = _backup;
+        _dobString = _dobBackup;
+        _isEditing = false;
+        _message = null;
+    }
+
+    private async Task SaveProfile()
+    {
+        _isSaving = true;
+        _message = null;
+
+        if (string.IsNullOrWhiteSpace(_data.FullName))
+        {
+            _message = "Name is required.";
+            _isError = true;
+            _isSaving = false;
+            return;
+        }
+
+        if (!string.IsNullOrEmpty(_dobString) && DateOnly.TryParse(_dobString, out var dob))
+            _data.DateOfBirth = dob;
+
+        var success = await ProfileService.UpdateProfileAsync(_userId, _data);
+
+        if (success)
+        {
+            _message = "Profile updated successfully.";
+            _isError = false;
+            _isEditing = false;
+        }
+        else
+        {
+            _message = "Failed to save. Please try again.";
+            _isError = true;
+        }
+
+        _isSaving = false;
+    }
+
+    private void ToggleEquipment(int equipmentId)
+    {
+        if (!_isEditing) return;
+        if (!_data.SelectedEquipmentIds.Remove(equipmentId))
+            _data.SelectedEquipmentIds.Add(equipmentId);
+    }
+
+    private void AddInjury() => _data.Injuries.Add(new InjuryEntry());
+
+    private void RemoveInjury(int index)
+    {
+        if (index >= 0 && index < _data.Injuries.Count)
+            _data.Injuries.RemoveAt(index);
+    }
+
+    private void OnDobChanged(ChangeEventArgs e) => _dobString = e?.Value?.ToString() ?? "";
+
+    private static string FormatGoal(PrimaryGoal goal) => goal switch
+    {
+        PrimaryGoal.FatLoss => "Fat Loss",
+        PrimaryGoal.GeneralHealth => "General Health",
+        _ => goal.ToString()
+    };
+}

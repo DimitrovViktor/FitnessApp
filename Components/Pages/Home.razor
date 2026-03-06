@@ -1,0 +1,81 @@
+@page "/dashboard"
+@inject CustomAuthStateProvider AuthState
+@inject ProfileService ProfileService
+@inject NavigationManager Navigation
+
+<PageTitle>Dashboard - Fitness App</PageTitle>
+
+@if (_isLoading)
+{
+    <div class="loading-state">
+        <p>Loading...</p>
+    </div>
+}
+else
+{
+    <div class="dashboard">
+        <div class="dashboard-header">
+            <h1>Welcome back, <span class="accent">@_userName</span></h1>
+            <p class="dashboard-subtitle">Here's your fitness overview</p>
+        </div>
+
+        <div class="stats-grid">
+            <div class="stat-card">
+                <span class="stat-label">Workouts</span>
+                <span class="stat-value">0</span>
+                <span class="stat-hint">This week</span>
+            </div>
+            <div class="stat-card">
+                <span class="stat-label">Calories</span>
+                <span class="stat-value">0</span>
+                <span class="stat-hint">Burned today</span>
+            </div>
+            <div class="stat-card">
+                <span class="stat-label">Streak</span>
+                <span class="stat-value">0</span>
+                <span class="stat-hint">Days</span>
+            </div>
+            <div class="stat-card">
+                <span class="stat-label">Goals</span>
+                <span class="stat-value">0</span>
+                <span class="stat-hint">Completed</span>
+            </div>
+        </div>
+
+        <div class="empty-state">
+            <h2>Ready to get started?</h2>
+            <p>Your fitness data will appear here as you track workouts, set goals, and log your progress.</p>
+        </div>
+    </div>
+}
+
+@code {
+    private string _userName = "";
+    private bool _isLoading = true;
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!firstRender) return;
+
+        var state = await AuthState.GetAuthenticationStateAsync();
+
+        if (state.User.Identity is not { IsAuthenticated: true })
+        {
+            try { Navigation.NavigateTo("/login", forceLoad: true); } catch { }
+            return;
+        }
+
+        var userId = int.Parse(state.User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)!.Value);
+        var user = await ProfileService.GetUserWithProfileAsync(userId);
+
+        if (user is { OnboardingCompleted: false })
+        {
+            try { Navigation.NavigateTo("/onboarding"); } catch { }
+            return;
+        }
+
+        _userName = state.User.Identity.Name ?? "User";
+        _isLoading = false;
+        StateHasChanged();
+    }
+}

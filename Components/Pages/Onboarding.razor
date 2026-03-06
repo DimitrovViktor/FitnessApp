@@ -1,0 +1,312 @@
+@page "/onboarding"
+@layout AuthLayout
+@inject ProfileService ProfileService
+@inject CustomAuthStateProvider AuthState
+@inject NavigationManager Navigation
+
+<PageTitle>Setup Your Profile - Fitness App</PageTitle>
+
+<div class="onboarding-page">
+    <div class="onboarding-card">
+        <h1 class="onboarding-brand">Fitness App</h1>
+
+        <div class="step-indicator">
+            @for (int i = 1; i <= _totalSteps; i++)
+            {
+                var step = i;
+                <div class="step-dot @(step <= _currentStep ? "active" : "") @(step < _currentStep ? "completed" : "")"></div>
+                @if (step < _totalSteps)
+                {
+                    <div class="step-line @(step < _currentStep ? "active" : "")"></div>
+                }
+            }
+        </div>
+
+        @if (_isLoading)
+        {
+            <p class="loading-text">Loading...</p>
+        }
+        else
+        {
+            @if (!string.IsNullOrEmpty(_errorMessage))
+            {
+                <div class="form-error">@_errorMessage</div>
+            }
+
+            @switch (_currentStep)
+            {
+                case 1:
+                    <div class="step-content">
+                        <h2 class="step-title">About You</h2>
+                        <p class="step-subtitle">Let's start with the basics</p>
+
+                        <div class="form-group">
+                            <label class="form-label">Full Name</label>
+                            <input class="form-input" @bind="_data.FullName" placeholder="Your name" />
+                        </div>
+
+                        <div class="form-group">
+                            <label class="form-label">Date of Birth</label>
+                            <input type="date" class="form-input" value="@_dobString" @onchange="OnDobChanged" max="@_maxDob" min="@_minDob" />
+                        </div>
+
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label class="form-label">Weight (kg)</label>
+                                <input type="number" class="form-input" @bind="_data.WeightKg" min="20" max="350" step="0.1" placeholder="70" />
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label">Height (cm)</label>
+                                <input type="number" class="form-input" @bind="_data.HeightCm" min="100" max="250" step="0.1" placeholder="175" />
+                            </div>
+                        </div>
+                    </div>
+                    break;
+
+                case 2:
+                    <div class="step-content">
+                        <h2 class="step-title">Fitness Profile</h2>
+                        <p class="step-subtitle">Help us tailor your experience</p>
+
+                        <div class="form-group">
+                            <label class="form-label">Fitness Level</label>
+                            <div class="option-group">
+                                @foreach (var level in Enum.GetValues<FitnessLevel>())
+                                {
+                                    <button type="button"
+                                            class="option-btn @(_data.FitnessLevel == level ? "selected" : "")"
+                                            @onclick="() => _data.FitnessLevel = level">
+                                        @level
+                                    </button>
+                                }
+                            </div>
+                        </div>
+
+                        <div class="form-group">
+                            <label class="form-label">Primary Goal</label>
+                            <div class="option-group">
+                                @foreach (var goal in Enum.GetValues<PrimaryGoal>())
+                                {
+                                    <button type="button"
+                                            class="option-btn @(_data.PrimaryGoal == goal ? "selected" : "")"
+                                            @onclick="() => _data.PrimaryGoal = goal">
+                                        @FormatGoal(goal)
+                                    </button>
+                                }
+                            </div>
+                        </div>
+
+                        <div class="form-group">
+                            <label class="form-label">Training Days Per Week</label>
+                            <div class="option-group">
+                                @for (int d = 1; d <= 7; d++)
+                                {
+                                    var day = d;
+                                    <button type="button"
+                                            class="option-btn option-btn-sm @(_data.TrainingDaysPerWeek == day ? "selected" : "")"
+                                            @onclick="() => _data.TrainingDaysPerWeek = day">
+                                        @day
+                                    </button>
+                                }
+                            </div>
+                        </div>
+                    </div>
+                    break;
+
+                case 3:
+                    <div class="step-content">
+                        <h2 class="step-title">Available Equipment</h2>
+                        <p class="step-subtitle">Select everything you have access to</p>
+
+                        <div class="equipment-grid">
+                            @foreach (var eq in _equipment)
+                            {
+                                var isSelected = _data.SelectedEquipmentIds.Contains(eq.Id);
+                                <button type="button"
+                                        class="equipment-btn @(isSelected ? "selected" : "")"
+                                        @onclick="() => ToggleEquipment(eq.Id)">
+                                    @eq.Name
+                                </button>
+                            }
+                        </div>
+                    </div>
+                    break;
+
+                case 4:
+                    <div class="step-content">
+                        <h2 class="step-title">Injuries & Limitations</h2>
+                        <p class="step-subtitle">Optional — helps us recommend safer exercises</p>
+
+                        @foreach (var injury in _data.Injuries)
+                        {
+                            var idx = _data.Injuries.IndexOf(injury);
+                            <div class="injury-row">
+                                <div class="form-group">
+                                    <label class="form-label">Description</label>
+                                    <input class="form-input" @bind="_data.Injuries[idx].Description" placeholder="e.g. Lower back pain" />
+                                </div>
+                                <div class="form-group">
+                                    <label class="form-label">Affected Area</label>
+                                    <input class="form-input" @bind="_data.Injuries[idx].AffectedArea" placeholder="e.g. Lumbar spine" />
+                                </div>
+                                <button type="button" class="remove-btn" @onclick="() => RemoveInjury(idx)">Remove</button>
+                            </div>
+                        }
+
+                        <button type="button" class="add-btn" @onclick="AddInjury">+ Add Injury</button>
+
+                        <div class="form-group" style="margin-top: 1.5rem;">
+                            <label class="form-label">Bio (optional)</label>
+                            <textarea class="form-input form-textarea" @bind="_data.Bio" placeholder="Tell us about yourself and your fitness journey..." rows="3"></textarea>
+                        </div>
+                    </div>
+                    break;
+            }
+
+            <div class="step-actions">
+                @if (_currentStep > 1)
+                {
+                    <button type="button" class="btn-back" @onclick="PreviousStep">Back</button>
+                }
+                else
+                {
+                    <div></div>
+                }
+
+                @if (_currentStep < _totalSteps)
+                {
+                    <button type="button" class="btn-next" @onclick="NextStep">Continue</button>
+                }
+                else
+                {
+                    <button type="button" class="btn-next" @onclick="FinishOnboarding" disabled="@_isSaving">
+                        @(_isSaving ? "Saving..." : "Complete Setup")
+                    </button>
+                }
+            </div>
+        }
+    </div>
+</div>
+
+@code {
+    private ProfileData _data = new();
+    private List<Equipment> _equipment = new();
+    private int _currentStep = 1;
+    private const int _totalSteps = 4;
+    private bool _isLoading = true;
+    private bool _isSaving;
+    private string? _errorMessage;
+    private int _userId;
+    private string _dobString = "";
+    private readonly string _maxDob = DateOnly.FromDateTime(DateTime.Today.AddYears(-13)).ToString("yyyy-MM-dd");
+    private readonly string _minDob = DateOnly.FromDateTime(DateTime.Today.AddYears(-100)).ToString("yyyy-MM-dd");
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!firstRender) return;
+
+        var state = await AuthState.GetAuthenticationStateAsync();
+        if (state.User.Identity is not { IsAuthenticated: true })
+        {
+            try { Navigation.NavigateTo("/login", forceLoad: true); } catch { }
+            return;
+        }
+
+        _userId = int.Parse(state.User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)!.Value);
+        var user = await ProfileService.GetUserWithProfileAsync(_userId);
+
+        if (user is { OnboardingCompleted: true })
+        {
+            try { Navigation.NavigateTo("/dashboard"); } catch { }
+            return;
+        }
+
+        _data.FullName = user?.FullName ?? "";
+        _equipment = await ProfileService.GetAllEquipmentAsync();
+        _isLoading = false;
+        StateHasChanged();
+    }
+
+    private void NextStep()
+    {
+        _errorMessage = null;
+
+        if (_currentStep == 1)
+        {
+            if (string.IsNullOrWhiteSpace(_data.FullName))
+            { _errorMessage = "Please enter your name."; return; }
+
+            if (!string.IsNullOrEmpty(_dobString) && DateOnly.TryParse(_dobString, out var dob))
+                _data.DateOfBirth = dob;
+
+            if (_data.WeightKg is not null and (<= 0 or > 350))
+            { _errorMessage = "Please enter a valid weight."; return; }
+
+            if (_data.HeightCm is not null and (<= 0 or > 300))
+            { _errorMessage = "Please enter a valid height."; return; }
+        }
+
+        if (_currentStep == 2)
+        {
+            if (_data.FitnessLevel is null)
+            { _errorMessage = "Please select your fitness level."; return; }
+            if (_data.PrimaryGoal is null)
+            { _errorMessage = "Please select a primary goal."; return; }
+            if (_data.TrainingDaysPerWeek is null)
+            { _errorMessage = "Please select training days per week."; return; }
+        }
+
+        if (_currentStep < _totalSteps)
+            _currentStep++;
+    }
+
+    private void PreviousStep()
+    {
+        _errorMessage = null;
+        if (_currentStep > 1)
+            _currentStep--;
+    }
+
+    private async Task FinishOnboarding()
+    {
+        _isSaving = true;
+        _errorMessage = null;
+
+        if (!string.IsNullOrEmpty(_dobString) && DateOnly.TryParse(_dobString, out var dob))
+            _data.DateOfBirth = dob;
+
+        var success = await ProfileService.SaveOnboardingAsync(_userId, _data);
+
+        if (success)
+        {
+            try { Navigation.NavigateTo("/dashboard", forceLoad: true); } catch { }
+            return;
+        }
+
+        _errorMessage = "Something went wrong. Please try again.";
+        _isSaving = false;
+    }
+
+    private void ToggleEquipment(int equipmentId)
+    {
+        if (!_data.SelectedEquipmentIds.Remove(equipmentId))
+            _data.SelectedEquipmentIds.Add(equipmentId);
+    }
+
+    private void AddInjury() => _data.Injuries.Add(new InjuryEntry());
+
+    private void RemoveInjury(int index)
+    {
+        if (index >= 0 && index < _data.Injuries.Count)
+            _data.Injuries.RemoveAt(index);
+    }
+
+    private void OnDobChanged(ChangeEventArgs e) => _dobString = e?.Value?.ToString() ?? "";
+
+    private static string FormatGoal(PrimaryGoal goal) => goal switch
+    {
+        PrimaryGoal.FatLoss => "Fat Loss",
+        PrimaryGoal.GeneralHealth => "General Health",
+        _ => goal.ToString()
+    };
+}

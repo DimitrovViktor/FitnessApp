@@ -1,6 +1,8 @@
 @page "/login"
 @layout AuthLayout
-@rendermode InteractiveServer
+@inject AuthService AuthService
+@inject CustomAuthStateProvider AuthState
+@inject NavigationManager Navigation
 
 <PageTitle>Login - Fitness App</PageTitle>
 
@@ -12,6 +14,11 @@
 
     <EditForm Model="loginModel" OnValidSubmit="HandleLogin" FormName="LoginForm">
         <DataAnnotationsValidator />
+
+        @if (!string.IsNullOrEmpty(errorMessage))
+        {
+            <div class="form-error">@errorMessage</div>
+        }
 
         <div class="form-group">
             <label class="form-label" for="email">Email</label>
@@ -40,7 +47,9 @@
             <a href="#">Forgot password?</a>
         </div>
 
-        <button type="submit" class="btn-submit">Sign In</button>
+        <button type="submit" class="btn-submit" disabled="@isSubmitting">
+            @(isSubmitting ? "Signing In..." : "Sign In")
+        </button>
     </EditForm>
 
 </AuthFormWrapper>
@@ -49,8 +58,34 @@
     [SupplyParameterFromForm]
     private LoginModel loginModel { get; set; } = new();
 
-    private void HandleLogin()
+    private string? errorMessage;
+    private bool isSubmitting;
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
     {
+        if (!firstRender) return;
+
+        var state = await AuthState.GetAuthenticationStateAsync();
+        if (state.User.Identity is { IsAuthenticated: true })
+            try { Navigation.NavigateTo("/dashboard"); } catch { }
+    }
+
+    private async Task HandleLogin()
+    {
+        isSubmitting = true;
+        errorMessage = null;
+
+        var user = await AuthService.LoginAsync(loginModel.Email, loginModel.Password);
+
+        if (user is not null)
+        {
+            await AuthState.LoginAsync(user.Id, loginModel.RememberMe);
+            try { Navigation.NavigateTo("/dashboard", forceLoad: true); } catch { }
+            return;
+        }
+
+        errorMessage = "Invalid email or password.";
+        isSubmitting = false;
     }
 
     private sealed class LoginModel

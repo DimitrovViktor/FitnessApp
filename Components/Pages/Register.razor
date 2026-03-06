@@ -1,7 +1,9 @@
 @page "/"
 @page "/register"
 @layout AuthLayout
-@rendermode InteractiveServer
+@inject AuthService AuthService
+@inject CustomAuthStateProvider AuthState
+@inject NavigationManager Navigation
 
 <PageTitle>Register - Fitness App</PageTitle>
 
@@ -13,6 +15,11 @@
 
     <EditForm Model="registerModel" OnValidSubmit="HandleRegister" FormName="RegisterForm">
         <DataAnnotationsValidator />
+
+        @if (!string.IsNullOrEmpty(errorMessage))
+        {
+            <div class="form-error">@errorMessage</div>
+        }
 
         <div class="form-group">
             <label class="form-label" for="fullName">Full Name</label>
@@ -52,7 +59,9 @@
             <ValidationMessage For="() => registerModel.ConfirmPassword" />
         </div>
 
-        <button type="submit" class="btn-submit">Create Account</button>
+        <button type="submit" class="btn-submit" disabled="@isSubmitting">
+            @(isSubmitting ? "Creating Account..." : "Create Account")
+        </button>
     </EditForm>
 
 </AuthFormWrapper>
@@ -61,8 +70,34 @@
     [SupplyParameterFromForm]
     private RegisterModel registerModel { get; set; } = new();
 
-    private void HandleRegister()
+    private string? errorMessage;
+    private bool isSubmitting;
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
     {
+        if (!firstRender) return;
+
+        var state = await AuthState.GetAuthenticationStateAsync();
+        if (state.User.Identity is { IsAuthenticated: true })
+            try { Navigation.NavigateTo("/dashboard"); } catch { }
+    }
+
+    private async Task HandleRegister()
+    {
+        isSubmitting = true;
+        errorMessage = null;
+
+        var (success, error) = await AuthService.RegisterAsync(
+            registerModel.FullName, registerModel.Email, registerModel.Password);
+
+        if (success)
+        {
+            try { Navigation.NavigateTo("/login"); } catch { }
+            return;
+        }
+
+        errorMessage = error;
+        isSubmitting = false;
     }
 
     private sealed class RegisterModel : System.ComponentModel.DataAnnotations.IValidatableObject

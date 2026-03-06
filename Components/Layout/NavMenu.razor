@@ -1,6 +1,6 @@
-﻿<div class="top-row ps-3 navbar navbar-dark">
+<div class="top-row ps-3 navbar navbar-dark">
     <div class="container-fluid">
-        <a class="navbar-brand" href="">FitnessApp</a>
+        <a class="navbar-brand" href="dashboard">Fitness App</a>
     </div>
 </div>
 
@@ -9,22 +9,35 @@
 <div class="nav-scrollable" onclick="document.querySelector('.navbar-toggler').click()">
     <nav class="nav flex-column">
         <div class="nav-item px-3">
-            <NavLink class="nav-link" href="" Match="NavLinkMatch.All">
-                <span class="bi bi-house-door-fill-nav-menu" aria-hidden="true"></span> Home
+            <NavLink class="nav-link" href="dashboard" Match="NavLinkMatch.All">
+                <span class="bi bi-house-door-fill-nav-menu" aria-hidden="true"></span> Dashboard
             </NavLink>
         </div>
 
         <div class="nav-item px-3">
-            <NavLink class="nav-link" href="counter">
-                <span class="bi bi-plus-square-fill-nav-menu" aria-hidden="true"></span> Counter
+            <NavLink class="nav-link" href="profile">
+                <span class="bi bi-person-nav-menu" aria-hidden="true"></span> Profile
             </NavLink>
         </div>
 
-        <div class="nav-item px-3">
-            <NavLink class="nav-link" href="weather">
-                <span class="bi bi-list-nested-nav-menu" aria-hidden="true"></span> Weather
-            </NavLink>
+        <div class="nav-item nav-item-logout px-3" @onclick:stopPropagation>
+            <button class="nav-link" @onclick="HandleLogout">
+                <span class="bi bi-logout-nav-menu" aria-hidden="true"></span> Logout
+            </button>
         </div>
     </nav>
 </div>
 
+@code {
+    [Inject]
+    private CustomAuthStateProvider AuthState { get; set; } = default!;
+
+    [Inject]
+    private NavigationManager Navigation { get; set; } = default!;
+
+    private async Task HandleLogout()
+    {
+        await AuthState.LogoutAsync();
+        try { Navigation.NavigateTo("/login", forceLoad: true); } catch { }
+    }
+}
