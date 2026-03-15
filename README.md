@@ -15,6 +15,6 @@ Users have a profile (profiles are private currently and users can't interact wi
 
 - User profiles - add profile system where users can search for each other and add each other as friends
 - Exercises list - add base exercises
-- Workouts section - add premade workouts with workout types
-- Runs section
-- Foods section
+- Workouts section - add premade workouts with workout types (exercises, timers, calories)
+- Runs section - add running section with run estimations (timers, calories)
+- Foods section - add ingredients to use/avoid
