@@ -62,13 +62,18 @@ public class CustomAuthStateProvider : AuthenticationStateProvider
             return AnonymousState;
         }
 
-        var identity = new ClaimsIdentity(new[]
+        var claims = new List<Claim>
         {
-            new Claim(ClaimTypes.NameIdentifier, user.Id.ToString()),
-            new Claim(ClaimTypes.Name, user.FullName),
-            new Claim(ClaimTypes.Email, user.Email)
-        }, "custom");
+            new(ClaimTypes.NameIdentifier, user.Id.ToString()),
+            new(ClaimTypes.Name, user.FullName),
+            new(ClaimTypes.Email, user.Email),
+            new("Username", user.Username)
+        };
 
+        if (user.IsAdmin)
+            claims.Add(new Claim(ClaimTypes.Role, "Admin"));
+
+        var identity = new ClaimsIdentity(claims, "custom");
         return new AuthenticationState(new ClaimsPrincipal(identity));
     }
 

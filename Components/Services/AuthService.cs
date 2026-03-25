@@ -14,16 +14,21 @@ public class AuthService
         _db = db;
     }
 
-    public async Task<(bool Success, string Error)> RegisterAsync(string fullName, string email, string password)
+    public async Task<(bool Success, string Error)> RegisterAsync(string fullName, string username, string email, string password)
     {
         var normalizedEmail = email.ToLowerInvariant().Trim();
+        var normalizedUsername = username.Trim();
 
         if (await _db.Users.AnyAsync(u => u.Email == normalizedEmail))
             return (false, "An account with this email already exists.");
 
+        if (await _db.Users.AnyAsync(u => u.Username == normalizedUsername))
+            return (false, "This username is already taken.");
+
         var user = new User
         {
             FullName = fullName.Trim(),
+            Username = normalizedUsername,
             Email = normalizedEmail,
             PasswordHash = HashPassword(password),
             CreatedAt = DateTime.UtcNow

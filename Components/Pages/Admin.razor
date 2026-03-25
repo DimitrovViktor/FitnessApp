@@ -1,0 +1,1150 @@
+@page "/admin"
+@inject AdminService AdminService
+@inject CustomAuthStateProvider AuthState
+@inject NavigationManager Navigation
+
+<PageTitle>Admin Panel - Fitness App</PageTitle>
+
+@if (_isLoading)
+{
+    <div class="loading-state"><p>Loading...</p></div>
+}
+else if (!_isAdmin)
+{
+    <div class="loading-state"><p>Access denied.</p></div>
+}
+else
+{
+    <div class="admin-page">
+        <div class="admin-header">
+            <h1>Admin Panel</h1>
+            <p class="admin-subtitle">Manage application data</p>
+        </div>
+
+        <div class="counts-grid">
+            <div class="count-card"><span class="count-value">@_counts.Users</span><span class="count-label">Users</span></div>
+            <div class="count-card"><span class="count-value">@_counts.Exercises</span><span class="count-label">Exercises</span></div>
+            <div class="count-card"><span class="count-value">@_counts.Workouts</span><span class="count-label">Workouts</span></div>
+            <div class="count-card"><span class="count-value">@_counts.Equipment</span><span class="count-label">Equipment</span></div>
+            <div class="count-card"><span class="count-value">@_counts.MuscleGroups</span><span class="count-label">Muscle Groups</span></div>
+            <div class="count-card"><span class="count-value">@_counts.Foods</span><span class="count-label">Foods</span></div>
+            <div class="count-card"><span class="count-value">@_counts.Programs</span><span class="count-label">Programs</span></div>
+            <div class="count-card"><span class="count-value">@_counts.WorkoutLogs</span><span class="count-label">Workout Logs</span></div>
+        </div>
+
+        <div class="tab-bar">
+            @foreach (var tab in _tabs)
+            {
+                <button type="button" class="tab-btn @(_activeTab == tab ? "active" : "")" @onclick="() => SwitchTab(tab)">@tab</button>
+            }
+        </div>
+
+        @if (!string.IsNullOrEmpty(_message))
+        {
+            <div class="@(_isError ? "msg-error" : "msg-success")">@_message</div>
+        }
+
+        @switch (_activeTab)
+        {
+            case "Users":
+                <div class="table-section">
+                    <table class="admin-table">
+                        <thead>
+                            <tr><th>ID</th><th>Username</th><th>Full Name</th><th>Email</th><th>Admin</th><th>Onboarded</th><th>Created</th></tr>
+                        </thead>
+                        <tbody>
+                            @foreach (var user in _users)
+                            {
+                                <tr>
+                                    <td>@user.Id</td>
+                                    <td>@user.Username</td>
+                                    <td>@user.FullName</td>
+                                    <td>@user.Email</td>
+                                    <td>@(user.IsAdmin ? "Yes" : "No")</td>
+                                    <td>@(user.OnboardingCompleted ? "Yes" : "No")</td>
+                                    <td>@user.CreatedAt.ToString("yyyy-MM-dd")</td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+                break;
+
+            case "Exercises":
+                @if (_showExerciseForm)
+                {
+                    @RenderExerciseForm()
+                }
+                else
+                {
+                    <div class="section-actions">
+                        <button type="button" class="btn-add" @onclick="StartAddExercise">+ Add Exercise</button>
+                    </div>
+                    <div class="table-section">
+                        <table class="admin-table">
+                            <thead>
+                                <tr><th>ID</th><th>Name</th><th>Level</th><th>Movement</th><th>MET</th><th>Muscles</th><th>Equipment</th><th>Actions</th></tr>
+                            </thead>
+                            <tbody>
+                                @foreach (var ex in _exercises)
+                                {
+                                    <tr>
+                                        <td>@ex.Id</td>
+                                        <td>@ex.Name</td>
+                                        <td>@ex.Level</td>
+                                        <td>@ex.MovementType</td>
+                                        <td>@ex.MetValue</td>
+                                        <td>@string.Join(", ", ex.ExerciseMuscleGroups.Select(m => m.MuscleGroup.Name))</td>
+                                        <td>@string.Join(", ", ex.ExerciseEquipment.Select(e => e.Equipment.Name))</td>
+                                        <td class="actions-cell">
+                                            <button type="button" class="btn-action btn-edit-action" @onclick="() => StartEditExercise(ex.Id)">Edit</button>
+                                            <button type="button" class="btn-action btn-delete-action" @onclick="() => ConfirmDelete(ex.Id, ex.Name, _typeExercise)">Delete</button>
+                                        </td>
+                                    </tr>
+                                }
+                            </tbody>
+                        </table>
+                    </div>
+                }
+                break;
+
+            case "Workouts":
+                @if (_showWorkoutForm)
+                {
+                    @RenderWorkoutForm()
+                }
+                else
+                {
+                    <div class="section-actions">
+                        <button type="button" class="btn-add" @onclick="StartAddWorkout">+ Add Workout</button>
+                    </div>
+                    <div class="table-section">
+                        <table class="admin-table">
+                            <thead>
+                                <tr><th>ID</th><th>Name</th><th>User</th><th>Program</th><th>Exercises</th><th>Actions</th></tr>
+                            </thead>
+                            <tbody>
+                                @foreach (var w in _workouts)
+                                {
+                                    <tr>
+                                        <td>@w.Id</td>
+                                        <td>@w.Name</td>
+                                        <td>@w.User.Username</td>
+                                        <td>@(w.Program?.Name ?? "—")</td>
+                                        <td>@string.Join(", ", w.WorkoutExercises.OrderBy(we => we.SortOrder).Select(we => we.Exercise.Name))</td>
+                                        <td class="actions-cell">
+                                            <button type="button" class="btn-action btn-edit-action" @onclick="() => StartEditWorkout(w.Id)">Edit</button>
+                                            <button type="button" class="btn-action btn-delete-action" @onclick="() => ConfirmDelete(w.Id, w.Name, _typeWorkout)">Delete</button>
+                                        </td>
+                                    </tr>
+                                }
+                            </tbody>
+                        </table>
+                    </div>
+                }
+                break;
+
+            case "Equipment":
+                @if (_showEquipmentForm)
+                {
+                    @RenderEquipmentForm()
+                }
+                else
+                {
+                    <div class="section-actions">
+                        <button type="button" class="btn-add" @onclick="StartAddEquipment">+ Add Equipment</button>
+                    </div>
+                    <div class="table-section">
+                        <table class="admin-table">
+                            <thead><tr><th>ID</th><th>Name</th><th>Actions</th></tr></thead>
+                            <tbody>
+                                @foreach (var eq in _equipment)
+                                {
+                                    <tr>
+                                        <td>@eq.Id</td>
+                                        <td>@eq.Name</td>
+                                        <td class="actions-cell">
+                                            <button type="button" class="btn-action btn-edit-action" @onclick="() => StartEditEquipment(eq)">Edit</button>
+                                            <button type="button" class="btn-action btn-delete-action" @onclick="() => ConfirmDelete(eq.Id, eq.Name, _typeEquipment)">Delete</button>
+                                        </td>
+                                    </tr>
+                                }
+                            </tbody>
+                        </table>
+                    </div>
+                }
+                break;
+
+            case "Muscle Groups":
+                @if (_showMuscleGroupForm)
+                {
+                    @RenderMuscleGroupForm()
+                }
+                else
+                {
+                    <div class="section-actions">
+                        <button type="button" class="btn-add" @onclick="StartAddMuscleGroup">+ Add Muscle Group</button>
+                    </div>
+                    <div class="table-section">
+                        <table class="admin-table">
+                            <thead><tr><th>ID</th><th>Name</th><th>Body Region</th><th>Actions</th></tr></thead>
+                            <tbody>
+                                @foreach (var mg in _muscleGroups)
+                                {
+                                    <tr>
+                                        <td>@mg.Id</td>
+                                        <td>@mg.Name</td>
+                                        <td>@(mg.BodyRegion ?? "—")</td>
+                                        <td class="actions-cell">
+                                            <button type="button" class="btn-action btn-edit-action" @onclick="() => StartEditMuscleGroup(mg)">Edit</button>
+                                            <button type="button" class="btn-action btn-delete-action" @onclick="() => ConfirmDelete(mg.Id, mg.Name, _typeMuscleGroup)">Delete</button>
+                                        </td>
+                                    </tr>
+                                }
+                            </tbody>
+                        </table>
+                    </div>
+                }
+                break;
+
+            case "Foods":
+                @if (_showFoodForm)
+                {
+                    @RenderFoodForm()
+                }
+                else
+                {
+                    <div class="section-actions">
+                        <button type="button" class="btn-add" @onclick="StartAddFood">+ Add Food</button>
+                    </div>
+                    <div class="table-section">
+                        <table class="admin-table">
+                            <thead><tr><th>ID</th><th>Name</th><th>Cal/100g</th><th>Protein</th><th>Carbs</th><th>Fat</th><th>Actions</th></tr></thead>
+                            <tbody>
+                                @foreach (var f in _foods)
+                                {
+                                    <tr>
+                                        <td>@f.Id</td>
+                                        <td>@f.Name</td>
+                                        <td>@f.CaloriesPer100g</td>
+                                        <td>@(f.ProteinPer100g?.ToString() ?? "—")</td>
+                                        <td>@(f.CarbsPer100g?.ToString() ?? "—")</td>
+                                        <td>@(f.FatPer100g?.ToString() ?? "—")</td>
+                                        <td class="actions-cell">
+                                            <button type="button" class="btn-action btn-edit-action" @onclick="() => StartEditFood(f)">Edit</button>
+                                            <button type="button" class="btn-action btn-delete-action" @onclick="() => ConfirmDelete(f.Id, f.Name, _typeFood)">Delete</button>
+                                        </td>
+                                    </tr>
+                                }
+                            </tbody>
+                        </table>
+                    </div>
+                }
+                break;
+
+            case "Programs":
+                @if (_showProgramForm)
+                {
+                    @RenderProgramForm()
+                }
+                else
+                {
+                    <div class="section-actions">
+                        <button type="button" class="btn-add" @onclick="StartAddProgram">+ Add Program</button>
+                    </div>
+                    <div class="table-section">
+                        <table class="admin-table">
+                            <thead><tr><th>ID</th><th>Name</th><th>Weeks</th><th>Days/Week</th><th>Level</th><th>Goal</th><th>Pre-built</th><th>Actions</th></tr></thead>
+                            <tbody>
+                                @foreach (var p in _programs)
+                                {
+                                    <tr>
+                                        <td>@p.Id</td>
+                                        <td>@p.Name</td>
+                                        <td>@p.DurationWeeks</td>
+                                        <td>@p.DaysPerWeek</td>
+                                        <td>@(p.TargetLevel ?? "—")</td>
+                                        <td>@(p.TargetGoal ?? "—")</td>
+                                        <td>@(p.IsPreBuilt ? "Yes" : "No")</td>
+                                        <td class="actions-cell">
+                                            <button type="button" class="btn-action btn-edit-action" @onclick="() => StartEditProgram(p)">Edit</button>
+                                            <button type="button" class="btn-action btn-delete-action" @onclick="() => ConfirmDelete(p.Id, p.Name, _typeProgram)">Delete</button>
+                                        </td>
+                                    </tr>
+                                }
+                            </tbody>
+                        </table>
+                    </div>
+                }
+                break;
+        }
+
+        @if (_showDeleteConfirm)
+        {
+            <div class="modal-overlay" @onclick="CancelDelete">
+                <div class="modal-card" @onclick:stopPropagation>
+                    <h3>Confirm Delete</h3>
+                    <p>Are you sure you want to delete <strong>@_deleteItemName</strong>? This action cannot be undone.</p>
+                    <div class="modal-actions">
+                        <button type="button" class="btn-cancel" @onclick="CancelDelete">Cancel</button>
+                        <button type="button" class="btn-delete-confirm" @onclick="ExecuteDelete" disabled="@_isDeleting">
+                            @(_isDeleting ? "Deleting..." : "Delete")
+                        </button>
+                    </div>
+                </div>
+            </div>
+        }
+    </div>
+}
+
+@code {
+    private bool _isLoading = true;
+    private bool _isAdmin;
+    private int _userId;
+
+    private const string _typeExercise = "exercise";
+    private const string _typeWorkout = "workout";
+    private const string _typeEquipment = "equipment";
+    private const string _typeMuscleGroup = "musclegroup";
+    private const string _typeFood = "food";
+    private const string _typeProgram = "program";
+
+    private AdminCounts _counts = new();
+    private List<User> _users = new();
+    private List<Exercise> _exercises = new();
+    private List<Workout> _workouts = new();
+    private List<Equipment> _equipment = new();
+    private List<MuscleGroup> _muscleGroups = new();
+    private List<Food> _foods = new();
+    private List<Models.Program> _programs = new();
+
+    private readonly string[] _tabs = { "Users", "Exercises", "Workouts", "Equipment", "Muscle Groups", "Foods", "Programs" };
+    private string _activeTab = "Users";
+
+    private string? _message;
+    private bool _isError;
+    private bool _isSaving;
+
+    private bool _showExerciseForm;
+    private bool _showWorkoutForm;
+    private bool _showEquipmentForm;
+    private bool _showMuscleGroupForm;
+    private bool _showFoodForm;
+    private bool _showProgramForm;
+
+    private int? _editingExerciseId;
+    private int? _editingWorkoutId;
+    private int? _editingEquipmentId;
+    private int? _editingMuscleGroupId;
+    private int? _editingFoodId;
+    private int? _editingProgramId;
+
+    private ExerciseFormData _exerciseForm = new();
+    private WorkoutFormData _workoutForm = new();
+    private string _equipmentFormName = "";
+    private MuscleGroupFormData _muscleGroupForm = new();
+    private FoodFormData _foodForm = new();
+    private ProgramFormData _programForm = new();
+
+    private bool _showDeleteConfirm;
+    private string _deleteItemName = "";
+    private int _deleteItemId;
+    private string _deleteItemType = "";
+    private bool _isDeleting;
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!firstRender) return;
+
+        var state = await AuthState.GetAuthenticationStateAsync();
+        if (state.User.Identity is not { IsAuthenticated: true })
+        {
+            try { Navigation.NavigateTo("/login", forceLoad: true); } catch { }
+            return;
+        }
+
+        _userId = int.Parse(state.User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)!.Value);
+        _isAdmin = await AdminService.IsAdminAsync(_userId);
+
+        if (!_isAdmin)
+        {
+            _isLoading = false;
+            StateHasChanged();
+            return;
+        }
+
+        await LoadAllData();
+        _isLoading = false;
+        StateHasChanged();
+    }
+
+    private async Task LoadAllData()
+    {
+        _counts = await AdminService.GetCountsAsync();
+        _users = await AdminService.GetAllUsersAsync();
+        _exercises = await AdminService.GetAllExercisesAsync();
+        _workouts = await AdminService.GetAllWorkoutsAsync();
+        _equipment = await AdminService.GetAllEquipmentAsync();
+        _muscleGroups = await AdminService.GetAllMuscleGroupsAsync();
+        _foods = await AdminService.GetAllFoodsAsync();
+        _programs = await AdminService.GetAllProgramsAsync();
+    }
+
+    private void SwitchTab(string tab)
+    {
+        _activeTab = tab;
+        _message = null;
+        HideAllForms();
+    }
+
+    private void HideAllForms()
+    {
+        _showExerciseForm = false;
+        _showWorkoutForm = false;
+        _showEquipmentForm = false;
+        _showMuscleGroupForm = false;
+        _showFoodForm = false;
+        _showProgramForm = false;
+    }
+
+    private void ShowMessage(string text, bool isError)
+    {
+        _message = text;
+        _isError = isError;
+    }
+
+    private void ConfirmDelete(int id, string name, string type)
+    {
+        _deleteItemId = id;
+        _deleteItemName = name;
+        _deleteItemType = type;
+        _showDeleteConfirm = true;
+    }
+
+    private void CancelDelete() => _showDeleteConfirm = false;
+
+    private async Task ExecuteDelete()
+    {
+        _isDeleting = true;
+
+        bool success = _deleteItemType switch
+        {
+            _typeExercise => await AdminService.DeleteExerciseAsync(_deleteItemId),
+            _typeWorkout => await AdminService.DeleteWorkoutAsync(_deleteItemId),
+            _typeEquipment => await AdminService.DeleteEquipmentAsync(_deleteItemId),
+            _typeMuscleGroup => await AdminService.DeleteMuscleGroupAsync(_deleteItemId),
+            _typeFood => await AdminService.DeleteFoodAsync(_deleteItemId),
+            _typeProgram => await AdminService.DeleteProgramAsync(_deleteItemId),
+            _ => false
+        };
+
+        if (success)
+        {
+            await RefreshDataForType(_deleteItemType);
+            _counts = await AdminService.GetCountsAsync();
+            ShowMessage($"{FormatTypeName(_deleteItemType)} deleted.", false);
+        }
+        else
+        {
+            ShowMessage($"Failed to delete {_deleteItemType}.", true);
+        }
+
+        _showDeleteConfirm = false;
+        _isDeleting = false;
+    }
+
+    private async Task RefreshDataForType(string type)
+    {
+        switch (type)
+        {
+            case _typeExercise: _exercises = await AdminService.GetAllExercisesAsync(); break;
+            case _typeWorkout: _workouts = await AdminService.GetAllWorkoutsAsync(); break;
+            case _typeEquipment: _equipment = await AdminService.GetAllEquipmentAsync(); break;
+            case _typeMuscleGroup: _muscleGroups = await AdminService.GetAllMuscleGroupsAsync(); break;
+            case _typeFood: _foods = await AdminService.GetAllFoodsAsync(); break;
+            case _typeProgram: _programs = await AdminService.GetAllProgramsAsync(); break;
+        }
+    }
+
+    private static string FormatTypeName(string type) => type switch
+    {
+        _typeMuscleGroup => "Muscle group",
+        _ => char.ToUpper(type[0]) + type[1..]
+    };
+
+    private void StartAddExercise()
+    {
+        _editingExerciseId = null;
+        _exerciseForm = new ExerciseFormData();
+        _showExerciseForm = true;
+        _message = null;
+    }
+
+    private async Task StartEditExercise(int id)
+    {
+        var ex = await AdminService.GetExerciseByIdAsync(id);
+        if (ex is null) return;
+
+        _editingExerciseId = id;
+        _exerciseForm = new ExerciseFormData
+        {
+            Name = ex.Name,
+            Description = ex.Description,
+            ExerciseType = ex.ExerciseType,
+            DifficultyRating = ex.DifficultyRating,
+            Level = ex.Level,
+            MovementType = ex.MovementType,
+            MetValue = ex.MetValue,
+            RepTimeSec = ex.RepTimeSec,
+            MuscleGroupIds = ex.ExerciseMuscleGroups.Select(m => m.MuscleGroupId).ToList(),
+            PrimaryMuscleGroupIds = ex.ExerciseMuscleGroups.Where(m => m.IsPrimary).Select(m => m.MuscleGroupId).ToList(),
+            EquipmentIds = ex.ExerciseEquipment.Select(e => e.EquipmentId).ToList()
+        };
+        _showExerciseForm = true;
+        _message = null;
+    }
+
+    private async Task SaveExercise()
+    {
+        _isSaving = true;
+        _message = null;
+
+        if (string.IsNullOrWhiteSpace(_exerciseForm.Name) || string.IsNullOrWhiteSpace(_exerciseForm.Description))
+        {
+            ShowMessage("Name and description are required.", true);
+            _isSaving = false;
+            return;
+        }
+
+        if (_editingExerciseId.HasValue)
+        {
+            var success = await AdminService.UpdateExerciseAsync(_editingExerciseId.Value, _exerciseForm);
+            ShowMessage(success ? "Exercise updated." : "Failed to update exercise.", !success);
+        }
+        else
+        {
+            await AdminService.CreateExerciseAsync(_exerciseForm);
+            ShowMessage("Exercise created.", false);
+        }
+
+        _exercises = await AdminService.GetAllExercisesAsync();
+        _counts = await AdminService.GetCountsAsync();
+        _showExerciseForm = false;
+        _isSaving = false;
+    }
+
+    private void StartAddWorkout()
+    {
+        _editingWorkoutId = null;
+        _workoutForm = new WorkoutFormData { UserId = _users.FirstOrDefault()?.Id ?? _userId };
+        _showWorkoutForm = true;
+        _message = null;
+    }
+
+    private async Task StartEditWorkout(int id)
+    {
+        var w = await AdminService.GetWorkoutByIdAsync(id);
+        if (w is null) return;
+
+        _editingWorkoutId = id;
+        _workoutForm = new WorkoutFormData
+        {
+            Name = w.Name,
+            UserId = w.UserId,
+            ProgramId = w.ProgramId,
+            SortOrder = w.SortOrder,
+            Exercises = w.WorkoutExercises.OrderBy(we => we.SortOrder).Select(we => new WorkoutExerciseEntry
+            {
+                ExerciseId = we.ExerciseId,
+                Sets = we.Sets,
+                Reps = we.Reps,
+                RestTimeSec = we.RestTimeSec
+            }).ToList()
+        };
+        _showWorkoutForm = true;
+        _message = null;
+    }
+
+    private async Task SaveWorkout()
+    {
+        _isSaving = true;
+        _message = null;
+
+        if (string.IsNullOrWhiteSpace(_workoutForm.Name))
+        {
+            ShowMessage("Name is required.", true);
+            _isSaving = false;
+            return;
+        }
+
+        if (_editingWorkoutId.HasValue)
+        {
+            var success = await AdminService.UpdateWorkoutAsync(_editingWorkoutId.Value, _workoutForm);
+            ShowMessage(success ? "Workout updated." : "Failed to update workout.", !success);
+        }
+        else
+        {
+            await AdminService.CreateWorkoutAsync(_workoutForm);
+            ShowMessage("Workout created.", false);
+        }
+
+        _workouts = await AdminService.GetAllWorkoutsAsync();
+        _counts = await AdminService.GetCountsAsync();
+        _showWorkoutForm = false;
+        _isSaving = false;
+    }
+
+    private void StartAddEquipment()
+    {
+        _editingEquipmentId = null;
+        _equipmentFormName = "";
+        _showEquipmentForm = true;
+        _message = null;
+    }
+
+    private void StartEditEquipment(Equipment eq)
+    {
+        _editingEquipmentId = eq.Id;
+        _equipmentFormName = eq.Name;
+        _showEquipmentForm = true;
+        _message = null;
+    }
+
+    private async Task SaveEquipment()
+    {
+        _isSaving = true;
+        _message = null;
+
+        if (string.IsNullOrWhiteSpace(_equipmentFormName))
+        {
+            ShowMessage("Name is required.", true);
+            _isSaving = false;
+            return;
+        }
+
+        if (_editingEquipmentId.HasValue)
+        {
+            var success = await AdminService.UpdateEquipmentAsync(_editingEquipmentId.Value, _equipmentFormName);
+            ShowMessage(success ? "Equipment updated." : "Failed to update equipment.", !success);
+        }
+        else
+        {
+            await AdminService.CreateEquipmentAsync(_equipmentFormName);
+            ShowMessage("Equipment created.", false);
+        }
+
+        _equipment = await AdminService.GetAllEquipmentAsync();
+        _counts = await AdminService.GetCountsAsync();
+        _showEquipmentForm = false;
+        _isSaving = false;
+    }
+
+    private void StartAddMuscleGroup()
+    {
+        _editingMuscleGroupId = null;
+        _muscleGroupForm = new MuscleGroupFormData();
+        _showMuscleGroupForm = true;
+        _message = null;
+    }
+
+    private void StartEditMuscleGroup(MuscleGroup mg)
+    {
+        _editingMuscleGroupId = mg.Id;
+        _muscleGroupForm = new MuscleGroupFormData { Name = mg.Name, BodyRegion = mg.BodyRegion };
+        _showMuscleGroupForm = true;
+        _message = null;
+    }
+
+    private async Task SaveMuscleGroup()
+    {
+        _isSaving = true;
+        _message = null;
+
+        if (string.IsNullOrWhiteSpace(_muscleGroupForm.Name))
+        {
+            ShowMessage("Name is required.", true);
+            _isSaving = false;
+            return;
+        }
+
+        if (_editingMuscleGroupId.HasValue)
+        {
+            var success = await AdminService.UpdateMuscleGroupAsync(_editingMuscleGroupId.Value, _muscleGroupForm);
+            ShowMessage(success ? "Muscle group updated." : "Failed to update muscle group.", !success);
+        }
+        else
+        {
+            await AdminService.CreateMuscleGroupAsync(_muscleGroupForm);
+            ShowMessage("Muscle group created.", false);
+        }
+
+        _muscleGroups = await AdminService.GetAllMuscleGroupsAsync();
+        _counts = await AdminService.GetCountsAsync();
+        _showMuscleGroupForm = false;
+        _isSaving = false;
+    }
+
+    private void StartAddFood()
+    {
+        _editingFoodId = null;
+        _foodForm = new FoodFormData();
+        _showFoodForm = true;
+        _message = null;
+    }
+
+    private void StartEditFood(Food f)
+    {
+        _editingFoodId = f.Id;
+        _foodForm = new FoodFormData
+        {
+            Name = f.Name,
+            CaloriesPer100g = f.CaloriesPer100g,
+            ProteinPer100g = f.ProteinPer100g,
+            CarbsPer100g = f.CarbsPer100g,
+            FatPer100g = f.FatPer100g
+        };
+        _showFoodForm = true;
+        _message = null;
+    }
+
+    private async Task SaveFood()
+    {
+        _isSaving = true;
+        _message = null;
+
+        if (string.IsNullOrWhiteSpace(_foodForm.Name))
+        {
+            ShowMessage("Name is required.", true);
+            _isSaving = false;
+            return;
+        }
+
+        if (_editingFoodId.HasValue)
+        {
+            var success = await AdminService.UpdateFoodAsync(_editingFoodId.Value, _foodForm);
+            ShowMessage(success ? "Food updated." : "Failed to update food.", !success);
+        }
+        else
+        {
+            await AdminService.CreateFoodAsync(_foodForm);
+            ShowMessage("Food created.", false);
+        }
+
+        _foods = await AdminService.GetAllFoodsAsync();
+        _counts = await AdminService.GetCountsAsync();
+        _showFoodForm = false;
+        _isSaving = false;
+    }
+
+    private void StartAddProgram()
+    {
+        _editingProgramId = null;
+        _programForm = new ProgramFormData();
+        _showProgramForm = true;
+        _message = null;
+    }
+
+    private void StartEditProgram(Models.Program p)
+    {
+        _editingProgramId = p.Id;
+        _programForm = new ProgramFormData
+        {
+            Name = p.Name,
+            Description = p.Description,
+            DurationWeeks = p.DurationWeeks,
+            DaysPerWeek = p.DaysPerWeek,
+            TargetLevel = p.TargetLevel,
+            TargetGoal = p.TargetGoal,
+            IsPreBuilt = p.IsPreBuilt,
+            CreatedByUserId = p.CreatedByUserId
+        };
+        _showProgramForm = true;
+        _message = null;
+    }
+
+    private async Task SaveProgram()
+    {
+        _isSaving = true;
+        _message = null;
+
+        if (string.IsNullOrWhiteSpace(_programForm.Name))
+        {
+            ShowMessage("Name is required.", true);
+            _isSaving = false;
+            return;
+        }
+
+        if (_editingProgramId.HasValue)
+        {
+            var success = await AdminService.UpdateProgramAsync(_editingProgramId.Value, _programForm);
+            ShowMessage(success ? "Program updated." : "Failed to update program.", !success);
+        }
+        else
+        {
+            await AdminService.CreateProgramAsync(_programForm);
+            ShowMessage("Program created.", false);
+        }
+
+        _programs = await AdminService.GetAllProgramsAsync();
+        _counts = await AdminService.GetCountsAsync();
+        _showProgramForm = false;
+        _isSaving = false;
+    }
+
+    private void ToggleExerciseMuscleGroup(int id)
+    {
+        if (!_exerciseForm.MuscleGroupIds.Remove(id))
+            _exerciseForm.MuscleGroupIds.Add(id);
+        else
+            _exerciseForm.PrimaryMuscleGroupIds.Remove(id);
+    }
+
+    private void ToggleExercisePrimaryMuscle(int id)
+    {
+        if (_exerciseForm.MuscleGroupIds.Contains(id))
+        {
+            if (!_exerciseForm.PrimaryMuscleGroupIds.Remove(id))
+                _exerciseForm.PrimaryMuscleGroupIds.Add(id);
+        }
+    }
+
+    private void ToggleExerciseEquipment(int id)
+    {
+        if (!_exerciseForm.EquipmentIds.Remove(id))
+            _exerciseForm.EquipmentIds.Add(id);
+    }
+
+    private void AddWorkoutExercise()
+    {
+        _workoutForm.Exercises.Add(new WorkoutExerciseEntry
+        {
+            ExerciseId = _exercises.FirstOrDefault()?.Id ?? 0
+        });
+    }
+
+    private void RemoveWorkoutExercise(int index)
+    {
+        if (index >= 0 && index < _workoutForm.Exercises.Count)
+            _workoutForm.Exercises.RemoveAt(index);
+    }
+
+    private RenderFragment RenderExerciseForm() => __builder =>
+    {
+        <div class="form-panel">
+            <h2 class="form-panel-title">@(_editingExerciseId.HasValue ? "Edit Exercise" : "Add Exercise")</h2>
+
+            <div class="form-grid">
+                <div class="form-group">
+                    <label class="form-label">Name *</label>
+                    <input class="form-input" @bind="_exerciseForm.Name" placeholder="Exercise name" />
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Type</label>
+                    <input class="form-input" @bind="_exerciseForm.ExerciseType" placeholder="e.g. Compound" />
+                </div>
+            </div>
+
+            <div class="form-group">
+                <label class="form-label">Description *</label>
+                <textarea class="form-input form-textarea" @bind="_exerciseForm.Description" rows="3" placeholder="How to perform this exercise"></textarea>
+            </div>
+
+            <div class="form-grid form-grid-4">
+                <div class="form-group">
+                    <label class="form-label">Level</label>
+                    <select class="form-input" @bind="_exerciseForm.Level">
+                        @foreach (var level in Enum.GetValues<ExerciseLevel>())
+                        {
+                            <option value="@level">@level</option>
+                        }
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Movement Type</label>
+                    <select class="form-input" @bind="_exerciseForm.MovementType">
+                        @foreach (var mt in Enum.GetValues<MovementType>())
+                        {
+                            <option value="@mt">@mt</option>
+                        }
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label class="form-label">MET Value</label>
+                    <input type="number" class="form-input" @bind="_exerciseForm.MetValue" step="0.1" min="0" />
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Difficulty (1-10)</label>
+                    <input type="number" class="form-input" @bind="_exerciseForm.DifficultyRating" min="1" max="10" />
+                </div>
+            </div>
+
+            <div class="form-group">
+                <label class="form-label">Rep Time (sec)</label>
+                <input type="number" class="form-input" style="max-width:200px" @bind="_exerciseForm.RepTimeSec" step="0.1" min="0" />
+            </div>
+
+            <div class="form-group">
+                <label class="form-label">Muscle Groups</label>
+                <div class="chip-grid">
+                    @foreach (var mg in _muscleGroups)
+                    {
+                        var isSelected = _exerciseForm.MuscleGroupIds.Contains(mg.Id);
+                        var isPrimary = _exerciseForm.PrimaryMuscleGroupIds.Contains(mg.Id);
+                        <div class="chip-wrapper">
+                            <button type="button" class="chip @(isSelected ? (isPrimary ? "chip-primary" : "chip-selected") : "")" @onclick="() => ToggleExerciseMuscleGroup(mg.Id)">
+                                @mg.Name
+                            </button>
+                            @if (isSelected)
+                            {
+                                <button type="button" class="chip-star @(isPrimary ? "active" : "")" title="Toggle primary" @onclick="() => ToggleExercisePrimaryMuscle(mg.Id)">★</button>
+                            }
+                        </div>
+                    }
+                </div>
+            </div>
+
+            <div class="form-group">
+                <label class="form-label">Equipment</label>
+                <div class="chip-grid">
+                    @foreach (var eq in _equipment)
+                    {
+                        var isSelected = _exerciseForm.EquipmentIds.Contains(eq.Id);
+                        <button type="button" class="chip @(isSelected ? "chip-selected" : "")" @onclick="() => ToggleExerciseEquipment(eq.Id)">
+                            @eq.Name
+                        </button>
+                    }
+                </div>
+            </div>
+
+            <div class="form-actions">
+                <button type="button" class="btn-cancel" @onclick="() => _showExerciseForm = false">Cancel</button>
+                <button type="button" class="btn-save" @onclick="SaveExercise" disabled="@_isSaving">
+                    @(_isSaving ? "Saving..." : (_editingExerciseId.HasValue ? "Update Exercise" : "Create Exercise"))
+                </button>
+            </div>
+        </div>
+    };
+
+    private RenderFragment RenderWorkoutForm() => __builder =>
+    {
+        <div class="form-panel">
+            <h2 class="form-panel-title">@(_editingWorkoutId.HasValue ? "Edit Workout" : "Add Workout")</h2>
+
+            <div class="form-grid">
+                <div class="form-group">
+                    <label class="form-label">Name *</label>
+                    <input class="form-input" @bind="_workoutForm.Name" placeholder="Workout name" />
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Assign to User</label>
+                    <select class="form-input" @bind="_workoutForm.UserId">
+                        @foreach (var u in _users)
+                        {
+                            <option value="@u.Id">@u.Username (@u.FullName)</option>
+                        }
+                    </select>
+                </div>
+            </div>
+
+            <div class="form-grid">
+                <div class="form-group">
+                    <label class="form-label">Program (optional)</label>
+                    <select class="form-input" @bind="_workoutForm.ProgramId">
+                        <option value="">None</option>
+                        @foreach (var p in _programs)
+                        {
+                            <option value="@p.Id">@p.Name</option>
+                        }
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Sort Order</label>
+                    <input type="number" class="form-input" @bind="_workoutForm.SortOrder" min="0" />
+                </div>
+            </div>
+
+            <div class="form-group">
+                <label class="form-label">Exercises</label>
+                @for (int i = 0; i < _workoutForm.Exercises.Count; i++)
+                {
+                    var idx = i;
+                    <div class="workout-exercise-row">
+                        <div class="form-group">
+                            <label class="form-label-sm">Exercise</label>
+                            <select class="form-input" @bind="_workoutForm.Exercises[idx].ExerciseId">
+                                @foreach (var ex in _exercises)
+                                {
+                                    <option value="@ex.Id">@ex.Name</option>
+                                }
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label-sm">Sets</label>
+                            <input type="number" class="form-input" @bind="_workoutForm.Exercises[idx].Sets" min="1" />
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label-sm">Reps</label>
+                            <input type="number" class="form-input" @bind="_workoutForm.Exercises[idx].Reps" min="1" />
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label-sm">Rest (s)</label>
+                            <input type="number" class="form-input" @bind="_workoutForm.Exercises[idx].RestTimeSec" min="0" />
+                        </div>
+                        <button type="button" class="remove-btn" @onclick="() => RemoveWorkoutExercise(idx)">Remove</button>
+                    </div>
+                }
+                <button type="button" class="add-btn" @onclick="AddWorkoutExercise">+ Add Exercise</button>
+            </div>
+
+            <div class="form-actions">
+                <button type="button" class="btn-cancel" @onclick="() => _showWorkoutForm = false">Cancel</button>
+                <button type="button" class="btn-save" @onclick="SaveWorkout" disabled="@_isSaving">
+                    @(_isSaving ? "Saving..." : (_editingWorkoutId.HasValue ? "Update Workout" : "Create Workout"))
+                </button>
+            </div>
+        </div>
+    };
+
+    private RenderFragment RenderEquipmentForm() => __builder =>
+    {
+        <div class="form-panel">
+            <h2 class="form-panel-title">@(_editingEquipmentId.HasValue ? "Edit Equipment" : "Add Equipment")</h2>
+
+            <div class="form-group">
+                <label class="form-label">Name *</label>
+                <input class="form-input" style="max-width:400px" @bind="_equipmentFormName" placeholder="Equipment name" />
+            </div>
+
+            <div class="form-actions">
+                <button type="button" class="btn-cancel" @onclick="() => _showEquipmentForm = false">Cancel</button>
+                <button type="button" class="btn-save" @onclick="SaveEquipment" disabled="@_isSaving">
+                    @(_isSaving ? "Saving..." : (_editingEquipmentId.HasValue ? "Update Equipment" : "Create Equipment"))
+                </button>
+            </div>
+        </div>
+    };
+
+    private RenderFragment RenderMuscleGroupForm() => __builder =>
+    {
+        <div class="form-panel">
+            <h2 class="form-panel-title">@(_editingMuscleGroupId.HasValue ? "Edit Muscle Group" : "Add Muscle Group")</h2>
+
+            <div class="form-grid">
+                <div class="form-group">
+                    <label class="form-label">Name *</label>
+                    <input class="form-input" @bind="_muscleGroupForm.Name" placeholder="Muscle group name" />
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Body Region</label>
+                    <input class="form-input" @bind="_muscleGroupForm.BodyRegion" placeholder="e.g. Upper Body, Legs, Core" />
+                </div>
+            </div>
+
+            <div class="form-actions">
+                <button type="button" class="btn-cancel" @onclick="() => _showMuscleGroupForm = false">Cancel</button>
+                <button type="button" class="btn-save" @onclick="SaveMuscleGroup" disabled="@_isSaving">
+                    @(_isSaving ? "Saving..." : (_editingMuscleGroupId.HasValue ? "Update Muscle Group" : "Create Muscle Group"))
+                </button>
+            </div>
+        </div>
+    };
+
+    private RenderFragment RenderFoodForm() => __builder =>
+    {
+        <div class="form-panel">
+            <h2 class="form-panel-title">@(_editingFoodId.HasValue ? "Edit Food" : "Add Food")</h2>
+
+            <div class="form-group">
+                <label class="form-label">Name *</label>
+                <input class="form-input" style="max-width:400px" @bind="_foodForm.Name" placeholder="Food name" />
+            </div>
+
+            <div class="form-grid form-grid-4">
+                <div class="form-group">
+                    <label class="form-label">Calories / 100g *</label>
+                    <input type="number" class="form-input" @bind="_foodForm.CaloriesPer100g" step="0.1" min="0" />
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Protein / 100g</label>
+                    <input type="number" class="form-input" @bind="_foodForm.ProteinPer100g" step="0.1" min="0" />
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Carbs / 100g</label>
+                    <input type="number" class="form-input" @bind="_foodForm.CarbsPer100g" step="0.1" min="0" />
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Fat / 100g</label>
+                    <input type="number" class="form-input" @bind="_foodForm.FatPer100g" step="0.1" min="0" />
+                </div>
+            </div>
+
+            <div class="form-actions">
+                <button type="button" class="btn-cancel" @onclick="() => _showFoodForm = false">Cancel</button>
+                <button type="button" class="btn-save" @onclick="SaveFood" disabled="@_isSaving">
+                    @(_isSaving ? "Saving..." : (_editingFoodId.HasValue ? "Update Food" : "Create Food"))
+                </button>
+            </div>
+        </div>
+    };
+
+    private RenderFragment RenderProgramForm() => __builder =>
+    {
+        <div class="form-panel">
+            <h2 class="form-panel-title">@(_editingProgramId.HasValue ? "Edit Program" : "Add Program")</h2>
+
+            <div class="form-group">
+                <label class="form-label">Name *</label>
+                <input class="form-input" style="max-width:400px" @bind="_programForm.Name" placeholder="Program name" />
+            </div>
+
+            <div class="form-group">
+                <label class="form-label">Description</label>
+                <textarea class="form-input form-textarea" @bind="_programForm.Description" rows="3" placeholder="Describe the program"></textarea>
+            </div>
+
+            <div class="form-grid form-grid-4">
+                <div class="form-group">
+                    <label class="form-label">Duration (weeks)</label>
+                    <input type="number" class="form-input" @bind="_programForm.DurationWeeks" min="1" />
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Days / Week</label>
+                    <input type="number" class="form-input" @bind="_programForm.DaysPerWeek" min="1" max="7" />
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Target Level</label>
+                    <select class="form-input" @bind="_programForm.TargetLevel">
+                        <option value="">Any</option>
+                        @foreach (var lvl in Enum.GetValues<FitnessLevel>())
+                        {
+                            <option value="@lvl.ToString()">@lvl</option>
+                        }
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Target Goal</label>
+                    <select class="form-input" @bind="_programForm.TargetGoal">
+                        <option value="">Any</option>
+                        @foreach (var g in Enum.GetValues<PrimaryGoal>())
+                        {
+                            <option value="@g.ToString()">@g</option>
+                        }
+                    </select>
+                </div>
+            </div>
+
+            <div class="form-group">
+                <label class="form-label">
+                    <input type="checkbox" @bind="_programForm.IsPreBuilt" /> Mark as pre-built program
+                </label>
+            </div>
+
+            <div class="form-actions">
+                <button type="button" class="btn-cancel" @onclick="() => _showProgramForm = false">Cancel</button>
+                <button type="button" class="btn-save" @onclick="SaveProgram" disabled="@_isSaving">
+                    @(_isSaving ? "Saving..." : (_editingProgramId.HasValue ? "Update Program" : "Create Program"))
+                </button>
+            </div>
+        </div>
+    };
+}

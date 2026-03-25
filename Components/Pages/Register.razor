@@ -31,6 +31,15 @@
         </div>
 
         <div class="form-group">
+            <label class="form-label" for="username">Username</label>
+            <InputText id="username"
+                       class="form-input"
+                       @bind-Value="registerModel.Username"
+                       placeholder="johndoe" />
+            <ValidationMessage For="() => registerModel.Username" />
+        </div>
+
+        <div class="form-group">
             <label class="form-label" for="regEmail">Email</label>
             <InputText id="regEmail"
                        class="form-input"
@@ -88,7 +97,7 @@
         errorMessage = null;
 
         var (success, error) = await AuthService.RegisterAsync(
-            registerModel.FullName, registerModel.Email, registerModel.Password);
+            registerModel.FullName, registerModel.Username, registerModel.Email, registerModel.Password);
 
         if (success)
         {
@@ -105,6 +114,11 @@
         [System.ComponentModel.DataAnnotations.Required(ErrorMessage = "Full name is required")]
         [System.ComponentModel.DataAnnotations.StringLength(100, MinimumLength = 2, ErrorMessage = "Name must be 2-100 characters")]
         public string FullName { get; set; } = "";
+
+        [System.ComponentModel.DataAnnotations.Required(ErrorMessage = "Username is required")]
+        [System.ComponentModel.DataAnnotations.StringLength(50, MinimumLength = 3, ErrorMessage = "Username must be 3-50 characters")]
+        [System.ComponentModel.DataAnnotations.RegularExpression(@"^[a-zA-Z0-9_.-]+$", ErrorMessage = "Username can only contain letters, numbers, underscores, dots, and hyphens")]
+        public string Username { get; set; } = "";
 
         [System.ComponentModel.DataAnnotations.Required(ErrorMessage = "Email is required")]
         [System.ComponentModel.DataAnnotations.EmailAddress(ErrorMessage = "Invalid email format")]
