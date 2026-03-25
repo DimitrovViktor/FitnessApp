@@ -27,3 +27,4 @@ wwwroot/lib/
 /fitnessapp.db
 /fitnessapp.db-shm
 /fitnessapp.db-wal
+/tools/AddAdmin
