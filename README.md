@@ -10,6 +10,10 @@ Users can register, log in and they will be asked for information relevant to wo
 
 Users have a profile (profiles are private currently and users can't interact with each other)
 
+## Admin page
+
+Admin users have CRUD functionality over the database
+
 
 ## To-do
 
