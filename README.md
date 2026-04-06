@@ -14,6 +14,8 @@ Users have a profile (profiles are private currently and users can't interact wi
 
 Admin users have CRUD functionality over the database
 
+## Workouts page
+
 
 ## To-do
 
