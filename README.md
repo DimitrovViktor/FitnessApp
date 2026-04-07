@@ -16,12 +16,12 @@ Admin users have CRUD functionality over the database
 
 ## Workouts page
 
+Users can create workouts and select from premade ones
 
 ## To-do
 
 - User profiles - add profile system where users can search for each other and add each other as friends
 - Admin page
 - Exercises list - add base exercises
-- Workouts section - add premade workouts with workout types (exercises, timers, calories)
 - Running section - add running section with run estimations (timers, calories)
 - Foods section - add ingredients to use/avoid
