@@ -22,5 +22,5 @@ Users can create workouts and select from premade ones
 
 - User profiles - add profile system where users can search for each other and add each other as friends
 - Exercises list - add base exercises
-- Running section - add running section with run estimations (timers, calories)
+- Running section - add running section with run estimations (timers, calories, programs with recommended times and distances to build habit etc.)
 - Foods section - add ingredients to use/avoid
