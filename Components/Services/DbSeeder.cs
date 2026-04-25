@@ -14,6 +14,7 @@ public static class DbSeeder
         await SeedExercisesAsync(db);
         await SeedFoodsAsync(db);
         await SeedProgramsAsync(db);
+        await SeedPremadeWorkoutsAsync(db);
     }
 
     private static async Task SeedMuscleGroupsAsync(AppDbContext db)
@@ -52,36 +53,28 @@ public static class DbSeeder
         var muscles = await db.MuscleGroups.ToDictionaryAsync(m => m.Name, m => m.Id);
         var equipment = await db.Equipment.ToDictionaryAsync(e => e.Name, e => e.Id);
 
-        var exercises = BuildExerciseList();
-
-        foreach (var def in exercises)
+        foreach (var def in BuildExerciseList())
         {
             var exercise = new Exercise
             {
-                Name = def.Name,
-                Description = def.Description,
-                ExerciseType = def.ExerciseType,
-                DifficultyRating = def.Difficulty,
-                Level = def.Level,
-                MovementType = def.Movement,
-                MetValue = def.Met,
-                RepTimeSec = def.RepTime
+                Name = def.Name, Description = def.Description, ExerciseType = def.ExerciseType,
+                DifficultyRating = def.Difficulty, Level = def.Level, MovementType = def.Movement,
+                MetValue = def.Met, RepTimeSec = def.RepTime
             };
 
             db.Exercises.Add(exercise);
             await db.SaveChangesAsync();
 
             foreach (var (muscleName, isPrimary) in def.Muscles)
-            {
                 if (muscles.TryGetValue(muscleName, out var mgId))
                     db.ExerciseMuscleGroups.Add(new ExerciseMuscleGroup { ExerciseId = exercise.Id, MuscleGroupId = mgId, IsPrimary = isPrimary });
-            }
 
             foreach (var equipName in def.Equipment)
-            {
                 if (equipment.TryGetValue(equipName, out var eqId))
                     db.ExerciseEquipment.Add(new ExerciseEquipment { ExerciseId = exercise.Id, EquipmentId = eqId });
-            }
+
+            if (def.VideoUrl is not null)
+                db.ExerciseMedia.Add(new ExerciseMedia { ExerciseId = exercise.Id, MediaType = MediaType.Video, Url = def.VideoUrl, Title = def.Name, SortOrder = 0 });
 
             await db.SaveChangesAsync();
         }
@@ -90,7 +83,6 @@ public static class DbSeeder
     private static async Task SeedFoodsAsync(AppDbContext db)
     {
         if (await db.Foods.AnyAsync()) return;
-
         db.Foods.AddRange(BuildFoodList());
         await db.SaveChangesAsync();
     }
@@ -100,454 +92,252 @@ public static class DbSeeder
         if (await db.Programs.AnyAsync()) return;
 
         db.Programs.AddRange(
-            new ProgramEntity
-            {
-                Name = "Push Pull Legs",
-                Description = "A 6-day split that groups exercises by movement pattern. Push days train chest, shoulders, and triceps. Pull days train back and biceps. Leg days train quads, hamstrings, glutes, and calves. Each muscle group is hit twice per week for optimal hypertrophy.",
-                DurationWeeks = 12,
-                DaysPerWeek = 6,
-                TargetLevel = FitnessLevel.Intermediate.ToString(),
-                TargetGoal = PrimaryGoal.Hypertrophy.ToString(),
-                IsPreBuilt = true
-            },
-            new ProgramEntity
-            {
-                Name = "Upper Lower Split",
-                Description = "A 4-day program alternating between upper body and lower body sessions. Provides a balanced approach with adequate recovery time between sessions targeting the same muscles. Ideal for those who want solid results without training every day.",
-                DurationWeeks = 12,
-                DaysPerWeek = 4,
-                TargetLevel = FitnessLevel.Intermediate.ToString(),
-                TargetGoal = PrimaryGoal.Strength.ToString(),
-                IsPreBuilt = true
-            },
-            new ProgramEntity
-            {
-                Name = "Full Body 3-Day",
-                Description = "Three full-body sessions per week with a rest day between each. Every major muscle group is trained each session with compound movements. High frequency per muscle group makes this efficient for strength and general fitness.",
-                DurationWeeks = 8,
-                DaysPerWeek = 3,
-                TargetLevel = FitnessLevel.Beginner.ToString(),
-                TargetGoal = PrimaryGoal.GeneralHealth.ToString(),
-                IsPreBuilt = true
-            },
-            new ProgramEntity
-            {
-                Name = "Bro Split",
-                Description = "A 5-day body-part split dedicating one session to each major muscle group: chest, back, shoulders, legs, and arms. Each muscle gets maximum volume in a single session with a full week to recover before being trained again.",
-                DurationWeeks = 12,
-                DaysPerWeek = 5,
-                TargetLevel = FitnessLevel.Advanced.ToString(),
-                TargetGoal = PrimaryGoal.Hypertrophy.ToString(),
-                IsPreBuilt = true
-            },
-            new ProgramEntity
-            {
-                Name = "Beginner Fundamentals",
-                Description = "A structured introduction to resistance training focused on learning proper form and building a base of strength. Starts with machines and bodyweight movements, gradually introducing free weights. Progressive overload is built in week to week.",
-                DurationWeeks = 8,
-                DaysPerWeek = 3,
-                TargetLevel = FitnessLevel.Beginner.ToString(),
-                TargetGoal = PrimaryGoal.GeneralHealth.ToString(),
-                IsPreBuilt = true
-            },
-            new ProgramEntity
-            {
-                Name = "Couch to 5K",
-                Description = "An 8-week progressive running program that takes complete beginners from walking to running 5 kilometres continuously. Alternates between walking and running intervals, gradually increasing running duration each week.",
-                DurationWeeks = 8,
-                DaysPerWeek = 3,
-                TargetLevel = FitnessLevel.Beginner.ToString(),
-                TargetGoal = PrimaryGoal.Endurance.ToString(),
-                IsPreBuilt = true
-            },
-            new ProgramEntity
-            {
-                Name = "Strength Builder",
-                Description = "A 12-week strength-focused program built around the squat, bench press, deadlift, and overhead press. Uses linear periodisation with heavy compound lifts at low rep ranges. Accessories target weak points and muscular balance.",
-                DurationWeeks = 12,
-                DaysPerWeek = 4,
-                TargetLevel = FitnessLevel.Intermediate.ToString(),
-                TargetGoal = PrimaryGoal.Strength.ToString(),
-                IsPreBuilt = true
-            },
-            new ProgramEntity
-            {
-                Name = "Fat Loss Circuit",
-                Description = "A 6-week high-intensity program combining resistance training with cardiovascular conditioning. Uses circuit-style workouts with minimal rest to keep heart rate elevated. Pairs compound lifts with bodyweight cardio bursts for maximum calorie burn.",
-                DurationWeeks = 6,
-                DaysPerWeek = 4,
-                TargetLevel = FitnessLevel.Intermediate.ToString(),
-                TargetGoal = PrimaryGoal.FatLoss.ToString(),
-                IsPreBuilt = true
-            }
+            new ProgramEntity { Name = "Push Pull Legs", Description = "A 6-day split grouping exercises by movement pattern. Each muscle group is hit twice per week for optimal hypertrophy.", DurationWeeks = 12, DaysPerWeek = 6, TargetLevel = FitnessLevel.Intermediate.ToString(), TargetGoal = PrimaryGoal.Hypertrophy.ToString(), IsPreBuilt = true },
+            new ProgramEntity { Name = "Upper Lower Split", Description = "A 4-day program alternating upper and lower body with adequate recovery between sessions.", DurationWeeks = 12, DaysPerWeek = 4, TargetLevel = FitnessLevel.Intermediate.ToString(), TargetGoal = PrimaryGoal.Strength.ToString(), IsPreBuilt = true },
+            new ProgramEntity { Name = "Full Body 3-Day", Description = "Three full-body sessions per week hitting every major muscle group each session with compound movements.", DurationWeeks = 8, DaysPerWeek = 3, TargetLevel = FitnessLevel.Beginner.ToString(), TargetGoal = PrimaryGoal.GeneralHealth.ToString(), IsPreBuilt = true },
+            new ProgramEntity { Name = "Bro Split", Description = "A 5-day body-part split dedicating one session to each major muscle group with maximum volume.", DurationWeeks = 12, DaysPerWeek = 5, TargetLevel = FitnessLevel.Advanced.ToString(), TargetGoal = PrimaryGoal.Hypertrophy.ToString(), IsPreBuilt = true },
+            new ProgramEntity { Name = "Beginner Fundamentals", Description = "A structured introduction to resistance training focused on proper form and building a strength base.", DurationWeeks = 8, DaysPerWeek = 3, TargetLevel = FitnessLevel.Beginner.ToString(), TargetGoal = PrimaryGoal.GeneralHealth.ToString(), IsPreBuilt = true },
+            new ProgramEntity { Name = "Strength Builder", Description = "A 12-week strength program built around squat, bench, deadlift, and overhead press with linear periodisation.", DurationWeeks = 12, DaysPerWeek = 4, TargetLevel = FitnessLevel.Intermediate.ToString(), TargetGoal = PrimaryGoal.Strength.ToString(), IsPreBuilt = true },
+            new ProgramEntity { Name = "Fat Loss Circuit", Description = "A 6-week high-intensity program combining resistance training with cardiovascular conditioning for max calorie burn.", DurationWeeks = 6, DaysPerWeek = 4, TargetLevel = FitnessLevel.Intermediate.ToString(), TargetGoal = PrimaryGoal.FatLoss.ToString(), IsPreBuilt = true }
         );
 
         await db.SaveChangesAsync();
+    }
+
+    private static async Task SeedPremadeWorkoutsAsync(AppDbContext db)
+    {
+        if (await db.Workouts.AnyAsync()) return;
+
+        var admin = await db.Users.FirstOrDefaultAsync(u => u.IsAdmin);
+        if (admin is null) return;
+
+        var exercises = await db.Exercises.ToDictionaryAsync(e => e.Name, e => e.Id);
+        var programs = await db.Programs.ToDictionaryAsync(p => p.Name, p => p.Id);
+
+        var workouts = new List<(string Program, string Name, int Sort, (string Ex, int Sets, int Reps, int RestSec)[] Items)>
+        {
+            ("Push Pull Legs", "PPL Push A", 0, new[] {
+                ("Barbell Bench Press", 4, 8, 120), ("Incline Dumbbell Press", 3, 10, 90), ("Overhead Press", 3, 10, 90),
+                ("Lateral Raise", 3, 15, 60), ("Tricep Pushdown", 3, 12, 60), ("Cable Flye", 3, 12, 60)
+            }),
+            ("Push Pull Legs", "PPL Pull A", 1, new[] {
+                ("Barbell Row", 4, 8, 120), ("Pull-Up", 3, 8, 120), ("Seated Cable Row", 3, 10, 90),
+                ("Face Pull", 3, 15, 60), ("Barbell Curl", 3, 10, 60), ("Hammer Curl", 3, 12, 60)
+            }),
+            ("Push Pull Legs", "PPL Legs A", 2, new[] {
+                ("Barbell Back Squat", 4, 8, 180), ("Romanian Deadlift", 3, 10, 120), ("Leg Press", 3, 12, 90),
+                ("Leg Curl", 3, 12, 60), ("Standing Calf Raise", 4, 15, 45), ("Plank", 3, 1, 60)
+            }),
+            ("Push Pull Legs", "PPL Push B", 3, new[] {
+                ("Incline Barbell Bench Press", 4, 8, 120), ("Dumbbell Shoulder Press", 3, 10, 90), ("Dips", 3, 10, 90),
+                ("Lateral Raise", 4, 12, 60), ("Skull Crushers", 3, 10, 60), ("Close Grip Bench Press", 3, 10, 90)
+            }),
+            ("Push Pull Legs", "PPL Pull B", 4, new[] {
+                ("Conventional Deadlift", 4, 5, 180), ("Lat Pulldown", 3, 10, 90), ("Dumbbell Row", 3, 10, 90),
+                ("Reverse Flye", 3, 15, 60), ("Dumbbell Curl", 3, 12, 60), ("Wrist Curl", 3, 15, 45)
+            }),
+            ("Push Pull Legs", "PPL Legs B", 5, new[] {
+                ("Front Squat", 4, 8, 150), ("Bulgarian Split Squat", 3, 10, 90), ("Hip Thrust", 3, 12, 90),
+                ("Leg Extension", 3, 15, 60), ("Seated Calf Raise", 4, 15, 45), ("Hanging Leg Raise", 3, 12, 60)
+            }),
+
+            ("Upper Lower Split", "Upper A", 0, new[] {
+                ("Barbell Bench Press", 4, 6, 150), ("Barbell Row", 4, 6, 150), ("Overhead Press", 3, 8, 120),
+                ("Lat Pulldown", 3, 10, 90), ("Dumbbell Curl", 3, 10, 60), ("Tricep Pushdown", 3, 10, 60)
+            }),
+            ("Upper Lower Split", "Lower A", 1, new[] {
+                ("Barbell Back Squat", 4, 6, 180), ("Romanian Deadlift", 3, 8, 120), ("Leg Press", 3, 10, 90),
+                ("Leg Curl", 3, 12, 60), ("Standing Calf Raise", 4, 12, 45), ("Plank", 3, 1, 60)
+            }),
+            ("Upper Lower Split", "Upper B", 2, new[] {
+                ("Incline Dumbbell Press", 4, 8, 120), ("Chin-Up", 4, 8, 120), ("Dumbbell Shoulder Press", 3, 10, 90),
+                ("Seated Cable Row", 3, 10, 90), ("Hammer Curl", 3, 12, 60), ("Skull Crushers", 3, 10, 60)
+            }),
+            ("Upper Lower Split", "Lower B", 3, new[] {
+                ("Conventional Deadlift", 4, 5, 180), ("Front Squat", 3, 8, 150), ("Bulgarian Split Squat", 3, 10, 90),
+                ("Hip Thrust", 3, 10, 90), ("Seated Calf Raise", 4, 15, 45), ("Ab Wheel Rollout", 3, 10, 60)
+            }),
+
+            ("Full Body 3-Day", "Full Body A", 0, new[] {
+                ("Barbell Back Squat", 3, 8, 150), ("Barbell Bench Press", 3, 8, 120), ("Barbell Row", 3, 8, 120),
+                ("Dumbbell Shoulder Press", 2, 10, 90), ("Plank", 3, 1, 60)
+            }),
+            ("Full Body 3-Day", "Full Body B", 1, new[] {
+                ("Conventional Deadlift", 3, 5, 180), ("Incline Dumbbell Press", 3, 10, 90), ("Lat Pulldown", 3, 10, 90),
+                ("Lateral Raise", 3, 12, 60), ("Barbell Curl", 2, 10, 60)
+            }),
+            ("Full Body 3-Day", "Full Body C", 2, new[] {
+                ("Goblet Squat", 3, 10, 90), ("Dips", 3, 8, 90), ("Dumbbell Row", 3, 10, 90),
+                ("Face Pull", 3, 15, 60), ("Glute Bridge", 3, 12, 60)
+            }),
+
+            ("Bro Split", "Chest Day", 0, new[] {
+                ("Barbell Bench Press", 4, 8, 120), ("Incline Dumbbell Press", 4, 10, 90), ("Cable Flye", 3, 12, 60),
+                ("Incline Barbell Bench Press", 3, 10, 90), ("Dips", 3, 10, 90)
+            }),
+            ("Bro Split", "Back Day", 1, new[] {
+                ("Conventional Deadlift", 4, 5, 180), ("Barbell Row", 4, 8, 120), ("Pull-Up", 3, 8, 120),
+                ("Seated Cable Row", 3, 10, 90), ("Dumbbell Pullover", 3, 12, 60)
+            }),
+            ("Bro Split", "Shoulder Day", 2, new[] {
+                ("Overhead Press", 4, 8, 120), ("Dumbbell Shoulder Press", 3, 10, 90), ("Lateral Raise", 4, 15, 60),
+                ("Face Pull", 3, 15, 60), ("Reverse Flye", 3, 15, 60), ("Barbell Shrug", 4, 10, 60)
+            }),
+            ("Bro Split", "Leg Day", 3, new[] {
+                ("Barbell Back Squat", 5, 6, 180), ("Romanian Deadlift", 4, 8, 120), ("Leg Press", 3, 12, 90),
+                ("Leg Extension", 3, 15, 60), ("Leg Curl", 3, 12, 60), ("Standing Calf Raise", 4, 15, 45)
+            }),
+            ("Bro Split", "Arms Day", 4, new[] {
+                ("Barbell Curl", 4, 10, 60), ("Close Grip Bench Press", 4, 8, 90), ("Hammer Curl", 3, 12, 60),
+                ("Skull Crushers", 3, 10, 60), ("Preacher Curl", 3, 12, 60), ("Tricep Pushdown", 3, 12, 60)
+            }),
+
+            ("Beginner Fundamentals", "Beginner A", 0, new[] {
+                ("Goblet Squat", 3, 10, 90), ("Push-Up", 3, 8, 60), ("Lat Pulldown", 3, 10, 90),
+                ("Glute Bridge", 3, 12, 60), ("Plank", 3, 1, 60)
+            }),
+            ("Beginner Fundamentals", "Beginner B", 1, new[] {
+                ("Leg Press", 3, 10, 90), ("Dumbbell Shoulder Press", 3, 10, 90), ("Seated Cable Row", 3, 10, 90),
+                ("Dumbbell Curl", 2, 12, 60), ("Dead Bug", 3, 10, 45)
+            }),
+            ("Beginner Fundamentals", "Beginner C", 2, new[] {
+                ("Walking Lunge", 3, 10, 90), ("Incline Dumbbell Press", 3, 10, 90), ("Dumbbell Row", 3, 10, 90),
+                ("Face Pull", 3, 12, 60), ("Crunches", 3, 15, 45)
+            }),
+
+            ("Strength Builder", "Strength Squat", 0, new[] {
+                ("Barbell Back Squat", 5, 5, 240), ("Bulgarian Split Squat", 3, 8, 120), ("Leg Extension", 3, 10, 60),
+                ("Standing Calf Raise", 3, 12, 45), ("Plank", 3, 1, 60)
+            }),
+            ("Strength Builder", "Strength Bench", 1, new[] {
+                ("Barbell Bench Press", 5, 5, 240), ("Close Grip Bench Press", 3, 8, 120), ("Incline Dumbbell Press", 3, 8, 90),
+                ("Lateral Raise", 3, 12, 60), ("Tricep Pushdown", 3, 10, 60)
+            }),
+            ("Strength Builder", "Strength Deadlift", 2, new[] {
+                ("Conventional Deadlift", 5, 3, 300), ("Barbell Row", 4, 6, 150), ("Good Morning", 3, 8, 120),
+                ("Chin-Up", 3, 8, 120), ("Barbell Curl", 3, 10, 60)
+            }),
+            ("Strength Builder", "Strength OHP", 3, new[] {
+                ("Overhead Press", 5, 5, 240), ("Dumbbell Shoulder Press", 3, 8, 120), ("Face Pull", 3, 15, 60),
+                ("Dips", 3, 8, 90), ("Barbell Shrug", 3, 10, 60)
+            }),
+
+            ("Fat Loss Circuit", "Circuit A", 0, new[] {
+                ("Goblet Squat", 4, 12, 30), ("Push-Up", 4, 12, 30), ("Barbell Row", 4, 12, 30),
+                ("Walking Lunge", 3, 12, 30), ("Plank", 3, 1, 30)
+            }),
+            ("Fat Loss Circuit", "Circuit B", 1, new[] {
+                ("Kettlebell Swing", 4, 15, 30), ("Dips", 3, 10, 30), ("Lat Pulldown", 4, 12, 30),
+                ("Bulgarian Split Squat", 3, 12, 30), ("Russian Twist", 3, 15, 30)
+            }),
+            ("Fat Loss Circuit", "Circuit C", 2, new[] {
+                ("Barbell Back Squat", 4, 10, 45), ("Overhead Press", 3, 10, 30), ("Dumbbell Row", 4, 10, 30),
+                ("Hip Thrust", 3, 12, 30), ("Hanging Leg Raise", 3, 10, 30)
+            }),
+            ("Fat Loss Circuit", "Circuit D", 3, new[] {
+                ("Conventional Deadlift", 4, 8, 60), ("Incline Dumbbell Press", 3, 12, 30), ("Face Pull", 3, 15, 30),
+                ("Leg Press", 3, 12, 30), ("Crunches", 3, 20, 30)
+            })
+        };
+
+        foreach (var (programName, workoutName, sort, items) in workouts)
+        {
+            if (!programs.TryGetValue(programName, out var programId)) continue;
+
+            var workout = new Workout
+            {
+                Name = workoutName,
+                UserId = admin.Id,
+                ProgramId = programId,
+                SortOrder = sort
+            };
+
+            db.Workouts.Add(workout);
+            await db.SaveChangesAsync();
+
+            for (int i = 0; i < items.Length; i++)
+            {
+                var (exName, sets, reps, rest) = items[i];
+                if (!exercises.TryGetValue(exName, out var exId)) continue;
+
+                db.WorkoutExercises.Add(new WorkoutExercise
+                {
+                    WorkoutId = workout.Id,
+                    ExerciseId = exId,
+                    Sets = sets,
+                    Reps = reps,
+                    RestTimeSec = rest,
+                    SortOrder = i
+                });
+            }
+
+            await db.SaveChangesAsync();
+        }
     }
 
     private static List<ExerciseSeed> BuildExerciseList()
     {
         return new List<ExerciseSeed>
         {
-            new("Barbell Bench Press",
-                "Lie on a flat bench with feet flat on the floor. Grip the barbell slightly wider than shoulder width. Unrack and lower the bar to mid-chest with elbows at roughly 45 degrees. Press the bar back up to full lockout. Keep shoulder blades retracted and maintain a slight arch in the upper back throughout.",
-                "Compound", 5, ExerciseLevel.Intermediate, MovementType.Push, 5.0m, 4.0m,
-                new[] { ("Chest", true), ("Triceps", false), ("Front Delts", false) },
-                new[] { "Barbell & Plates", "Bench" }),
-
-            new("Incline Dumbbell Press",
-                "Set an adjustable bench to 30-45 degrees. Hold a dumbbell in each hand at shoulder level with palms facing forward. Press the dumbbells up and slightly inward until arms are extended. Lower under control to the starting position. The incline angle emphasises the upper portion of the chest.",
-                "Compound", 4, ExerciseLevel.Intermediate, MovementType.Push, 5.0m, 4.0m,
-                new[] { ("Upper Chest", true), ("Front Delts", false), ("Triceps", false) },
-                new[] { "Dumbbells", "Bench" }),
-
-            new("Overhead Press",
-                "Stand with feet shoulder width apart holding a barbell at shoulder height with an overhand grip. Brace the core and press the bar overhead until arms are fully locked out. Lower the bar back to shoulder height under control. Keep the ribcage down and avoid excessive arching of the lower back.",
-                "Compound", 5, ExerciseLevel.Intermediate, MovementType.Push, 5.0m, 4.0m,
-                new[] { ("Front Delts", true), ("Side Delts", false), ("Triceps", false) },
-                new[] { "Barbell & Plates" }),
-
-            new("Dumbbell Shoulder Press",
-                "Sit on a bench with back support or stand with feet shoulder width apart. Hold dumbbells at shoulder height with palms facing forward. Press the dumbbells overhead until arms are fully extended. Lower them back to shoulder height with control.",
-                "Compound", 4, ExerciseLevel.Beginner, MovementType.Push, 5.0m, 4.0m,
-                new[] { ("Front Delts", true), ("Side Delts", false), ("Triceps", false) },
-                new[] { "Dumbbells" }),
-
-            new("Push-Up",
-                "Start in a high plank position with hands slightly wider than shoulder width. Keep the body in a straight line from head to heels. Lower the chest to the floor by bending the elbows. Push back up to the starting position. Engage the core throughout and avoid letting the hips sag or pike up.",
-                "Compound", 3, ExerciseLevel.Beginner, MovementType.Push, 8.0m, 3.0m,
-                new[] { ("Chest", true), ("Triceps", false), ("Front Delts", false), ("Abs", false) },
-                new[] { "Bodyweight Only" }),
-
-            new("Dips",
-                "Grip parallel bars and support your body with arms fully extended. Lean the torso slightly forward. Lower the body by bending the elbows until upper arms are at least parallel to the floor. Press back up to full lockout. A greater forward lean targets the chest more while staying upright emphasises the triceps.",
-                "Compound", 5, ExerciseLevel.Intermediate, MovementType.Push, 8.0m, 3.5m,
-                new[] { ("Chest", true), ("Triceps", true), ("Front Delts", false) },
-                new[] { "Bodyweight Only" }),
-
-            new("Lateral Raise",
-                "Stand with dumbbells at your sides and a slight bend in the elbows. Raise the dumbbells out to the sides until arms are parallel to the floor. Keep a slight forward lean and lead with the elbows. Lower under control. Avoid using momentum or shrugging the traps.",
-                "Isolation", 2, ExerciseLevel.Beginner, MovementType.Push, 3.5m, 3.0m,
-                new[] { ("Side Delts", true) },
-                new[] { "Dumbbells" }),
-
-            new("Tricep Pushdown",
-                "Stand facing a cable machine with a straight bar or rope attachment at the high pulley. Grip the attachment with elbows pinned to your sides. Extend the forearms downward until arms are fully straight. Return to the starting position with control. Keep the upper arms stationary throughout.",
-                "Isolation", 2, ExerciseLevel.Beginner, MovementType.Push, 3.5m, 3.0m,
-                new[] { ("Triceps", true) },
-                new[] { "Cable Machine" }),
-
-            new("Skull Crushers",
-                "Lie on a flat bench holding an EZ bar or barbell with a narrow grip above the chest. Keeping the upper arms vertical, bend the elbows to lower the bar toward the forehead. Extend the elbows to press the bar back to the starting position. Keep the elbows pointing toward the ceiling throughout.",
-                "Isolation", 3, ExerciseLevel.Intermediate, MovementType.Push, 3.5m, 3.5m,
-                new[] { ("Triceps", true) },
-                new[] { "Barbell & Plates", "Bench" }),
-
-            new("Cable Flye",
-                "Set the pulleys to chest height on a cable crossover machine. Stand in the centre with a handle in each hand and step forward slightly. With a slight bend in the elbows, bring the hands together in front of the chest in an arc. Return to the starting position with arms wide. Squeeze the chest at peak contraction.",
-                "Isolation", 3, ExerciseLevel.Intermediate, MovementType.Push, 3.5m, 3.5m,
-                new[] { ("Chest", true) },
-                new[] { "Cable Machine" }),
-
-            new("Barbell Row",
-                "Stand with feet shoulder width apart, hinge at the hips until the torso is roughly 45 degrees to the floor. Grip the barbell with hands just outside the knees. Pull the bar into the lower chest or upper abdomen. Lower the bar back to arm's length with control. Keep the back flat and core braced throughout.",
-                "Compound", 5, ExerciseLevel.Intermediate, MovementType.Pull, 5.0m, 4.0m,
-                new[] { ("Upper Back", true), ("Lats", true), ("Biceps", false), ("Rear Delts", false) },
-                new[] { "Barbell & Plates" }),
-
-            new("Pull-Up",
-                "Hang from a pull-up bar with an overhand grip slightly wider than shoulder width. Pull the body up until the chin clears the bar by driving the elbows down and back. Lower under control to a full dead hang. Avoid swinging or kipping. Initiate the movement by depressing and retracting the shoulder blades.",
-                "Compound", 6, ExerciseLevel.Intermediate, MovementType.Pull, 8.0m, 4.0m,
-                new[] { ("Lats", true), ("Upper Back", false), ("Biceps", false), ("Forearms", false) },
-                new[] { "Pull-Up Bar" }),
-
-            new("Lat Pulldown",
-                "Sit at a lat pulldown machine with thighs secured under the pads. Grip the bar with a wide overhand grip. Pull the bar down to the upper chest by driving the elbows toward the hips. Return the bar to the top with control. Keep the chest up and avoid leaning back excessively.",
-                "Compound", 4, ExerciseLevel.Beginner, MovementType.Pull, 5.0m, 3.5m,
-                new[] { ("Lats", true), ("Upper Back", false), ("Biceps", false) },
-                new[] { "Cable Machine" }),
-
-            new("Seated Cable Row",
-                "Sit at a cable row station with feet on the footrests and knees slightly bent. Grip the handle and sit upright. Pull the handle to the lower chest by squeezing the shoulder blades together. Extend the arms back to the starting position with control. Avoid rounding the back at the bottom.",
-                "Compound", 4, ExerciseLevel.Beginner, MovementType.Pull, 5.0m, 3.5m,
-                new[] { ("Upper Back", true), ("Lats", false), ("Biceps", false) },
-                new[] { "Cable Machine" }),
-
-            new("Dumbbell Row",
-                "Place one hand and one knee on a flat bench with the other foot on the floor. Hold a dumbbell in the free hand with arm extended. Pull the dumbbell to the hip by driving the elbow back and up. Lower under control. Keep the back flat and avoid rotating the torso.",
-                "Compound", 3, ExerciseLevel.Beginner, MovementType.Pull, 5.0m, 3.5m,
-                new[] { ("Lats", true), ("Upper Back", false), ("Biceps", false), ("Rear Delts", false) },
-                new[] { "Dumbbells", "Bench" }),
-
-            new("Face Pull",
-                "Set a cable pulley to upper chest height with a rope attachment. Grip the rope with palms facing down and step back. Pull the rope toward the face by driving the elbows high and wide. Externally rotate the shoulders at the end so fists point toward the ceiling. Return to the starting position with control.",
-                "Isolation", 2, ExerciseLevel.Beginner, MovementType.Pull, 3.5m, 3.0m,
-                new[] { ("Rear Delts", true), ("Traps", false) },
-                new[] { "Cable Machine" }),
-
-            new("Barbell Curl",
-                "Stand with feet shoulder width apart holding a barbell with an underhand grip at arm's length. Keeping the elbows pinned to the sides, curl the bar up to shoulder height. Lower the bar back down under control. Avoid swinging the body or using momentum. Keep the wrists neutral.",
-                "Isolation", 2, ExerciseLevel.Beginner, MovementType.Pull, 3.5m, 3.0m,
-                new[] { ("Biceps", true), ("Forearms", false) },
-                new[] { "Barbell & Plates" }),
-
-            new("Dumbbell Curl",
-                "Stand with a dumbbell in each hand at arm's length with palms facing forward. Curl the dumbbells up to shoulder height while keeping the elbows stationary at the sides. Lower under control to full arm extension. Can be performed alternating or simultaneously.",
-                "Isolation", 2, ExerciseLevel.Beginner, MovementType.Pull, 3.5m, 3.0m,
-                new[] { ("Biceps", true), ("Forearms", false) },
-                new[] { "Dumbbells" }),
-
-            new("Hammer Curl",
-                "Stand holding dumbbells at your sides with palms facing each other in a neutral grip. Curl the dumbbells up to shoulder height while maintaining the neutral wrist position. Lower under control. This grip variation targets the brachioradialis and brachialis in addition to the biceps.",
-                "Isolation", 2, ExerciseLevel.Beginner, MovementType.Pull, 3.5m, 3.0m,
-                new[] { ("Biceps", true), ("Forearms", true) },
-                new[] { "Dumbbells" }),
-
-            new("Chin-Up",
-                "Hang from a bar with an underhand grip at shoulder width. Pull the body up until the chin clears the bar. Lower under control to a full dead hang. The supinated grip places greater emphasis on the biceps compared to a standard pull-up while still heavily engaging the back muscles.",
-                "Compound", 5, ExerciseLevel.Intermediate, MovementType.Pull, 8.0m, 4.0m,
-                new[] { ("Lats", true), ("Biceps", true), ("Upper Back", false) },
-                new[] { "Pull-Up Bar" }),
-
-            new("Barbell Back Squat",
-                "Position a barbell across the upper traps and rear delts. Stand with feet shoulder width apart and toes turned slightly out. Bend at the hips and knees to lower until thighs are at least parallel to the floor. Drive through the full foot to stand back up. Keep the chest up and knees tracking over the toes.",
-                "Compound", 7, ExerciseLevel.Intermediate, MovementType.Squat, 6.0m, 4.5m,
-                new[] { ("Quadriceps", true), ("Glutes", true), ("Hamstrings", false), ("Lower Back", false), ("Abs", false) },
-                new[] { "Barbell & Plates" }),
-
-            new("Front Squat",
-                "Rest a barbell across the front delts with elbows high and upper arms parallel to the floor. Stand with feet shoulder width apart. Squat down keeping the torso as upright as possible until thighs are parallel or below. Stand back up by driving through the full foot. The front-loaded position demands more quad engagement and core stability.",
-                "Compound", 7, ExerciseLevel.Advanced, MovementType.Squat, 6.0m, 4.5m,
-                new[] { ("Quadriceps", true), ("Glutes", false), ("Abs", false) },
-                new[] { "Barbell & Plates" }),
-
-            new("Goblet Squat",
-                "Hold a dumbbell or kettlebell vertically against the chest with both hands cupping one end. Stand with feet slightly wider than shoulder width. Squat down between the legs keeping the chest up and elbows inside the knees. Stand back up. An excellent movement for learning squat mechanics.",
-                "Compound", 3, ExerciseLevel.Beginner, MovementType.Squat, 5.0m, 4.0m,
-                new[] { ("Quadriceps", true), ("Glutes", true) },
-                new[] { "Dumbbells", "Kettlebells" }),
-
-            new("Leg Press",
-                "Sit in a leg press machine with feet shoulder width apart on the platform. Release the safety handles and lower the platform by bending the knees toward the chest. Press the platform away until legs are extended but not fully locked. Keep the lower back pressed into the pad throughout.",
-                "Compound", 4, ExerciseLevel.Beginner, MovementType.Squat, 5.0m, 3.5m,
-                new[] { ("Quadriceps", true), ("Glutes", false), ("Hamstrings", false) },
-                new[] { "Leg Press" }),
-
-            new("Bulgarian Split Squat",
-                "Stand about two feet in front of a bench and place the top of one foot on the bench behind you. Hold dumbbells at your sides. Lower the back knee toward the floor by bending the front leg. Push through the front foot to return to standing. Keep the torso upright throughout. Builds single-leg strength and addresses imbalances.",
-                "Compound", 5, ExerciseLevel.Intermediate, MovementType.Squat, 5.0m, 4.0m,
-                new[] { ("Quadriceps", true), ("Glutes", true), ("Hamstrings", false) },
-                new[] { "Dumbbells", "Bench" }),
-
-            new("Leg Extension",
-                "Sit in a leg extension machine with the pad resting on the front of the lower shins. Grip the handles and extend the legs until fully straight. Squeeze the quads at the top. Lower back to the starting position with control. Keep the back pressed firmly against the pad.",
-                "Isolation", 2, ExerciseLevel.Beginner, MovementType.Squat, 3.5m, 3.0m,
-                new[] { ("Quadriceps", true) },
-                new[] { "Full Gym Access" }),
-
-            new("Walking Lunge",
-                "Stand upright holding dumbbells at your sides or a barbell across the upper back. Step forward into a long stride and lower the back knee toward the floor. Push off the front foot and step the back foot forward into the next lunge. Alternate legs with each step. Keep the torso upright throughout.",
-                "Compound", 5, ExerciseLevel.Intermediate, MovementType.Squat, 6.0m, 3.5m,
-                new[] { ("Quadriceps", true), ("Glutes", true), ("Hamstrings", false) },
-                new[] { "Dumbbells" }),
-
-            new("Conventional Deadlift",
-                "Stand with feet hip width apart with the barbell over mid-foot. Hinge at the hips and grip the bar just outside the knees. With a flat back, drive through the floor to stand up, pulling the bar along the body. Lockout by squeezing the glutes at the top. Lower the bar by pushing the hips back. The king of posterior chain exercises.",
-                "Compound", 8, ExerciseLevel.Intermediate, MovementType.Hinge, 6.0m, 5.0m,
-                new[] { ("Hamstrings", true), ("Glutes", true), ("Lower Back", true), ("Traps", false), ("Forearms", false) },
-                new[] { "Barbell & Plates" }),
-
-            new("Romanian Deadlift",
-                "Hold a barbell at hip height with an overhand grip. With a slight bend in the knees, push the hips back and lower the bar along the front of the legs. Go down until you feel a strong stretch in the hamstrings. Drive the hips forward to return to standing. Keep the bar close to the body and back flat throughout.",
-                "Compound", 5, ExerciseLevel.Intermediate, MovementType.Hinge, 6.0m, 4.5m,
-                new[] { ("Hamstrings", true), ("Glutes", true), ("Lower Back", false) },
-                new[] { "Barbell & Plates" }),
-
-            new("Hip Thrust",
-                "Sit on the floor with the upper back against a bench and a loaded barbell across the hips. Plant the feet flat with knees bent at 90 degrees. Drive through the heels to lift the hips until the body forms a straight line from knees to shoulders. Squeeze the glutes hard at the top. Lower the hips back down with control.",
-                "Compound", 4, ExerciseLevel.Intermediate, MovementType.Hinge, 5.0m, 3.5m,
-                new[] { ("Glutes", true), ("Hamstrings", false) },
-                new[] { "Barbell & Plates", "Bench" }),
-
-            new("Kettlebell Swing",
-                "Stand with feet slightly wider than shoulder width holding a kettlebell with both hands. Hinge at the hips to swing the kettlebell between the legs. Snap the hips forward explosively to swing the kettlebell to chest height. Let gravity pull it back and hinge again. The power comes from the hip drive, not the arms.",
-                "Compound", 5, ExerciseLevel.Intermediate, MovementType.Hinge, 8.0m, null,
-                new[] { ("Glutes", true), ("Hamstrings", true), ("Lower Back", false), ("Abs", false) },
-                new[] { "Kettlebells" }),
-
-            new("Good Morning",
-                "Stand with a barbell across the upper back as you would for a squat. With a slight bend in the knees, push the hips back and hinge forward until the torso is nearly parallel to the floor. Drive the hips forward to return to standing. Keep the back flat and core braced. Use moderate weight as this heavily loads the posterior chain.",
-                "Compound", 5, ExerciseLevel.Intermediate, MovementType.Hinge, 5.0m, 4.0m,
-                new[] { ("Hamstrings", true), ("Lower Back", true), ("Glutes", false) },
-                new[] { "Barbell & Plates" }),
-
-            new("Leg Curl",
-                "Lie face down on a leg curl machine with the pad resting against the back of the lower legs just above the ankles. Curl the legs up toward the glutes by bending the knees. Lower back to the starting position with control. Keep the hips pressed into the pad to avoid compensating.",
-                "Isolation", 2, ExerciseLevel.Beginner, MovementType.Hinge, 3.5m, 3.0m,
-                new[] { ("Hamstrings", true) },
-                new[] { "Full Gym Access" }),
-
-            new("Glute Bridge",
-                "Lie face up on the floor with knees bent and feet flat. Drive through the heels to lift the hips off the floor until the body forms a straight line from knees to shoulders. Squeeze the glutes at the top. Lower the hips back to the floor. A foundational glute activation exercise suitable for all levels.",
-                "Isolation", 1, ExerciseLevel.Beginner, MovementType.Hinge, 3.5m, 3.0m,
-                new[] { ("Glutes", true), ("Hamstrings", false) },
-                new[] { "Bodyweight Only" }),
-
-            new("Plank",
-                "Support the body on forearms and toes with the body in a straight line from head to heels. Keep the core braced, glutes squeezed, and hips level. Avoid letting the hips sag toward the floor or pike up. Breathe normally throughout. Hold for time rather than reps.",
-                "Isometric", 3, ExerciseLevel.Beginner, MovementType.Isometric, 3.8m, null,
-                new[] { ("Abs", true), ("Obliques", false), ("Lower Back", false) },
-                new[] { "Bodyweight Only" }),
-
-            new("Dead Bug",
-                "Lie on the back with arms extended toward the ceiling and hips and knees bent at 90 degrees. Slowly extend one arm overhead and the opposite leg toward the floor simultaneously. Return to the starting position and repeat on the other side. Press the lower back into the floor throughout to maintain core engagement.",
-                "Isolation", 2, ExerciseLevel.Beginner, MovementType.Isometric, 3.8m, 4.0m,
-                new[] { ("Abs", true), ("Hip Flexors", false) },
-                new[] { "Bodyweight Only" }),
-
-            new("Russian Twist",
-                "Sit on the floor with knees bent and feet slightly off the ground. Lean the torso back to roughly 45 degrees. Hold a weight or medicine ball with both hands. Rotate the torso side to side, touching the weight to the floor beside each hip. Keep the chest up and core engaged. Control the rotation, do not use momentum.",
-                "Isolation", 3, ExerciseLevel.Beginner, MovementType.Rotation, 3.8m, 3.0m,
-                new[] { ("Obliques", true), ("Abs", false) },
-                new[] { "Bodyweight Only", "Medicine Ball" }),
-
-            new("Hanging Leg Raise",
-                "Hang from a pull-up bar with arms fully extended. Keeping the legs straight, raise them until they are parallel to the floor or higher. Lower them back down under control. Avoid swinging. To increase difficulty, raise the legs all the way to the bar. To decrease difficulty, bend the knees.",
-                "Isolation", 5, ExerciseLevel.Intermediate, MovementType.Isometric, 3.8m, 4.0m,
-                new[] { ("Abs", true), ("Hip Flexors", false), ("Obliques", false) },
-                new[] { "Pull-Up Bar" }),
-
-            new("Ab Wheel Rollout",
-                "Kneel on the floor holding an ab wheel with both hands. Slowly roll the wheel forward extending the body as far as you can while keeping the core tight and back flat. Pull the wheel back toward the knees using the abdominals to return to the starting position. Avoid letting the lower back collapse.",
-                "Compound", 6, ExerciseLevel.Intermediate, MovementType.Isometric, 5.0m, 4.0m,
-                new[] { ("Abs", true), ("Obliques", false), ("Lower Back", false) },
-                new[] { "Bodyweight Only" }),
-
-            new("Side Plank",
-                "Lie on one side supported by the forearm and the side of the bottom foot. Lift the hips off the floor until the body forms a straight line from head to feet. Hold the position while keeping the core engaged and hips stacked. Avoid letting the hips drop. Hold for time then switch sides.",
-                "Isometric", 3, ExerciseLevel.Beginner, MovementType.Isometric, 3.8m, null,
-                new[] { ("Obliques", true), ("Abs", false) },
-                new[] { "Bodyweight Only" }),
-
-            new("Cable Woodchop",
-                "Set a cable pulley to the high position. Stand sideways to the machine and grip the handle with both hands. Pull the handle diagonally across the body from high to low while rotating the torso. Control the return to the starting position. Keep the arms relatively straight and let the rotation come from the core.",
-                "Isolation", 3, ExerciseLevel.Intermediate, MovementType.Rotation, 3.8m, 3.5m,
-                new[] { ("Obliques", true), ("Abs", false) },
-                new[] { "Cable Machine" }),
-
-            new("Crunches",
-                "Lie face up with knees bent and feet flat on the floor. Place hands behind the head or across the chest. Curl the upper body toward the knees by contracting the abdominals. Lift only the shoulders and upper back off the floor. Lower back down with control. Avoid pulling on the neck.",
-                "Isolation", 1, ExerciseLevel.Beginner, MovementType.Isometric, 3.8m, 2.5m,
-                new[] { ("Abs", true) },
-                new[] { "Bodyweight Only" }),
-
-            new("Farmer's Walk",
-                "Stand holding a heavy dumbbell or kettlebell in each hand at your sides. Walk forward with controlled steps keeping the torso upright, shoulders back, and core tight. Maintain a strong grip throughout. Walk for a set distance or time. Builds grip strength, core stability, and overall conditioning.",
-                "Compound", 4, ExerciseLevel.Beginner, MovementType.Carry, 6.0m, null,
-                new[] { ("Forearms", true), ("Traps", true), ("Abs", false) },
-                new[] { "Dumbbells", "Kettlebells" }),
-
-            new("Standing Calf Raise",
-                "Stand on the edge of a step or calf raise machine with the balls of the feet on the platform and heels hanging off. Rise up onto the toes as high as possible, squeezing the calves at the top. Lower the heels below the platform for a full stretch. Use a slow controlled tempo for best results.",
-                "Isolation", 1, ExerciseLevel.Beginner, MovementType.Squat, 3.5m, 2.5m,
-                new[] { ("Calves", true) },
-                new[] { "Bodyweight Only" }),
-
-            new("Seated Calf Raise",
-                "Sit at a seated calf raise machine with the pads resting on the lower thighs. Place the balls of the feet on the footplate. Press up through the toes lifting the weight. Lower the heels for a full stretch. The bent knee position targets the soleus muscle of the calf more than the standing variation.",
-                "Isolation", 1, ExerciseLevel.Beginner, MovementType.Squat, 3.5m, 2.5m,
-                new[] { ("Calves", true) },
-                new[] { "Full Gym Access" }),
-
-            new("Treadmill Running",
-                "Run on a treadmill at a steady pace. Maintain an upright posture with a slight forward lean. Land with feet under the hips and avoid overstriding. Swing the arms naturally. Adjust speed and incline based on fitness level and training goals. A versatile cardiovascular exercise suitable for all levels.",
-                "Cardio", 3, ExerciseLevel.Beginner, MovementType.Cardio, 9.8m, null,
-                new[] { ("Quadriceps", false), ("Hamstrings", false), ("Calves", false), ("Glutes", false) },
-                new[] { "Treadmill" }),
-
-            new("Stationary Cycling",
-                "Sit on a stationary bike with the seat adjusted so there is a slight bend in the knee at the bottom of the pedal stroke. Grip the handlebars lightly. Pedal at a steady cadence adjusting resistance as needed. Keep the core engaged and avoid rocking side to side. Effective low-impact cardio for all fitness levels.",
-                "Cardio", 2, ExerciseLevel.Beginner, MovementType.Cardio, 8.0m, null,
-                new[] { ("Quadriceps", false), ("Hamstrings", false), ("Calves", false) },
-                new[] { "Stationary Bike" }),
-
-            new("Rowing Machine",
-                "Sit on the rower with feet strapped in and knees bent. Grip the handle with an overhand grip. Drive with the legs first, then lean back slightly, then pull the handle to the lower chest. Return by extending the arms, leaning forward, then bending the knees. Maintain a fluid sequence throughout each stroke.",
-                "Cardio", 3, ExerciseLevel.Beginner, MovementType.Cardio, 7.0m, null,
-                new[] { ("Upper Back", false), ("Lats", false), ("Quadriceps", false), ("Hamstrings", false) },
-                new[] { "Rowing Machine" }),
-
-            new("Jump Rope",
-                "Stand holding a jump rope with handles at hip height. Swing the rope overhead and jump with both feet just high enough to clear it. Land softly on the balls of the feet. Keep the elbows close to the body and turn the rope primarily with the wrists. Maintain a steady rhythm and upright posture.",
-                "Cardio", 4, ExerciseLevel.Intermediate, MovementType.Cardio, 12.3m, null,
-                new[] { ("Calves", false), ("Quadriceps", false) },
-                new[] { "Bodyweight Only" }),
-
-            new("Stair Climber",
-                "Step onto a stair climber machine and grip the side rails lightly for balance. Step at a steady pace pushing through the full foot on each step. Maintain an upright posture and avoid leaning heavily on the rails. Adjust the speed based on fitness level. Excellent for building lower body endurance and cardiovascular fitness.",
-                "Cardio", 4, ExerciseLevel.Beginner, MovementType.Cardio, 9.0m, null,
-                new[] { ("Quadriceps", false), ("Glutes", false), ("Calves", false) },
-                new[] { "Full Gym Access" }),
-
-            new("Chest Supported Row",
-                "Lie face down on an incline bench set to 30-45 degrees. Hold a dumbbell in each hand with arms hanging straight down. Pull the dumbbells up to the sides of the chest by squeezing the shoulder blades together. Lower under control. The bench support eliminates momentum and lower back strain.",
-                "Compound", 3, ExerciseLevel.Beginner, MovementType.Pull, 5.0m, 3.5m,
-                new[] { ("Upper Back", true), ("Lats", false), ("Rear Delts", false), ("Biceps", false) },
-                new[] { "Dumbbells", "Bench" }),
-
-            new("Reverse Flye",
-                "Bend forward at the hips until the torso is nearly parallel to the floor. Hold dumbbells with arms hanging down and palms facing each other. Raise the dumbbells out to the sides by squeezing the shoulder blades together. Lower under control. Keep a slight bend in the elbows throughout.",
-                "Isolation", 2, ExerciseLevel.Beginner, MovementType.Pull, 3.5m, 3.0m,
-                new[] { ("Rear Delts", true), ("Upper Back", false) },
-                new[] { "Dumbbells" }),
-
-            new("Incline Barbell Bench Press",
-                "Set a bench to 30-45 degrees. Lie back and grip the barbell slightly wider than shoulder width. Unrack and lower the bar to the upper chest. Press the bar back up to lockout. Keep shoulder blades retracted and feet flat. The incline shifts emphasis to the upper chest and front delts.",
-                "Compound", 5, ExerciseLevel.Intermediate, MovementType.Push, 5.0m, 4.0m,
-                new[] { ("Upper Chest", true), ("Front Delts", false), ("Triceps", false) },
-                new[] { "Barbell & Plates", "Bench" }),
-
-            new("Close Grip Bench Press",
-                "Lie on a flat bench and grip the barbell at shoulder width or slightly narrower. Lower the bar to the lower chest keeping elbows close to the body. Press the bar back up to lockout. The narrow grip shifts emphasis from the chest to the triceps while still allowing heavy loads.",
-                "Compound", 5, ExerciseLevel.Intermediate, MovementType.Push, 5.0m, 4.0m,
-                new[] { ("Triceps", true), ("Chest", false), ("Front Delts", false) },
-                new[] { "Barbell & Plates", "Bench" }),
-
-            new("Sumo Deadlift",
-                "Stand with a wide stance and toes pointed out. Grip the barbell with hands inside the knees using a shoulder-width grip. With a flat back, drive through the floor to stand up. The wide stance shortens the range of motion and shifts emphasis to the quads and glutes compared to conventional.",
-                "Compound", 8, ExerciseLevel.Advanced, MovementType.Hinge, 6.0m, 5.0m,
-                new[] { ("Glutes", true), ("Quadriceps", true), ("Hamstrings", false), ("Lower Back", false) },
-                new[] { "Barbell & Plates" }),
-
-            new("Hack Squat",
-                "Stand in a hack squat machine with shoulders under the pads and feet shoulder width apart on the platform. Release the safety handles and lower by bending the knees until thighs are parallel. Press back up to the starting position. Keeps the torso fixed allowing you to focus entirely on the legs.",
-                "Compound", 4, ExerciseLevel.Intermediate, MovementType.Squat, 5.0m, 4.0m,
-                new[] { ("Quadriceps", true), ("Glutes", false) },
-                new[] { "Full Gym Access" }),
-
-            new("Preacher Curl",
-                "Sit at a preacher curl bench with the upper arms resting on the pad. Hold a barbell or dumbbells with an underhand grip. Curl the weight up toward the shoulders. Lower under control to full extension. The pad prevents momentum and isolates the biceps through the full range of motion.",
-                "Isolation", 2, ExerciseLevel.Beginner, MovementType.Pull, 3.5m, 3.5m,
-                new[] { ("Biceps", true) },
-                new[] { "Dumbbells", "Bench" }),
-
-            new("Wrist Curl",
-                "Sit on a bench with forearms resting on the thighs and wrists hanging over the knees. Hold a barbell or dumbbells with an underhand grip. Curl the wrists upward squeezing the forearms. Lower back down with control. Builds forearm size and grip endurance.",
-                "Isolation", 1, ExerciseLevel.Beginner, MovementType.Pull, 2.5m, 2.5m,
-                new[] { ("Forearms", true) },
-                new[] { "Dumbbells" }),
-
-            new("Barbell Shrug",
-                "Stand holding a barbell in front of the thighs with an overhand grip at shoulder width. Shrug the shoulders straight up toward the ears as high as possible. Hold the contraction briefly at the top. Lower back down with control. Avoid rolling the shoulders forward or backward.",
-                "Isolation", 2, ExerciseLevel.Beginner, MovementType.Pull, 3.5m, 2.5m,
-                new[] { ("Traps", true) },
-                new[] { "Barbell & Plates" }),
-
-            new("Dumbbell Pullover",
-                "Lie on a flat bench holding a single dumbbell with both hands above the chest with arms slightly bent. Lower the dumbbell behind the head in an arc until the arms are in line with the torso. Pull the dumbbell back over the chest using the lats and chest. Keep the core braced throughout.",
-                "Compound", 3, ExerciseLevel.Intermediate, MovementType.Pull, 4.0m, 4.0m,
-                new[] { ("Lats", true), ("Chest", false) },
-                new[] { "Dumbbells", "Bench" })
+            new("Barbell Bench Press", "Lie on a flat bench with feet flat on the floor. Grip the barbell slightly wider than shoulder width. Unrack and lower the bar to mid-chest with elbows at roughly 45 degrees. Press the bar back up to full lockout. Keep shoulder blades retracted and maintain a slight arch in the upper back throughout.", "Compound", 5, ExerciseLevel.Intermediate, MovementType.Push, 5.0m, 4.0m, new[] { ("Chest", true), ("Triceps", false), ("Front Delts", false) }, new[] { "Barbell & Plates", "Bench" }, "https://www.youtube.com/watch?v=rT7DgCr-3pg"),
+            new("Incline Dumbbell Press", "Set an adjustable bench to 30-45 degrees. Hold a dumbbell in each hand at shoulder level with palms facing forward. Press the dumbbells up and slightly inward until arms are extended. Lower under control to the starting position.", "Compound", 4, ExerciseLevel.Intermediate, MovementType.Push, 5.0m, 4.0m, new[] { ("Upper Chest", true), ("Front Delts", false), ("Triceps", false) }, new[] { "Dumbbells", "Bench" }, "https://www.youtube.com/watch?v=8iPEnn-ltC8"),
+            new("Overhead Press", "Stand with feet shoulder width apart holding a barbell at shoulder height. Brace the core and press the bar overhead until arms are fully locked out. Lower back to shoulder height under control.", "Compound", 5, ExerciseLevel.Intermediate, MovementType.Push, 5.0m, 4.0m, new[] { ("Front Delts", true), ("Side Delts", false), ("Triceps", false) }, new[] { "Barbell & Plates" }, "https://www.youtube.com/watch?v=2yjwXTZQDDI"),
+            new("Dumbbell Shoulder Press", "Sit on a bench with back support or stand. Hold dumbbells at shoulder height with palms facing forward. Press overhead until arms are fully extended. Lower back with control.", "Compound", 4, ExerciseLevel.Beginner, MovementType.Push, 5.0m, 4.0m, new[] { ("Front Delts", true), ("Side Delts", false), ("Triceps", false) }, new[] { "Dumbbells" }, null),
+            new("Push-Up", "Start in a high plank with hands slightly wider than shoulder width. Keep the body straight from head to heels. Lower the chest to the floor by bending the elbows. Push back up. Engage the core throughout.", "Compound", 3, ExerciseLevel.Beginner, MovementType.Push, 8.0m, 3.0m, new[] { ("Chest", true), ("Triceps", false), ("Front Delts", false), ("Abs", false) }, new[] { "Bodyweight Only" }, null),
+            new("Dips", "Grip parallel bars with arms fully extended. Lean slightly forward. Lower by bending elbows until upper arms are parallel to floor. Press back up to lockout.", "Compound", 5, ExerciseLevel.Intermediate, MovementType.Push, 8.0m, 3.5m, new[] { ("Chest", true), ("Triceps", true), ("Front Delts", false) }, new[] { "Bodyweight Only" }, null),
+            new("Lateral Raise", "Stand with dumbbells at sides with slight bend in elbows. Raise dumbbells out to sides until arms are parallel to floor. Lower under control. Avoid momentum.", "Isolation", 2, ExerciseLevel.Beginner, MovementType.Push, 3.5m, 3.0m, new[] { ("Side Delts", true) }, new[] { "Dumbbells" }, null),
+            new("Tricep Pushdown", "Stand facing a cable machine with attachment at high pulley. Grip with elbows pinned to sides. Extend forearms downward until arms are straight. Return with control.", "Isolation", 2, ExerciseLevel.Beginner, MovementType.Push, 3.5m, 3.0m, new[] { ("Triceps", true) }, new[] { "Cable Machine" }, null),
+            new("Skull Crushers", "Lie on a flat bench holding a bar with narrow grip above chest. Keeping upper arms vertical, bend elbows to lower bar toward forehead. Extend to return.", "Isolation", 3, ExerciseLevel.Intermediate, MovementType.Push, 3.5m, 3.5m, new[] { ("Triceps", true) }, new[] { "Barbell & Plates", "Bench" }, null),
+            new("Cable Flye", "Set pulleys to chest height. Stand in centre with handle in each hand. With slight elbow bend, bring hands together in front of chest. Return with control.", "Isolation", 3, ExerciseLevel.Intermediate, MovementType.Push, 3.5m, 3.5m, new[] { ("Chest", true) }, new[] { "Cable Machine" }, null),
+            new("Barbell Row", "Hinge at hips until torso is roughly 45 degrees. Grip barbell outside knees. Pull bar to lower chest. Lower with control. Keep back flat.", "Compound", 5, ExerciseLevel.Intermediate, MovementType.Pull, 5.0m, 4.0m, new[] { ("Upper Back", true), ("Lats", true), ("Biceps", false), ("Rear Delts", false) }, new[] { "Barbell & Plates" }, "https://www.youtube.com/watch?v=FWJR5Ve8bnQ"),
+            new("Pull-Up", "Hang from bar with overhand grip wider than shoulder width. Pull up until chin clears bar. Lower to dead hang. Avoid swinging.", "Compound", 6, ExerciseLevel.Intermediate, MovementType.Pull, 8.0m, 4.0m, new[] { ("Lats", true), ("Upper Back", false), ("Biceps", false), ("Forearms", false) }, new[] { "Pull-Up Bar" }, null),
+            new("Lat Pulldown", "Sit at pulldown machine with thighs secured. Wide overhand grip. Pull bar to upper chest. Return with control. Keep chest up.", "Compound", 4, ExerciseLevel.Beginner, MovementType.Pull, 5.0m, 3.5m, new[] { ("Lats", true), ("Upper Back", false), ("Biceps", false) }, new[] { "Cable Machine" }, null),
+            new("Seated Cable Row", "Sit at cable row station with knees slightly bent. Pull handle to lower chest squeezing shoulder blades. Extend arms back with control.", "Compound", 4, ExerciseLevel.Beginner, MovementType.Pull, 5.0m, 3.5m, new[] { ("Upper Back", true), ("Lats", false), ("Biceps", false) }, new[] { "Cable Machine" }, null),
+            new("Dumbbell Row", "One hand and knee on bench. Hold dumbbell in free hand. Pull to hip driving elbow back. Lower under control. Keep back flat.", "Compound", 3, ExerciseLevel.Beginner, MovementType.Pull, 5.0m, 3.5m, new[] { ("Lats", true), ("Upper Back", false), ("Biceps", false), ("Rear Delts", false) }, new[] { "Dumbbells", "Bench" }, null),
+            new("Face Pull", "Cable at upper chest height with rope. Pull toward face driving elbows high. Externally rotate at end. Return with control.", "Isolation", 2, ExerciseLevel.Beginner, MovementType.Pull, 3.5m, 3.0m, new[] { ("Rear Delts", true), ("Traps", false) }, new[] { "Cable Machine" }, null),
+            new("Barbell Curl", "Stand with underhand grip at arm's length. Keeping elbows pinned, curl to shoulder height. Lower under control. No swinging.", "Isolation", 2, ExerciseLevel.Beginner, MovementType.Pull, 3.5m, 3.0m, new[] { ("Biceps", true), ("Forearms", false) }, new[] { "Barbell & Plates" }, null),
+            new("Dumbbell Curl", "Stand with dumbbells at arm's length palms forward. Curl to shoulder height keeping elbows stationary. Lower under control.", "Isolation", 2, ExerciseLevel.Beginner, MovementType.Pull, 3.5m, 3.0m, new[] { ("Biceps", true), ("Forearms", false) }, new[] { "Dumbbells" }, null),
+            new("Hammer Curl", "Stand holding dumbbells with palms facing each other. Curl up maintaining neutral wrist. Lower under control. Targets brachioradialis.", "Isolation", 2, ExerciseLevel.Beginner, MovementType.Pull, 3.5m, 3.0m, new[] { ("Biceps", true), ("Forearms", true) }, new[] { "Dumbbells" }, null),
+            new("Chin-Up", "Underhand grip at shoulder width. Pull up until chin clears bar. Lower to dead hang. Greater biceps emphasis than pull-up.", "Compound", 5, ExerciseLevel.Intermediate, MovementType.Pull, 8.0m, 4.0m, new[] { ("Lats", true), ("Biceps", true), ("Upper Back", false) }, new[] { "Pull-Up Bar" }, null),
+            new("Barbell Back Squat", "Bar across upper traps. Feet shoulder width, toes slightly out. Squat until thighs parallel. Drive through full foot to stand. Keep chest up.", "Compound", 7, ExerciseLevel.Intermediate, MovementType.Squat, 6.0m, 4.5m, new[] { ("Quadriceps", true), ("Glutes", true), ("Hamstrings", false), ("Lower Back", false), ("Abs", false) }, new[] { "Barbell & Plates" }, "https://www.youtube.com/watch?v=ultWZbUMPL8"),
+            new("Front Squat", "Bar resting on front delts with elbows high. Squat keeping torso upright until thighs parallel or below. Stand back up. Demands more quad and core.", "Compound", 7, ExerciseLevel.Advanced, MovementType.Squat, 6.0m, 4.5m, new[] { ("Quadriceps", true), ("Glutes", false), ("Abs", false) }, new[] { "Barbell & Plates" }, null),
+            new("Goblet Squat", "Hold dumbbell or kettlebell at chest. Squat between legs keeping chest up and elbows inside knees. Stand back up. Great for learning squat mechanics.", "Compound", 3, ExerciseLevel.Beginner, MovementType.Squat, 5.0m, 4.0m, new[] { ("Quadriceps", true), ("Glutes", true) }, new[] { "Dumbbells", "Kettlebells" }, null),
+            new("Leg Press", "Sit in machine with feet shoulder width on platform. Lower by bending knees. Press away without full lockout. Keep lower back on pad.", "Compound", 4, ExerciseLevel.Beginner, MovementType.Squat, 5.0m, 3.5m, new[] { ("Quadriceps", true), ("Glutes", false), ("Hamstrings", false) }, new[] { "Leg Press" }, null),
+            new("Bulgarian Split Squat", "Rear foot elevated on bench. Hold dumbbells at sides. Lower back knee toward floor. Push through front foot to return. Builds single-leg strength.", "Compound", 5, ExerciseLevel.Intermediate, MovementType.Squat, 5.0m, 4.0m, new[] { ("Quadriceps", true), ("Glutes", true), ("Hamstrings", false) }, new[] { "Dumbbells", "Bench" }, null),
+            new("Leg Extension", "Sit in machine with pad on lower shins. Extend legs until straight. Squeeze quads at top. Lower with control.", "Isolation", 2, ExerciseLevel.Beginner, MovementType.Squat, 3.5m, 3.0m, new[] { ("Quadriceps", true) }, new[] { "Full Gym Access" }, null),
+            new("Walking Lunge", "Hold dumbbells at sides. Step forward into long stride, lower back knee toward floor. Step forward into next lunge. Alternate legs.", "Compound", 5, ExerciseLevel.Intermediate, MovementType.Squat, 6.0m, 3.5m, new[] { ("Quadriceps", true), ("Glutes", true), ("Hamstrings", false) }, new[] { "Dumbbells" }, null),
+            new("Conventional Deadlift", "Feet hip width, bar over mid-foot. Hinge and grip outside knees. Flat back, drive through floor to stand. Lockout by squeezing glutes. Lower hips back.", "Compound", 8, ExerciseLevel.Intermediate, MovementType.Hinge, 6.0m, 5.0m, new[] { ("Hamstrings", true), ("Glutes", true), ("Lower Back", true), ("Traps", false), ("Forearms", false) }, new[] { "Barbell & Plates" }, "https://www.youtube.com/watch?v=op9kVnSso6Q"),
+            new("Romanian Deadlift", "Hold barbell at hip height. Slight knee bend, push hips back lowering bar along legs. Feel hamstring stretch. Drive hips forward to return. Keep bar close.", "Compound", 5, ExerciseLevel.Intermediate, MovementType.Hinge, 6.0m, 4.5m, new[] { ("Hamstrings", true), ("Glutes", true), ("Lower Back", false) }, new[] { "Barbell & Plates" }, null),
+            new("Hip Thrust", "Upper back against bench, loaded barbell across hips. Feet flat, knees at 90 degrees. Drive hips up to straight line. Squeeze glutes. Lower with control.", "Compound", 4, ExerciseLevel.Intermediate, MovementType.Hinge, 5.0m, 3.5m, new[] { ("Glutes", true), ("Hamstrings", false) }, new[] { "Barbell & Plates", "Bench" }, null),
+            new("Kettlebell Swing", "Feet wider than shoulder width. Hinge to swing kettlebell between legs. Snap hips forward to chest height. Let gravity pull back. Power from hips.", "Compound", 5, ExerciseLevel.Intermediate, MovementType.Hinge, 8.0m, null, new[] { ("Glutes", true), ("Hamstrings", true), ("Lower Back", false), ("Abs", false) }, new[] { "Kettlebells" }, null),
+            new("Good Morning", "Bar across upper back. Slight knee bend, push hips back and hinge forward until torso nearly parallel. Drive hips forward. Keep back flat.", "Compound", 5, ExerciseLevel.Intermediate, MovementType.Hinge, 5.0m, 4.0m, new[] { ("Hamstrings", true), ("Lower Back", true), ("Glutes", false) }, new[] { "Barbell & Plates" }, null),
+            new("Leg Curl", "Lie face down on machine with pad above ankles. Curl legs toward glutes. Lower with control. Keep hips on pad.", "Isolation", 2, ExerciseLevel.Beginner, MovementType.Hinge, 3.5m, 3.0m, new[] { ("Hamstrings", true) }, new[] { "Full Gym Access" }, null),
+            new("Glute Bridge", "Lie face up, knees bent, feet flat. Drive hips up to straight line. Squeeze glutes at top. Lower back down. Foundational glute exercise.", "Isolation", 1, ExerciseLevel.Beginner, MovementType.Hinge, 3.5m, 3.0m, new[] { ("Glutes", true), ("Hamstrings", false) }, new[] { "Bodyweight Only" }, null),
+            new("Plank", "Forearms and toes, body in straight line. Core braced, glutes squeezed, hips level. Hold for time. Avoid hip sag.", "Isometric", 3, ExerciseLevel.Beginner, MovementType.Isometric, 3.8m, null, new[] { ("Abs", true), ("Obliques", false), ("Lower Back", false) }, new[] { "Bodyweight Only" }, null),
+            new("Dead Bug", "Lie on back, arms to ceiling, hips and knees at 90. Extend opposite arm and leg toward floor. Return and switch. Press lower back into floor.", "Isolation", 2, ExerciseLevel.Beginner, MovementType.Isometric, 3.8m, 4.0m, new[] { ("Abs", true), ("Hip Flexors", false) }, new[] { "Bodyweight Only" }, null),
+            new("Russian Twist", "Sit with knees bent, feet off ground, torso at 45 degrees. Rotate side to side touching weight beside each hip. Control the rotation.", "Isolation", 3, ExerciseLevel.Beginner, MovementType.Rotation, 3.8m, 3.0m, new[] { ("Obliques", true), ("Abs", false) }, new[] { "Bodyweight Only", "Medicine Ball" }, null),
+            new("Hanging Leg Raise", "Hang from bar with arms extended. Raise straight legs to parallel or higher. Lower with control. Avoid swinging.", "Isolation", 5, ExerciseLevel.Intermediate, MovementType.Isometric, 3.8m, 4.0m, new[] { ("Abs", true), ("Hip Flexors", false), ("Obliques", false) }, new[] { "Pull-Up Bar" }, null),
+            new("Ab Wheel Rollout", "Kneel holding ab wheel. Roll forward extending body while keeping core tight. Pull back using abdominals. Avoid lower back collapse.", "Compound", 6, ExerciseLevel.Intermediate, MovementType.Isometric, 5.0m, 4.0m, new[] { ("Abs", true), ("Obliques", false), ("Lower Back", false) }, new[] { "Bodyweight Only" }, null),
+            new("Side Plank", "Lie on side supported by forearm and foot. Lift hips to straight line. Hold with core engaged. Switch sides.", "Isometric", 3, ExerciseLevel.Beginner, MovementType.Isometric, 3.8m, null, new[] { ("Obliques", true), ("Abs", false) }, new[] { "Bodyweight Only" }, null),
+            new("Cable Woodchop", "Cable at high position, stand sideways. Pull handle diagonally across body from high to low rotating torso. Control return. Core drives rotation.", "Isolation", 3, ExerciseLevel.Intermediate, MovementType.Rotation, 3.8m, 3.5m, new[] { ("Obliques", true), ("Abs", false) }, new[] { "Cable Machine" }, null),
+            new("Crunches", "Lie face up, knees bent, feet flat. Hands behind head. Curl upper body toward knees. Lift only shoulders off floor. Lower with control.", "Isolation", 1, ExerciseLevel.Beginner, MovementType.Isometric, 3.8m, 2.5m, new[] { ("Abs", true) }, new[] { "Bodyweight Only" }, null),
+            new("Farmer's Walk", "Hold heavy dumbbells at sides. Walk forward with controlled steps, torso upright, core tight. Walk for distance or time.", "Compound", 4, ExerciseLevel.Beginner, MovementType.Carry, 6.0m, null, new[] { ("Forearms", true), ("Traps", true), ("Abs", false) }, new[] { "Dumbbells", "Kettlebells" }, null),
+            new("Standing Calf Raise", "Stand on edge of step, balls of feet on platform, heels hanging. Rise onto toes. Lower heels below platform for full stretch.", "Isolation", 1, ExerciseLevel.Beginner, MovementType.Squat, 3.5m, 2.5m, new[] { ("Calves", true) }, new[] { "Bodyweight Only" }, null),
+            new("Seated Calf Raise", "Sit at calf raise machine, pads on lower thighs. Press through toes lifting weight. Lower for full stretch. Targets soleus.", "Isolation", 1, ExerciseLevel.Beginner, MovementType.Squat, 3.5m, 2.5m, new[] { ("Calves", true) }, new[] { "Full Gym Access" }, null),
+            new("Treadmill Running", "Run on treadmill at steady pace. Upright posture with slight forward lean. Land with feet under hips. Adjust speed and incline to fitness level.", "Cardio", 3, ExerciseLevel.Beginner, MovementType.Cardio, 9.8m, null, new[] { ("Quadriceps", false), ("Hamstrings", false), ("Calves", false), ("Glutes", false) }, new[] { "Treadmill" }, null),
+            new("Stationary Cycling", "Sit with slight knee bend at bottom of pedal stroke. Pedal at steady cadence adjusting resistance. Core engaged, no rocking.", "Cardio", 2, ExerciseLevel.Beginner, MovementType.Cardio, 8.0m, null, new[] { ("Quadriceps", false), ("Hamstrings", false), ("Calves", false) }, new[] { "Stationary Bike" }, null),
+            new("Rowing Machine", "Feet strapped in. Drive with legs first, lean back slightly, pull handle to lower chest. Return arms, lean forward, bend knees. Fluid sequence.", "Cardio", 3, ExerciseLevel.Beginner, MovementType.Cardio, 7.0m, null, new[] { ("Upper Back", false), ("Lats", false), ("Quadriceps", false), ("Hamstrings", false) }, new[] { "Rowing Machine" }, null),
+            new("Jump Rope", "Hold handles at hip height. Swing rope overhead and jump just high enough to clear. Land softly on balls of feet. Wrists turn the rope.", "Cardio", 4, ExerciseLevel.Intermediate, MovementType.Cardio, 12.3m, null, new[] { ("Calves", false), ("Quadriceps", false) }, new[] { "Bodyweight Only" }, null),
+            new("Chest Supported Row", "Face down on incline bench 30-45 degrees. Dumbbells hanging. Pull to sides of chest squeezing shoulder blades. Lower under control.", "Compound", 3, ExerciseLevel.Beginner, MovementType.Pull, 5.0m, 3.5m, new[] { ("Upper Back", true), ("Lats", false), ("Rear Delts", false), ("Biceps", false) }, new[] { "Dumbbells", "Bench" }, null),
+            new("Reverse Flye", "Bent forward at hips, torso nearly parallel. Dumbbells hanging, palms facing. Raise out to sides squeezing shoulder blades. Lower under control.", "Isolation", 2, ExerciseLevel.Beginner, MovementType.Pull, 3.5m, 3.0m, new[] { ("Rear Delts", true), ("Upper Back", false) }, new[] { "Dumbbells" }, null),
+            new("Incline Barbell Bench Press", "Bench at 30-45 degrees. Grip bar wider than shoulder width. Lower to upper chest. Press to lockout. Shifts emphasis to upper chest.", "Compound", 5, ExerciseLevel.Intermediate, MovementType.Push, 5.0m, 4.0m, new[] { ("Upper Chest", true), ("Front Delts", false), ("Triceps", false) }, new[] { "Barbell & Plates", "Bench" }, null),
+            new("Close Grip Bench Press", "Lie on flat bench, grip at shoulder width or narrower. Lower to lower chest keeping elbows close. Press to lockout. Emphasises triceps.", "Compound", 5, ExerciseLevel.Intermediate, MovementType.Push, 5.0m, 4.0m, new[] { ("Triceps", true), ("Chest", false), ("Front Delts", false) }, new[] { "Barbell & Plates", "Bench" }, null),
+            new("Sumo Deadlift", "Wide stance, toes out. Grip inside knees at shoulder width. Flat back, drive through floor. Wide stance shifts emphasis to quads and glutes.", "Compound", 8, ExerciseLevel.Advanced, MovementType.Hinge, 6.0m, 5.0m, new[] { ("Glutes", true), ("Quadriceps", true), ("Hamstrings", false), ("Lower Back", false) }, new[] { "Barbell & Plates" }, null),
+            new("Hack Squat", "Stand in hack squat machine, shoulders under pads. Lower by bending knees until parallel. Press back up. Torso fixed, focus on legs.", "Compound", 4, ExerciseLevel.Intermediate, MovementType.Squat, 5.0m, 4.0m, new[] { ("Quadriceps", true), ("Glutes", false) }, new[] { "Full Gym Access" }, null),
+            new("Preacher Curl", "Sit at preacher bench, upper arms on pad. Curl weight toward shoulders. Lower to full extension. Pad prevents momentum.", "Isolation", 2, ExerciseLevel.Beginner, MovementType.Pull, 3.5m, 3.5m, new[] { ("Biceps", true) }, new[] { "Dumbbells", "Bench" }, null),
+            new("Wrist Curl", "Sit with forearms on thighs, wrists over knees. Underhand grip. Curl wrists upward. Lower with control. Builds forearm size.", "Isolation", 1, ExerciseLevel.Beginner, MovementType.Pull, 2.5m, 2.5m, new[] { ("Forearms", true) }, new[] { "Dumbbells" }, null),
+            new("Barbell Shrug", "Hold barbell in front at shoulder width. Shrug shoulders straight up toward ears. Hold briefly. Lower with control. No rolling.", "Isolation", 2, ExerciseLevel.Beginner, MovementType.Pull, 3.5m, 2.5m, new[] { ("Traps", true) }, new[] { "Barbell & Plates" }, null),
+            new("Dumbbell Pullover", "Lie on bench, single dumbbell above chest, arms slightly bent. Lower behind head in arc until arms in line with torso. Pull back using lats and chest.", "Compound", 3, ExerciseLevel.Intermediate, MovementType.Pull, 4.0m, 4.0m, new[] { ("Lats", true), ("Chest", false) }, new[] { "Dumbbells", "Bench" }, null)
         };
     }
 
@@ -575,42 +365,27 @@ public static class DbSeeder
             new() { Name = "Banana", CaloriesPer100g = 89, ProteinPer100g = 1.1m, CarbsPer100g = 22.8m, FatPer100g = 0.3m },
             new() { Name = "Apple", CaloriesPer100g = 52, ProteinPer100g = 0.3m, CarbsPer100g = 13.8m, FatPer100g = 0.2m },
             new() { Name = "Blueberries", CaloriesPer100g = 57, ProteinPer100g = 0.7m, CarbsPer100g = 14.5m, FatPer100g = 0.3m },
-            new() { Name = "Strawberries", CaloriesPer100g = 32, ProteinPer100g = 0.7m, CarbsPer100g = 7.7m, FatPer100g = 0.3m },
             new() { Name = "Broccoli", CaloriesPer100g = 34, ProteinPer100g = 2.8m, CarbsPer100g = 6.6m, FatPer100g = 0.4m },
             new() { Name = "Spinach (raw)", CaloriesPer100g = 23, ProteinPer100g = 2.9m, CarbsPer100g = 3.6m, FatPer100g = 0.4m },
             new() { Name = "Avocado", CaloriesPer100g = 160, ProteinPer100g = 2.0m, CarbsPer100g = 8.5m, FatPer100g = 14.7m },
             new() { Name = "Olive Oil", CaloriesPer100g = 884, ProteinPer100g = 0, CarbsPer100g = 0, FatPer100g = 100.0m },
             new() { Name = "Peanut Butter", CaloriesPer100g = 588, ProteinPer100g = 25.1m, CarbsPer100g = 20.0m, FatPer100g = 50.4m },
             new() { Name = "Almonds", CaloriesPer100g = 579, ProteinPer100g = 21.2m, CarbsPer100g = 21.6m, FatPer100g = 49.9m },
-            new() { Name = "Walnuts", CaloriesPer100g = 654, ProteinPer100g = 15.2m, CarbsPer100g = 13.7m, FatPer100g = 65.2m },
             new() { Name = "Cheddar Cheese", CaloriesPer100g = 403, ProteinPer100g = 24.9m, CarbsPer100g = 1.3m, FatPer100g = 33.1m },
             new() { Name = "Whole Milk", CaloriesPer100g = 61, ProteinPer100g = 3.2m, CarbsPer100g = 4.8m, FatPer100g = 3.3m },
-            new() { Name = "Skimmed Milk", CaloriesPer100g = 34, ProteinPer100g = 3.4m, CarbsPer100g = 5.0m, FatPer100g = 0.1m },
             new() { Name = "Tofu (firm)", CaloriesPer100g = 144, ProteinPer100g = 17.3m, CarbsPer100g = 2.8m, FatPer100g = 8.7m },
             new() { Name = "Red Lentils (uncooked)", CaloriesPer100g = 358, ProteinPer100g = 24.6m, CarbsPer100g = 60.1m, FatPer100g = 1.1m },
             new() { Name = "Chickpeas (canned)", CaloriesPer100g = 139, ProteinPer100g = 7.0m, CarbsPer100g = 22.5m, FatPer100g = 2.6m },
             new() { Name = "Quinoa (uncooked)", CaloriesPer100g = 368, ProteinPer100g = 14.1m, CarbsPer100g = 64.2m, FatPer100g = 6.1m },
-            new() { Name = "Honey", CaloriesPer100g = 304, ProteinPer100g = 0.3m, CarbsPer100g = 82.4m, FatPer100g = 0 },
-            new() { Name = "Dark Chocolate (70%)", CaloriesPer100g = 598, ProteinPer100g = 7.8m, CarbsPer100g = 45.9m, FatPer100g = 42.6m },
-            new() { Name = "White Fish (cod, raw)", CaloriesPer100g = 82, ProteinPer100g = 17.8m, CarbsPer100g = 0, FatPer100g = 0.7m },
-            new() { Name = "Prawns (raw)", CaloriesPer100g = 99, ProteinPer100g = 20.1m, CarbsPer100g = 0.9m, FatPer100g = 1.7m },
             new() { Name = "Turkey Breast (raw)", CaloriesPer100g = 104, ProteinPer100g = 23.7m, CarbsPer100g = 0, FatPer100g = 0.7m },
-            new() { Name = "Basmati Rice (uncooked)", CaloriesPer100g = 360, ProteinPer100g = 7.0m, CarbsPer100g = 78.0m, FatPer100g = 0.6m },
-            new() { Name = "Couscous (uncooked)", CaloriesPer100g = 376, ProteinPer100g = 12.8m, CarbsPer100g = 77.4m, FatPer100g = 0.6m },
-            new() { Name = "Mixed Vegetables (frozen)", CaloriesPer100g = 65, ProteinPer100g = 3.3m, CarbsPer100g = 13.1m, FatPer100g = 0.3m }
+            new() { Name = "White Fish (cod, raw)", CaloriesPer100g = 82, ProteinPer100g = 17.8m, CarbsPer100g = 0, FatPer100g = 0.7m },
+            new() { Name = "Prawns (raw)", CaloriesPer100g = 99, ProteinPer100g = 20.1m, CarbsPer100g = 0.9m, FatPer100g = 1.7m }
         };
     }
 
     private record ExerciseSeed(
-        string Name,
-        string Description,
-        string ExerciseType,
-        int Difficulty,
-        ExerciseLevel Level,
-        MovementType Movement,
-        decimal Met,
-        decimal? RepTime,
-        (string Name, bool IsPrimary)[] Muscles,
-        string[] Equipment
+        string Name, string Description, string ExerciseType, int Difficulty,
+        ExerciseLevel Level, MovementType Movement, decimal Met, decimal? RepTime,
+        (string Name, bool IsPrimary)[] Muscles, string[] Equipment, string? VideoUrl
     );
 }

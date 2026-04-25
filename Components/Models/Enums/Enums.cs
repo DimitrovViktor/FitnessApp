@@ -57,3 +57,12 @@ public enum CardioIntensity
     High,
     Interval
 }
+
+public enum ScheduleStatus
+{
+    Scheduled,
+    InProgress,
+    Completed,
+    Cancelled,
+    Postponed
+}

@@ -15,6 +15,8 @@ builder.Services.AddDbContext<AppDbContext>(options =>
 builder.Services.AddScoped<AuthService>();
 builder.Services.AddScoped<ProfileService>();
 builder.Services.AddScoped<AdminService>();
+builder.Services.AddScoped<WorkoutService>();
+builder.Services.AddScoped<DashboardService>();
 builder.Services.AddScoped<CustomAuthStateProvider>();
 builder.Services.AddScoped<AuthenticationStateProvider>(sp =>
     sp.GetRequiredService<CustomAuthStateProvider>());
@@ -25,6 +27,12 @@ using (var scope = app.Services.CreateScope())
 {
     var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
     db.Database.EnsureCreated();
+
+    try
+    {
+        db.Database.ExecuteSqlRaw("ALTER TABLE WorkoutSchedules ADD COLUMN LiveSessionJson TEXT NULL");
+    }
+    catch { }
 
     var auth = scope.ServiceProvider.GetRequiredService<AuthService>();
     var adminUser = db.Users.FirstOrDefault(u => u.Username == "admin");

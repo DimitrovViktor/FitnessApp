@@ -1,0 +1,35 @@
+@if (IsOpen)
+{
+    <div class="modal-backdrop @(IsOpen ? "open" : "")" @onclick="HandleBackdropClick">
+        <div class="modal-container modal-@Size" @onclick:stopPropagation>
+            @if (ShowClose)
+            {
+                <button type="button" class="modal-close-btn" @onclick="Close">✕</button>
+            }
+            @if (ChildContent is not null)
+            {
+                @ChildContent
+            }
+        </div>
+    </div>
+}
+
+@code {
+    [Parameter] public bool IsOpen { get; set; }
+    [Parameter] public EventCallback OnClose { get; set; }
+    [Parameter] public RenderFragment? ChildContent { get; set; }
+    [Parameter] public string Size { get; set; } = "md";
+    [Parameter] public bool ShowClose { get; set; } = true;
+    [Parameter] public bool CloseOnBackdrop { get; set; } = true;
+
+    private async Task HandleBackdropClick()
+    {
+        if (CloseOnBackdrop)
+            await Close();
+    }
+
+    private async Task Close()
+    {
+        await OnClose.InvokeAsync();
+    }
+}

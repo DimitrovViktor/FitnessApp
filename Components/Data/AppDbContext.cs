@@ -32,6 +32,7 @@ public class AppDbContext : DbContext
     public DbSet<PersonalRecord> PersonalRecords => Set<PersonalRecord>();
     public DbSet<DailyLog> DailyLogs => Set<DailyLog>();
     public DbSet<UserGoal> UserGoals => Set<UserGoal>();
+    public DbSet<WorkoutSchedule> WorkoutSchedules => Set<WorkoutSchedule>();
 
     protected override void OnModelCreating(ModelBuilder mb)
     {
@@ -247,6 +248,14 @@ public class AppDbContext : DbContext
             e.Property(ug => ug.CurrentValue).HasPrecision(10, 2);
             e.Property(ug => ug.Unit).HasMaxLength(50);
             e.HasOne(ug => ug.User).WithMany(u => u.Goals).HasForeignKey(ug => ug.UserId);
+        });
+
+        mb.Entity<WorkoutSchedule>(e =>
+        {
+            e.HasIndex(ws => new { ws.UserId, ws.ScheduledDate });
+            e.HasOne(ws => ws.User).WithMany().HasForeignKey(ws => ws.UserId);
+            e.HasOne(ws => ws.Workout).WithMany().HasForeignKey(ws => ws.WorkoutId);
+            e.Property(ws => ws.LiveSessionJson).HasMaxLength(10000);
         });
     }
 }

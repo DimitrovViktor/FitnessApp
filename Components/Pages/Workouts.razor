@@ -1,0 +1,735 @@
+@page "/workouts"
+@inject WorkoutService WorkoutService
+@inject CustomAuthStateProvider AuthState
+@inject NavigationManager Navigation
+@using FitnessApp.Models.Enums
+
+<PageTitle>Workouts - Fitness App</PageTitle>
+
+@if (_isLoading)
+{
+    <div class="loading-state"><p>Loading...</p></div>
+}
+else
+{
+    <div class="workouts-page">
+        <div class="page-header">
+            <div>
+                <h1>Workouts</h1>
+                <p class="page-sub">Build, browse, and manage your training</p>
+            </div>
+            <button type="button" class="btn-action" @onclick="OpenBuilder">+ New Workout</button>
+        </div>
+
+        <div class="tab-bar">
+            <button type="button" class="tab @(_tab == 0 ? "active" : "")" @onclick="() => _tab = 0">My Workouts</button>
+            <button type="button" class="tab @(_tab == 1 ? "active" : "")" @onclick="() => _tab = 1">Browse Workouts</button>
+        </div>
+
+        @if (!string.IsNullOrEmpty(_msg))
+        {
+            <div class="@(_msgErr ? "toast-err" : "toast-ok")">@_msg</div>
+        }
+
+        @if (_tab == 0)
+        {
+            <h2 class="section-heading">My Workouts</h2>
+            @if (_myWorkouts.Count == 0)
+            {
+                <div class="empty"><p>No workouts yet. Create one or browse premade workouts.</p></div>
+            }
+            else
+            {
+                <div class="card-grid">
+                    @foreach (var w in _myWorkouts)
+                    {
+                        <div class="wk-card" @onclick="() => OpenWorkoutPreview(w.Id, true)">
+                            <h3>@w.Name</h3>
+                            @if (w.Program is not null) { <span class="badge-purple">@w.Program.Name</span> }
+                            <div class="wk-meta">
+                                <span>@w.WorkoutExercises.Count exercises</span>
+                                <span>@w.WorkoutExercises.Sum(x => x.Sets) sets</span>
+                                <span>~@WorkoutService.EstimateWorkoutMinutesFromWE(w.WorkoutExercises) min</span>
+                            </div>
+                            <div class="chip-row">
+                                @foreach (var m in GetPrimaryMuscles(w.WorkoutExercises))
+                                {
+                                    <span class="chip-sm">@m</span>
+                                }
+                            </div>
+                        </div>
+                    }
+                </div>
+            }
+
+            <h2 class="section-heading" style="margin-top:2rem">My Programs</h2>
+            @if (_myPrograms.Count == 0)
+            {
+                <div class="empty"><p>No saved programs. Browse and save one to get started.</p></div>
+            }
+            else
+            {
+                <div class="card-grid">
+                    @foreach (var p in _myPrograms)
+                    {
+                        <div class="wk-card" @onclick="() => OpenProgramPreview(p, true)">
+                            <h3>@p.Name</h3>
+                            <div class="wk-meta">
+                                <span>@p.DurationWeeks weeks</span>
+                                <span>@p.DaysPerWeek d/wk</span>
+                                <span>@p.Workouts.Count workouts</span>
+                            </div>
+                            <div class="chip-row">
+                                @if (p.TargetLevel is not null) { <span class="chip-sm">@p.TargetLevel</span> }
+                                @if (p.TargetGoal is not null) { <span class="chip-sm">@p.TargetGoal</span> }
+                            </div>
+                        </div>
+                    }
+                </div>
+            }
+        }
+        else
+        {
+            <div class="sub-tab-bar">
+                <button type="button" class="sub-tab @(_browseSubTab == 0 ? "active" : "")" @onclick="() => _browseSubTab = 0">Workouts</button>
+                <button type="button" class="sub-tab @(_browseSubTab == 1 ? "active" : "")" @onclick="() => _browseSubTab = 1">Programs</button>
+            </div>
+
+            @if (_browseSubTab == 0)
+            {
+                @if (_premadeWorkouts.Count == 0)
+                {
+                    <div class="empty"><p>No premade workouts available yet.</p></div>
+                }
+                else
+                {
+                    <div class="card-grid">
+                        @foreach (var w in _premadeWorkouts)
+                        {
+                            <div class="wk-card" @onclick="() => OpenWorkoutPreview(w.Id, false)">
+                                <h3>@w.Name</h3>
+                                @if (w.Program is not null) { <span class="badge-purple">@w.Program.Name</span> }
+                                <div class="wk-meta">
+                                    <span>@w.WorkoutExercises.Count exercises</span>
+                                    <span>@w.WorkoutExercises.Sum(x => x.Sets) sets</span>
+                                </div>
+                            </div>
+                        }
+                    </div>
+                }
+            }
+            else
+            {
+                @if (_prebuiltPrograms.Count == 0)
+                {
+                    <div class="empty"><p>No programs available yet.</p></div>
+                }
+                else
+                {
+                    <div class="card-grid">
+                        @foreach (var p in _prebuiltPrograms)
+                        {
+                            <div class="wk-card" @onclick="() => OpenProgramPreview(p, false)">
+                                <h3>@p.Name</h3>
+                                <span class="badge-purple">Pre-built</span>
+                                <div class="wk-meta">
+                                    <span>@p.DurationWeeks weeks</span>
+                                    <span>@p.DaysPerWeek d/wk</span>
+                                    <span>@p.Workouts.Count workouts</span>
+                                </div>
+                                <div class="chip-row">
+                                    @if (p.TargetLevel is not null) { <span class="chip-sm">@p.TargetLevel</span> }
+                                    @if (p.TargetGoal is not null) { <span class="chip-sm">@p.TargetGoal</span> }
+                                </div>
+                            </div>
+                        }
+                    </div>
+                }
+            }
+        }
+    </div>
+}
+
+<Modal IsOpen="_showBuilder" OnClose="CloseBuilder" Size="full">
+    <div class="bld">
+        <div class="bld-top">
+            <input class="bld-name" @bind="_form.Name" placeholder="Workout name..." />
+            <div class="bld-badges">
+                <span class="bdg bdg-cal">@_estCal kcal</span>
+                <span class="bdg bdg-sets">@_form.Exercises.Sum(e => e.Sets) sets</span>
+                <span class="bdg bdg-ex">@_form.Exercises.Count exercises</span>
+                <span class="bdg bdg-time">~@_estMin min</span>
+            </div>
+        </div>
+
+        @if (_warnings.Count > 0)
+        {
+            <div class="bld-warnings">
+                @foreach (var w in _warnings) { <div class="warn-item">@w</div> }
+            </div>
+        }
+
+        <div class="bld-search-row">
+            <input class="bld-search" @bind="_search" @bind:event="oninput" placeholder="Search exercises..." />
+            <button type="button" class="filter-btn @(_filterMuscles.Count > 0 ? "active" : "")" @onclick="() => _showFilterMuscle = !_showFilterMuscle">Muscles @(_filterMuscles.Count > 0 ? $"({_filterMuscles.Count})" : "")</button>
+            <button type="button" class="filter-btn @(_filterEquip.Count > 0 ? "active" : "")" @onclick="() => _showFilterEquip = !_showFilterEquip">Equipment @(_filterEquip.Count > 0 ? $"({_filterEquip.Count})" : "")</button>
+            <button type="button" class="filter-btn @(!string.IsNullOrEmpty(_filterMove) ? "active" : "")" @onclick="() => _showFilterMove = !_showFilterMove">Type @(!string.IsNullOrEmpty(_filterMove) ? "(1)" : "")</button>
+            @if (_filterMuscles.Count > 0 || _filterEquip.Count > 0 || !string.IsNullOrEmpty(_filterMove))
+            {
+                <button type="button" class="filter-clear" @onclick="ClearFilters">Clear</button>
+            }
+        </div>
+
+        @if (_showFilterMuscle)
+        {
+            <div class="filter-panel">
+                @foreach (var mg in _allMuscleGroups)
+                {
+                    <button type="button" class="fp-chip @(_filterMuscles.Contains(mg.Name) ? "sel" : "")" @onclick="() => ToggleFilter(_filterMuscles, mg.Name)">@mg.Name</button>
+                }
+            </div>
+        }
+        @if (_showFilterEquip)
+        {
+            <div class="filter-panel">
+                @foreach (var eq in _allEquipment)
+                {
+                    <button type="button" class="fp-chip @(_filterEquip.Contains(eq.Name) ? "sel" : "")" @onclick="() => ToggleFilter(_filterEquip, eq.Name)">@eq.Name</button>
+                }
+            </div>
+        }
+        @if (_showFilterMove)
+        {
+            <div class="filter-panel">
+                @foreach (var mt in Enum.GetValues<MovementType>())
+                {
+                    <button type="button" class=@(_filterMove == mt.ToString() ? "fp-chip sel" : "fp-chip") @onclick="@(() => ToggleMoveFilter(mt))">@mt</button>
+                }
+            </div>
+        }
+
+        <div class="bld-body">
+            <div class="bld-section">
+                <h3 class="sec-title">Selected (@_form.Exercises.Count)</h3>
+                @if (_form.Exercises.Count == 0)
+                {
+                    <div class="empty-sm">Add exercises from the library below</div>
+                }
+                else
+                {
+                    @for (int i = 0; i < _form.Exercises.Count; i++)
+                    {
+                        var idx = i;
+                        var entry = _form.Exercises[idx];
+                        <div class="sel-card @(_activeExIdx == idx ? "active" : "")" @onclick="() => ActivateSelected(idx)">
+                            <div class="sel-top">
+                                <div class="sel-ord">
+                                    <button type="button" class="ord-btn" disabled="@(idx == 0)" @onclick:stopPropagation @onclick="() => Move(idx, -1)">&#9650;</button>
+                                    <span>@(idx + 1)</span>
+                                    <button type="button" class="ord-btn" disabled="@(idx == _form.Exercises.Count - 1)" @onclick:stopPropagation @onclick="() => Move(idx, 1)">&#9660;</button>
+                                </div>
+                                <div class="sel-info">
+                                    <span class="sel-name">@entry.Exercise?.Name</span>
+                                    <span class="sel-meta">@(entry.Exercise is not null ? MuscleStr(entry.Exercise) : "")</span>
+                                </div>
+                                <button type="button" class="sel-rm" @onclick:stopPropagation @onclick="() => RemoveEntry(idx)">&#10005;</button>
+                            </div>
+                            <div class="sel-fields">
+                                <div class="sf"><label>Sets</label><input type="number" @bind="entry.Sets" @bind:after="Recalc" min="1" @onclick:stopPropagation /></div>
+                                <div class="sf"><label>Reps</label><input type="number" @bind="entry.Reps" @bind:after="Recalc" min="1" @onclick:stopPropagation /></div>
+                                <div class="sf"><label>Rest(s)</label><input type="number" @bind="entry.RestTimeSec" @bind:after="Recalc" min="0" @onclick:stopPropagation /></div>
+                                <span class="sel-kcal">~@EstSingle(entry) kcal</span>
+                            </div>
+                        </div>
+                    }
+                }
+            </div>
+
+            @if (_suggestions.Count > 0)
+            {
+                <div class="bld-section">
+                    <div class="sec-header" @onclick="() => _sugCollapsed = !_sugCollapsed">
+                        <h3 class="sec-title">Suggested (@_suggestions.Count)</h3>
+                        <span class="sec-toggle">@(_sugCollapsed ? "+" : "-")</span>
+                    </div>
+                    @if (!_sugCollapsed)
+                    {
+                        <div class="lib-grid">
+                            @foreach (var ex in _suggestions)
+                            {
+                                <div class="lib-card sug" @onclick="() => OpenExPreview(ex)">
+                                    <span class="lib-name">@ex.Name</span>
+                                    <span class="lib-meta">@MuscleStr(ex)</span>
+                                </div>
+                            }
+                        </div>
+                    }
+                </div>
+            }
+
+            <div class="bld-section">
+                <div class="sec-header" @onclick="() => _libCollapsed = !_libCollapsed">
+                    <h3 class="sec-title">Exercise Library (@GetFiltered().Count)</h3>
+                    <span class="sec-toggle">@(_libCollapsed ? "+" : "-")</span>
+                </div>
+                @if (!_libCollapsed)
+                {
+                    <div class="lib-grid">
+                        @foreach (var ex in GetFiltered().Take(50))
+                        {
+                            <div class="lib-card" @onclick="() => OpenExPreview(ex)">
+                                <span class="lib-name">@ex.Name</span>
+                                <span class="lib-meta">@MuscleStr(ex) · @ex.Level · MET @ex.MetValue</span>
+                            </div>
+                        }
+                        @if (!GetFiltered().Any())
+                        {
+                            <div class="empty-sm">No exercises match your filters.</div>
+                        }
+                    </div>
+                }
+            </div>
+        </div>
+
+        <div class="bld-footer">
+            <button type="button" class="btn-ghost" @onclick="CloseBuilder">Cancel</button>
+            <button type="button" class="btn-action" @onclick="SaveWorkout" disabled="@_saving">@(_saving ? "Saving..." : (_editId.HasValue ? "Update" : "Save Workout"))</button>
+        </div>
+    </div>
+</Modal>
+
+<Modal IsOpen="_showExPreview" OnClose="CloseExPreview" Size="md">
+    @if (_previewEx is not null)
+    {
+        <div class="ex-preview">
+            @{ var vid = _previewEx.Media.FirstOrDefault(m => m.MediaType == MediaType.Video); }
+            @if (vid is not null)
+            {
+                <div class="ex-video">
+                    <iframe src="@WorkoutService.GetYouTubeEmbedUrl(vid.Url)" allow="autoplay; encrypted-media" allowfullscreen frameborder="0"></iframe>
+                </div>
+            }
+            <div class="ex-prev-body">
+                <h2>@_previewEx.Name</h2>
+                <div class="ex-prev-badges">
+                    <span class="bdg bdg-cal">@_previewEx.Level</span>
+                    <span class="bdg bdg-sets">@_previewEx.MovementType</span>
+                    <span class="bdg bdg-time">MET @_previewEx.MetValue</span>
+                </div>
+                <p class="ex-desc">@_previewEx.Description</p>
+                <div class="ex-prev-detail">
+                    <div><strong>Muscles:</strong> @MuscleStr(_previewEx)</div>
+                    <div><strong>Equipment:</strong> @EquipStr(_previewEx)</div>
+                </div>
+                @if (!_form.Exercises.Any(e => e.ExerciseId == _previewEx.Id))
+                {
+                    <button type="button" class="btn-action ex-add-btn" @onclick="() => AddFromPreview(_previewEx)">+ Add to Workout</button>
+                }
+                else
+                {
+                    <span class="ex-already">Already in workout</span>
+                }
+            </div>
+        </div>
+    }
+</Modal>
+
+<Modal IsOpen="_showWorkoutPreview" OnClose="() => _showWorkoutPreview = false" Size="lg">
+    @if (_previewWorkout is not null)
+    {
+        <div class="wk-preview">
+            <h2>@_previewWorkout.Name</h2>
+            @if (_previewWorkout.Program is not null) { <span class="badge-purple">@_previewWorkout.Program.Name</span> }
+            <div class="wk-prev-stats">
+                <span class="bdg bdg-ex">@_previewWorkout.WorkoutExercises.Count exercises</span>
+                <span class="bdg bdg-sets">@_previewWorkout.WorkoutExercises.Sum(x => x.Sets) sets</span>
+                <span class="bdg bdg-cal">@EstWorkout(_previewWorkout) kcal</span>
+                <span class="bdg bdg-time">~@WorkoutService.EstimateWorkoutMinutesFromWE(_previewWorkout.WorkoutExercises) min</span>
+            </div>
+            <div class="wk-prev-list">
+                @foreach (var we in _previewWorkout.WorkoutExercises.OrderBy(x => x.SortOrder))
+                {
+                    <div class="wk-prev-item">
+                        <div class="wpi-info">
+                            <span class="wpi-name">@we.Exercise.Name</span>
+                            <span class="wpi-muscles">@MuscleStr(we.Exercise)</span>
+                        </div>
+                        <span class="wpi-sr">@we.Sets x @we.Reps</span>
+                    </div>
+                }
+            </div>
+            <div class="wk-prev-actions">
+                @if (_previewIsOwn)
+                {
+                    <button type="button" class="btn-action" @onclick="EditWorkout">Edit</button>
+                    <button type="button" class="btn-danger" @onclick="DeletePreviewWorkout">Delete</button>
+                }
+                else
+                {
+                    <button type="button" class="btn-action" @onclick="CopyWorkout">Copy to My Workouts</button>
+                }
+            </div>
+        </div>
+    }
+</Modal>
+
+<Modal IsOpen="_showProgramPreview" OnClose="() => _showProgramPreview = false" Size="lg">
+    @if (_previewProgram is not null)
+    {
+        <div class="wk-preview">
+            <h2>@_previewProgram.Name</h2>
+            <div class="wk-prev-stats">
+                @if (_previewProgram.TargetLevel is not null) { <span class="bdg bdg-sets">@_previewProgram.TargetLevel</span> }
+                @if (_previewProgram.TargetGoal is not null) { <span class="bdg bdg-cal">@_previewProgram.TargetGoal</span> }
+                <span class="bdg bdg-time">@(_previewProgram.DurationWeeks)w · @(_previewProgram.DaysPerWeek)d/wk</span>
+            </div>
+            @if (!string.IsNullOrEmpty(_previewProgram.Description))
+            {
+                <p class="ex-desc">@_previewProgram.Description</p>
+            }
+            <h3 class="sec-title" style="margin-top:1rem">Workouts</h3>
+            <div class="wk-prev-list">
+                @foreach (var w in _previewProgram.Workouts.OrderBy(x => x.SortOrder))
+                {
+                    <div class="wk-prev-item">
+                        <div class="wpi-info">
+                            <span class="wpi-name">@w.Name</span>
+                            <span class="wpi-muscles">@w.WorkoutExercises.Count exercises · @w.WorkoutExercises.Sum(x => x.Sets) sets</span>
+                        </div>
+                    </div>
+                }
+            </div>
+            <div class="wk-prev-actions">
+                @if (_previewProgramIsOwn)
+                {
+                    <button type="button" class="btn-action" @onclick="OpenEditProgram">Edit</button>
+                    <button type="button" class="btn-danger" @onclick="DeletePreviewProgram">Delete</button>
+                }
+                else
+                {
+                    <button type="button" class="btn-action" @onclick="CopyProgram">Save to My Programs</button>
+                }
+            </div>
+        </div>
+    }
+</Modal>
+
+<Modal IsOpen="_showProgramEditor" OnClose="() => _showProgramEditor = false" Size="md">
+    <div class="wk-preview">
+        <h2>Edit Program</h2>
+        <div class="prog-edit-fields">
+            <div class="sf-full"><label>Name</label><input type="text" @bind="_progEditName" /></div>
+            <div class="sf-full"><label>Description</label><textarea @bind="_progEditDesc" rows="3"></textarea></div>
+            <div class="prog-edit-row">
+                <div class="sf"><label>Weeks</label><input type="number" @bind="_progEditWeeks" min="1" /></div>
+                <div class="sf"><label>Days/Week</label><input type="number" @bind="_progEditDays" min="1" max="7" /></div>
+            </div>
+            <div class="prog-edit-row">
+                <div class="sf"><label>Level</label>
+                    <select @bind="_progEditLevel">
+                        <option value="">Any</option>
+                        @foreach (var lv in Enum.GetValues<FitnessLevel>()) { <option value="@lv">@lv</option> }
+                    </select>
+                </div>
+                <div class="sf"><label>Goal</label>
+                    <select @bind="_progEditGoal">
+                        <option value="">Any</option>
+                        @foreach (var g in Enum.GetValues<PrimaryGoal>()) { <option value="@g">@g</option> }
+                    </select>
+                </div>
+            </div>
+        </div>
+        <div class="wk-prev-actions" style="margin-top:1rem">
+            <button type="button" class="btn-ghost" @onclick="() => _showProgramEditor = false">Cancel</button>
+            <button type="button" class="btn-action" @onclick="SaveProgramEdits">Save</button>
+        </div>
+    </div>
+</Modal>
+
+@code {
+    private bool _isLoading = true;
+    private int _userId;
+    private User? _user;
+    private int _tab;
+    private int _browseSubTab;
+    private string? _msg;
+    private bool _msgErr;
+    private bool _saving;
+
+    private List<Workout> _myWorkouts = new();
+    private List<Workout> _premadeWorkouts = new();
+    private List<Models.Program> _myPrograms = new();
+    private List<Models.Program> _prebuiltPrograms = new();
+    private List<Exercise> _allExercises = new();
+    private List<MuscleGroup> _allMuscleGroups = new();
+    private List<Equipment> _allEquipment = new();
+
+    private bool _showBuilder;
+    private int? _editId;
+    private UserWorkoutFormData _form = new();
+    private List<string> _warnings = new();
+    private List<Exercise> _suggestions = new();
+    private decimal _estCal;
+    private decimal _estMin;
+
+    private string _search = "";
+    private List<string> _filterMuscles = new();
+    private List<string> _filterEquip = new();
+    private string _filterMove = "";
+    private bool _showFilterMuscle, _showFilterEquip, _showFilterMove;
+
+    private bool _showExPreview;
+    private Exercise? _previewEx;
+    private int _activeExIdx = -1;
+
+    private bool _showWorkoutPreview;
+    private Workout? _previewWorkout;
+    private bool _previewIsOwn;
+
+    private bool _showProgramPreview;
+    private Models.Program? _previewProgram;
+    private bool _previewProgramIsOwn;
+
+    private bool _showProgramEditor;
+    private string _progEditName = "";
+    private string? _progEditDesc;
+    private int _progEditWeeks;
+    private int _progEditDays;
+    private string? _progEditLevel;
+    private string? _progEditGoal;
+
+    private bool _sugCollapsed;
+    private bool _libCollapsed;
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!firstRender) return;
+        var state = await AuthState.GetAuthenticationStateAsync();
+        if (state.User.Identity is not { IsAuthenticated: true }) { try { Navigation.NavigateTo("/login", forceLoad: true); } catch { } return; }
+        _userId = int.Parse(state.User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)!.Value);
+        await LoadData();
+        _isLoading = false;
+        StateHasChanged();
+    }
+
+    private async Task LoadData()
+    {
+        _user = await WorkoutService.GetUserAsync(_userId);
+        _allExercises = await WorkoutService.GetExerciseLibraryAsync();
+        _allMuscleGroups = await WorkoutService.GetAllMuscleGroupsAsync();
+        _allEquipment = await WorkoutService.GetAllEquipmentAsync();
+        _myWorkouts = await WorkoutService.GetUserWorkoutsAsync(_userId);
+        _premadeWorkouts = await WorkoutService.GetPremadeWorkoutsAsync();
+        _myPrograms = await WorkoutService.GetUserProgramsAsync(_userId);
+        _prebuiltPrograms = await WorkoutService.GetPrebuiltProgramsAsync();
+    }
+
+    private void OpenBuilder()
+    {
+        _editId = null;
+        _form = new UserWorkoutFormData();
+        _showBuilder = true;
+        _msg = null;
+        _activeExIdx = -1;
+        _sugCollapsed = false;
+        _libCollapsed = false;
+        Recalc();
+    }
+
+    private void CloseBuilder() { _showBuilder = false; _showFilterMuscle = _showFilterEquip = _showFilterMove = false; }
+
+    private void Recalc()
+    {
+        decimal w = _user?.WeightKg ?? 70m;
+        _estCal = WorkoutService.EstimateWorkoutCalories(_form.Exercises, w);
+        _estMin = WorkoutService.EstimateWorkoutMinutes(_form.Exercises);
+        _warnings = WorkoutService.GetWorkoutWarnings(_form.Exercises, _user?.FitnessLevel);
+        _suggestions = WorkoutService.GetSuggestions(_form.Exercises, _allExercises);
+    }
+
+    private void AddExercise(Exercise ex)
+    {
+        if (_form.Exercises.Any(e => e.ExerciseId == ex.Id)) return;
+        var (sets, reps, rest) = WorkoutService.GetRecommendation(_user?.PrimaryGoal, ex.Level, ex.ExerciseType);
+        _form.Exercises.Add(new BuilderExerciseEntry { ExerciseId = ex.Id, Exercise = ex, Sets = sets, Reps = reps, RestTimeSec = rest });
+        Recalc();
+    }
+
+    private void RemoveEntry(int idx)
+    {
+        if (idx >= 0 && idx < _form.Exercises.Count) { _form.Exercises.RemoveAt(idx); if (_activeExIdx == idx) _activeExIdx = -1; Recalc(); }
+    }
+
+    private void Move(int idx, int dir)
+    {
+        int n = idx + dir;
+        if (n < 0 || n >= _form.Exercises.Count) return;
+        (_form.Exercises[idx], _form.Exercises[n]) = (_form.Exercises[n], _form.Exercises[idx]);
+    }
+
+    private void ActivateSelected(int idx) => _activeExIdx = _activeExIdx == idx ? -1 : idx;
+
+    private async Task SaveWorkout()
+    {
+        _saving = true;
+        if (string.IsNullOrWhiteSpace(_form.Name)) { _msg = "Give your workout a name."; _msgErr = true; _saving = false; return; }
+        if (_form.Exercises.Count == 0) { _msg = "Add at least one exercise."; _msgErr = true; _saving = false; return; }
+
+        if (_editId.HasValue)
+        {
+            var ok = await WorkoutService.UpdateWorkoutAsync(_editId.Value, _userId, _form);
+            _msg = ok ? "Workout updated." : "Failed to update."; _msgErr = !ok;
+        }
+        else
+        {
+            await WorkoutService.CreateWorkoutAsync(_userId, _form);
+            _msg = "Workout created."; _msgErr = false;
+        }
+
+        _myWorkouts = await WorkoutService.GetUserWorkoutsAsync(_userId);
+        _showBuilder = false;
+        _saving = false;
+    }
+
+    private void OpenExPreview(Exercise ex) { _previewEx = ex; _showExPreview = true; }
+    private void CloseExPreview() { _showExPreview = false; _previewEx = null; }
+
+    private void AddFromPreview(Exercise ex)
+    {
+        AddExercise(ex);
+        _showExPreview = false;
+        _previewEx = null;
+    }
+
+    private async Task OpenWorkoutPreview(int id, bool own)
+    {
+        _previewWorkout = await WorkoutService.GetWorkoutByIdAsync(id, _userId);
+        _previewIsOwn = own;
+        _showWorkoutPreview = true;
+    }
+
+    private void OpenProgramPreview(Models.Program p, bool own)
+    {
+        _previewProgram = p;
+        _previewProgramIsOwn = own;
+        _showProgramPreview = true;
+    }
+
+    private async Task EditWorkout()
+    {
+        if (_previewWorkout is null) return;
+        _editId = _previewWorkout.Id;
+        _form = new UserWorkoutFormData
+        {
+            Name = _previewWorkout.Name,
+            SortOrder = _previewWorkout.SortOrder,
+            Exercises = _previewWorkout.WorkoutExercises.OrderBy(x => x.SortOrder).Select(x => new BuilderExerciseEntry
+            {
+                ExerciseId = x.ExerciseId, Exercise = x.Exercise, Sets = x.Sets, Reps = x.Reps, RestTimeSec = x.RestTimeSec
+            }).ToList()
+        };
+        _showWorkoutPreview = false;
+        _showBuilder = true;
+        _activeExIdx = -1;
+        _sugCollapsed = false;
+        _libCollapsed = false;
+        Recalc();
+    }
+
+    private async Task DeletePreviewWorkout()
+    {
+        if (_previewWorkout is null) return;
+        var ok = await WorkoutService.DeleteWorkoutAsync(_previewWorkout.Id, _userId);
+        _msg = ok ? "Workout deleted." : "Failed to delete."; _msgErr = !ok;
+        _myWorkouts = await WorkoutService.GetUserWorkoutsAsync(_userId);
+        _showWorkoutPreview = false;
+    }
+
+    private async Task CopyWorkout()
+    {
+        if (_previewWorkout is null) return;
+        await WorkoutService.CopyWorkoutToUserAsync(_previewWorkout.Id, _userId);
+        _myWorkouts = await WorkoutService.GetUserWorkoutsAsync(_userId);
+        _msg = "Workout copied to My Workouts."; _msgErr = false;
+        _showWorkoutPreview = false;
+        _tab = 0;
+    }
+
+    private async Task CopyProgram()
+    {
+        if (_previewProgram is null) return;
+        await WorkoutService.CopyProgramToUserAsync(_previewProgram.Id, _userId);
+        _myPrograms = await WorkoutService.GetUserProgramsAsync(_userId);
+        _myWorkouts = await WorkoutService.GetUserWorkoutsAsync(_userId);
+        _msg = "Program saved to My Programs."; _msgErr = false;
+        _showProgramPreview = false;
+        _tab = 0;
+    }
+
+    private void OpenEditProgram()
+    {
+        if (_previewProgram is null) return;
+        _progEditName = _previewProgram.Name;
+        _progEditDesc = _previewProgram.Description;
+        _progEditWeeks = _previewProgram.DurationWeeks;
+        _progEditDays = _previewProgram.DaysPerWeek;
+        _progEditLevel = _previewProgram.TargetLevel;
+        _progEditGoal = _previewProgram.TargetGoal;
+        _showProgramPreview = false;
+        _showProgramEditor = true;
+    }
+
+    private async Task SaveProgramEdits()
+    {
+        if (_previewProgram is null || string.IsNullOrWhiteSpace(_progEditName)) return;
+        var ok = await WorkoutService.UpdateProgramAsync(
+            _previewProgram.Id, _userId, _progEditName, _progEditDesc,
+            _progEditWeeks, _progEditDays,
+            string.IsNullOrEmpty(_progEditLevel) ? null : _progEditLevel,
+            string.IsNullOrEmpty(_progEditGoal) ? null : _progEditGoal);
+        _msg = ok ? "Program updated." : "Failed to update."; _msgErr = !ok;
+        _myPrograms = await WorkoutService.GetUserProgramsAsync(_userId);
+        _showProgramEditor = false;
+    }
+
+    private async Task DeletePreviewProgram()
+    {
+        if (_previewProgram is null) return;
+        var ok = await WorkoutService.DeleteProgramAsync(_previewProgram.Id, _userId);
+        _msg = ok ? "Program deleted." : "Failed to delete."; _msgErr = !ok;
+        _myPrograms = await WorkoutService.GetUserProgramsAsync(_userId);
+        _myWorkouts = await WorkoutService.GetUserWorkoutsAsync(_userId);
+        _showProgramPreview = false;
+    }
+
+    private void ToggleFilter(List<string> list, string val) { if (!list.Remove(val)) list.Add(val); }
+    private void ClearFilters() { _filterMuscles.Clear(); _filterEquip.Clear(); _filterMove = ""; }
+
+    private void ToggleMoveFilter(MovementType mt)
+    {
+        var s = mt.ToString();
+        _filterMove = _filterMove == s ? string.Empty : s;
+    }
+
+    private List<Exercise> GetFiltered()
+    {
+        var used = _form.Exercises.Select(e => e.ExerciseId).ToHashSet();
+        return _allExercises.Where(e =>
+        {
+            if (used.Contains(e.Id)) return false;
+            if (!string.IsNullOrWhiteSpace(_search) && !e.Name.Contains(_search, StringComparison.OrdinalIgnoreCase)) return false;
+            if (_filterMuscles.Count > 0 && !_filterMuscles.All(fm => e.ExerciseMuscleGroups.Any(m => m.MuscleGroup.Name == fm))) return false;
+            if (_filterEquip.Count > 0 && !e.ExerciseEquipment.Any(eq => _filterEquip.Contains(eq.Equipment.Name))) return false;
+            if (!string.IsNullOrEmpty(_filterMove) && e.MovementType.ToString() != _filterMove) return false;
+            return true;
+        }).ToList();
+    }
+
+    private static IEnumerable<string> GetPrimaryMuscles(IEnumerable<WorkoutExercise> exercises) =>
+        exercises.SelectMany(x => x.Exercise.ExerciseMuscleGroups.Where(mg => mg.IsPrimary).Select(mg => mg.MuscleGroup.Name)).Distinct().Take(4);
+
+    private static string MuscleStr(Exercise ex) => string.Join(", ", ex.ExerciseMuscleGroups.Where(m => m.IsPrimary).Select(m => m.MuscleGroup.Name));
+    private static string EquipStr(Exercise ex) => string.Join(", ", ex.ExerciseEquipment.Select(e => e.Equipment.Name));
+    private decimal EstSingle(BuilderExerciseEntry e) => e.Exercise is not null ? WorkoutService.EstimateExerciseCalories(e.Exercise, e.Sets, e.Reps, e.RestTimeSec ?? 60, _user?.WeightKg ?? 70m) : 0;
+    private decimal EstWorkout(Workout w) => WorkoutService.EstimateWorkoutCalories(w.WorkoutExercises.Select(x => new BuilderExerciseEntry { Exercise = x.Exercise, Sets = x.Sets, Reps = x.Reps, RestTimeSec = x.RestTimeSec }).ToList(), _user?.WeightKg ?? 70m);
+}

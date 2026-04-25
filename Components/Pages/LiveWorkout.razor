@@ -1,0 +1,436 @@
+@page "/live-workout"
+@inject DashboardService DashService
+@inject WorkoutService WorkoutService
+@inject CustomAuthStateProvider AuthState
+@inject NavigationManager Navigation
+@using FitnessApp.Models.Enums
+@using System.Text.Json
+@implements IDisposable
+
+<PageTitle>Live Workout - Fitness App</PageTitle>
+
+@if (_isLoading)
+{
+    <div class="loading-state"><p>Loading...</p></div>
+}
+else if (_session is null)
+{
+    <div class="loading-state">
+        <div class="no-session">
+            <h2>No active workout</h2>
+            <p>Start a workout from the dashboard.</p>
+            <button type="button" class="btn-action" @onclick='() => Navigation.NavigateTo("/dashboard")'>Go to Dashboard</button>
+        </div>
+    </div>
+}
+else
+{
+    <div class="live-page">
+        <div class="live-header">
+            <div>
+                <h1>@_session.Workout.Name</h1>
+                <div class="live-badges">
+                    <span class="lbdg lbdg-prog">@_completedSets / @_totalSets sets</span>
+                    <span class="lbdg lbdg-time">@FormatElapsed()</span>
+                    <span class="lbdg lbdg-cal">@_estCalBurned kcal</span>
+                </div>
+            </div>
+            <button type="button" class="btn-action btn-finish-style" @onclick="FinishWorkout">Finish Workout</button>
+        </div>
+
+        <div class="live-progress">
+            <div class="live-bar" style="width:@(_totalSets > 0 ? (int)((double)_completedSets / _totalSets * 100) : 0)%"></div>
+        </div>
+
+        @if (_resting)
+        {
+            <div class="rest-overlay">
+                <div class="rest-card">
+                    <span class="rest-label">Rest</span>
+                    <span class="rest-time">@FormatRestTime()</span>
+                    <div class="rest-bar-bg"><div class="rest-bar-fill" style="width:@RestPercent()%"></div></div>
+                    <button type="button" class="btn-action" @onclick="SkipRest">Skip Rest</button>
+                </div>
+            </div>
+        }
+
+        <div class="ex-checklist">
+            @for (int ei = 0; ei < _liveState.Exercises.Count; ei++)
+            {
+                var exIdx = ei;
+                var les = _liveState.Exercises[exIdx];
+                var we = _orderedExercises[exIdx];
+                var activeSets = les.Sets.Where(s => !s.IsSkipped).ToList();
+                var allDone = les.IsSkipped || activeSets.All(s => s.IsCompleted);
+                var anyDone = les.IsSkipped || activeSets.Any(s => s.IsCompleted);
+                var statusClass = les.IsSkipped ? "ex-skipped" : (allDone ? "ex-done" : (anyDone ? "ex-partial" : (_liveState.CurrentExerciseIndex == exIdx ? "ex-current" : "")));
+
+                <div class="ex-block @statusClass">
+                    <div class="ex-header" @onclick="() => ToggleExpand(exIdx)">
+                        <div class="ex-hdr-left">
+                            <span class="ex-num">@(exIdx + 1)</span>
+                            <div>
+                                <span class="ex-hdr-name @(les.IsSkipped ? "text-skipped" : "")">@we.Exercise.Name</span>
+                                <span class="ex-hdr-meta">@les.Sets.Count(s => !s.IsSkipped) x @(les.Sets.FirstOrDefault()?.Reps ?? we.Reps) · @(we.RestTimeSec ?? 60)s rest · @MuscleStr(we.Exercise)</span>
+                            </div>
+                        </div>
+                        <span class="ex-hdr-status">
+                            @if (les.IsSkipped) { <span class="skip-label">Skipped</span> }
+                            else if (allDone) { <span class="check-icon">&#10003;</span> }
+                            else { <span>@activeSets.Count(s => s.IsCompleted)/@activeSets.Count</span> }
+                        </span>
+                    </div>
+
+                    @if (_liveState.ExpandedExerciseIndex == exIdx || _liveState.CurrentExerciseIndex == exIdx)
+                    {
+                        <div class="ex-body">
+                            @if (!les.IsSkipped)
+                            {
+                                @for (int si = 0; si < les.Sets.Count; si++)
+                                {
+                                    var setIdx = si;
+                                    var setS = les.Sets[setIdx];
+                                    var setClass = setS.IsSkipped ? "set-skipped" : (setS.IsCompleted ? "set-done" : "");
+
+                                    <div class="set-row @setClass">
+                                        <span class="set-label">Set @(setIdx + 1)</span>
+                                        <div class="set-reps-control">
+                                            <button type="button" class="reps-btn" disabled="@(setS.IsCompleted || setS.IsSkipped || setS.Reps <= 1)" @onclick="() => AdjustReps(exIdx, setIdx, -1)">-</button>
+                                            <span class="set-detail">@setS.Reps reps</span>
+                                            <button type="button" class="reps-btn" disabled="@(setS.IsCompleted || setS.IsSkipped)" @onclick="() => AdjustReps(exIdx, setIdx, 1)">+</button>
+                                        </div>
+                                        @if (setS.IsSkipped)
+                                        {
+                                            <span class="skip-label">Skipped</span>
+                                        }
+                                        else if (!setS.IsCompleted)
+                                        {
+                                            <div class="set-actions">
+                                                <button type="button" class="btn-action btn-set-size" @onclick="() => CompleteSet(exIdx, setIdx, we.RestTimeSec ?? 60)">Complete</button>
+                                                <button type="button" class="btn-skip-set" @onclick="() => SkipSet(exIdx, setIdx)">Skip</button>
+                                            </div>
+                                        }
+                                        else
+                                        {
+                                            <span class="set-complete">Done</span>
+                                        }
+                                    </div>
+                                }
+
+                                <div class="ex-modify-row">
+                                    <button type="button" class="btn-ghost btn-sm" disabled="@(les.Sets.All(s => s.IsCompleted || s.IsSkipped))" @onclick="() => AddSet(exIdx, we)">+ Add Set</button>
+                                    <button type="button" class="btn-ghost btn-sm btn-skip-ex" @onclick="() => SkipExercise(exIdx)">Skip Exercise</button>
+                                </div>
+                            }
+                            else
+                            {
+                                <div class="ex-modify-row">
+                                    <button type="button" class="btn-ghost btn-sm" @onclick="() => UnskipExercise(exIdx)">Undo Skip</button>
+                                </div>
+                            }
+                        </div>
+                    }
+                </div>
+            }
+        </div>
+    </div>
+}
+
+<Modal IsOpen="_showFinish" OnClose="() => _showFinish = false" Size="sm">
+    <div class="finish-modal">
+        <h2>Workout Complete!</h2>
+        <div class="finish-stats">
+            <div class="fs-item"><span class="fs-val">@_completedSets</span><span class="fs-label">Sets</span></div>
+            <div class="fs-item"><span class="fs-val">@FormatElapsed()</span><span class="fs-label">Duration</span></div>
+            <div class="fs-item"><span class="fs-val">@_estCalBurned</span><span class="fs-label">Calories</span></div>
+        </div>
+        <div class="mf-actions">
+            <button type="button" class="btn-action" @onclick="ConfirmFinish">Done</button>
+        </div>
+    </div>
+</Modal>
+
+@code {
+    private bool _isLoading = true;
+    private int _userId;
+    private User? _user;
+    private WorkoutSchedule? _session;
+    private List<WorkoutExercise> _orderedExercises = new();
+
+    private LiveSessionState _liveState = new();
+    private int _completedSets;
+    private int _totalSets;
+    private decimal _estCalBurned;
+    private DateTime _startTime;
+
+    private bool _resting;
+    private int _restTotal;
+    private int _restRemaining;
+    private System.Threading.Timer? _restTimer;
+    private System.Threading.Timer? _elapsedTimer;
+
+    private bool _showFinish;
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!firstRender) return;
+        var state = await AuthState.GetAuthenticationStateAsync();
+        if (state.User.Identity is not { IsAuthenticated: true }) { try { Navigation.NavigateTo("/login", forceLoad: true); } catch { } return; }
+        _userId = int.Parse(state.User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)!.Value);
+        _user = await WorkoutService.GetUserAsync(_userId);
+        _session = await DashService.GetActiveSessionAsync(_userId);
+
+        if (_session is not null)
+        {
+            _startTime = _session.StartedAt ?? DateTime.UtcNow;
+            _orderedExercises = _session.Workout.WorkoutExercises.OrderBy(x => x.SortOrder).ToList();
+            LoadOrInitState();
+            _elapsedTimer = new System.Threading.Timer(async _ =>
+            {
+                await InvokeAsync(StateHasChanged);
+            }, null, 0, 1000);
+        }
+
+        _isLoading = false;
+        StateHasChanged();
+    }
+
+    private void LoadOrInitState()
+    {
+        if (!string.IsNullOrEmpty(_session!.LiveSessionJson))
+        {
+            try
+            {
+                _liveState = JsonSerializer.Deserialize<LiveSessionState>(_session.LiveSessionJson) ?? new();
+            }
+            catch
+            {
+                _liveState = new();
+            }
+        }
+
+        if (_liveState.Exercises.Count != _orderedExercises.Count)
+        {
+            _liveState = new LiveSessionState();
+            foreach (var we in _orderedExercises)
+            {
+                var les = new LiveExerciseState
+                {
+                    ExerciseId = we.ExerciseId,
+                    OriginalSets = we.Sets,
+                    OriginalReps = we.Reps
+                };
+                for (int i = 0; i < we.Sets; i++)
+                    les.Sets.Add(new LiveSetState { Reps = we.Reps });
+                _liveState.Exercises.Add(les);
+            }
+            _liveState.ExpandedExerciseIndex = 0;
+        }
+
+        RecalcTotals();
+    }
+
+    private void RecalcTotals()
+    {
+        _totalSets = _liveState.Exercises.Where(e => !e.IsSkipped).Sum(e => e.Sets.Count(s => !s.IsSkipped));
+        _completedSets = _liveState.Exercises.Where(e => !e.IsSkipped).Sum(e => e.Sets.Count(s => s.IsCompleted && !s.IsSkipped));
+        RecalcCalories();
+    }
+
+    private void RecalcCalories()
+    {
+        if (_session is null || _user is null) return;
+        decimal weight = _user.WeightKg ?? 70m;
+        decimal total = 0;
+        for (int i = 0; i < _orderedExercises.Count && i < _liveState.Exercises.Count; i++)
+        {
+            var les = _liveState.Exercises[i];
+            if (les.IsSkipped) continue;
+            var doneSets = les.Sets.Where(s => s.IsCompleted && !s.IsSkipped).ToList();
+            if (doneSets.Count > 0)
+            {
+                int avgReps = (int)Math.Round(doneSets.Average(s => s.Reps));
+                total += WorkoutService.EstimateExerciseCalories(_orderedExercises[i].Exercise, doneSets.Count, avgReps, _orderedExercises[i].RestTimeSec ?? 60, weight);
+            }
+        }
+        _estCalBurned = Math.Round(total, 0);
+    }
+
+    private async Task PersistState()
+    {
+        if (_session is null) return;
+        var json = JsonSerializer.Serialize(_liveState);
+        await DashService.SaveLiveSessionStateAsync(_session.Id, _userId, json);
+    }
+
+    private async void CompleteSet(int exIdx, int setIdx, int restSec)
+    {
+        _liveState.Exercises[exIdx].Sets[setIdx].IsCompleted = true;
+        RecalcTotals();
+        await PersistState();
+
+        var les = _liveState.Exercises[exIdx];
+        var activeSets = les.Sets.Where(s => !s.IsSkipped).ToList();
+        bool allExDone = activeSets.All(s => s.IsCompleted);
+
+        if (allExDone)
+            AdvanceToNextExercise(exIdx);
+
+        if (IsAllDone())
+        {
+            FinishWorkout();
+            return;
+        }
+
+        bool isLastActiveSet = activeSets.Last() == les.Sets[setIdx] && allExDone;
+        if (!isLastActiveSet && restSec > 0)
+            StartRest(restSec);
+
+        StateHasChanged();
+    }
+
+    private async void SkipSet(int exIdx, int setIdx)
+    {
+        _liveState.Exercises[exIdx].Sets[setIdx].IsSkipped = true;
+        RecalcTotals();
+
+        var les = _liveState.Exercises[exIdx];
+        if (les.Sets.Where(s => !s.IsSkipped).All(s => s.IsCompleted))
+            AdvanceToNextExercise(exIdx);
+
+        if (IsAllDone())
+        {
+            await PersistState();
+            FinishWorkout();
+            StateHasChanged();
+            return;
+        }
+
+        await PersistState();
+        StateHasChanged();
+    }
+
+    private async void SkipExercise(int exIdx)
+    {
+        _liveState.Exercises[exIdx].IsSkipped = true;
+        RecalcTotals();
+        AdvanceToNextExercise(exIdx);
+
+        if (IsAllDone())
+        {
+            await PersistState();
+            FinishWorkout();
+            StateHasChanged();
+            return;
+        }
+
+        await PersistState();
+        StateHasChanged();
+    }
+
+    private async void UnskipExercise(int exIdx)
+    {
+        _liveState.Exercises[exIdx].IsSkipped = false;
+        RecalcTotals();
+        await PersistState();
+        StateHasChanged();
+    }
+
+    private async void AdjustReps(int exIdx, int setIdx, int delta)
+    {
+        var setS = _liveState.Exercises[exIdx].Sets[setIdx];
+        setS.Reps = Math.Max(1, setS.Reps + delta);
+        await PersistState();
+        StateHasChanged();
+    }
+
+    private async void AddSet(int exIdx, WorkoutExercise we)
+    {
+        int defaultReps = _liveState.Exercises[exIdx].Sets.LastOrDefault()?.Reps ?? we.Reps;
+        _liveState.Exercises[exIdx].Sets.Add(new LiveSetState { Reps = defaultReps });
+        RecalcTotals();
+        await PersistState();
+        StateHasChanged();
+    }
+
+    private void AdvanceToNextExercise(int fromIdx)
+    {
+        for (int i = fromIdx + 1; i < _liveState.Exercises.Count; i++)
+        {
+            var next = _liveState.Exercises[i];
+            if (!next.IsSkipped && !next.Sets.Where(s => !s.IsSkipped).All(s => s.IsCompleted))
+            {
+                _liveState.CurrentExerciseIndex = i;
+                _liveState.ExpandedExerciseIndex = i;
+                return;
+            }
+        }
+    }
+
+    private bool IsAllDone() => _liveState.Exercises.All(e => e.IsSkipped || e.Sets.Where(s => !s.IsSkipped).All(s => s.IsCompleted));
+
+    private void ToggleExpand(int exIdx) => _liveState.ExpandedExerciseIndex = _liveState.ExpandedExerciseIndex == exIdx ? -1 : exIdx;
+
+    private void StartRest(int seconds)
+    {
+        _resting = true;
+        _restTotal = seconds;
+        _restRemaining = seconds;
+
+        _restTimer?.Dispose();
+        _restTimer = new System.Threading.Timer(async _ =>
+        {
+            _restRemaining--;
+            if (_restRemaining <= 0)
+            {
+                _resting = false;
+                _restTimer?.Dispose();
+            }
+            await InvokeAsync(StateHasChanged);
+        }, null, 1000, 1000);
+    }
+
+    private void SkipRest()
+    {
+        _resting = false;
+        _restTimer?.Dispose();
+    }
+
+    private void FinishWorkout()
+    {
+        _showFinish = true;
+    }
+
+    private async Task ConfirmFinish()
+    {
+        if (_session is not null)
+            await DashService.CompleteWorkoutAsync(_session.Id, _userId);
+
+        _showFinish = false;
+        try { Navigation.NavigateTo("/dashboard"); } catch { }
+    }
+
+    private string FormatElapsed()
+    {
+        var elapsed = DateTime.UtcNow - _startTime;
+        return elapsed.Hours > 0 ? $"{elapsed.Hours}h {elapsed.Minutes:D2}m" : $"{elapsed.Minutes}m {elapsed.Seconds:D2}s";
+    }
+
+    private string FormatRestTime()
+    {
+        int m = _restRemaining / 60;
+        int s = _restRemaining % 60;
+        return m > 0 ? $"{m}:{s:D2}" : $"{s}s";
+    }
+
+    private double RestPercent() => _restTotal > 0 ? (double)_restRemaining / _restTotal * 100 : 0;
+
+    private static string MuscleStr(Exercise ex) =>
+        string.Join(", ", ex.ExerciseMuscleGroups.Where(m => m.IsPrimary).Select(m => m.MuscleGroup.Name));
+
+    public void Dispose()
+    {
+        _restTimer?.Dispose();
+        _elapsedTimer?.Dispose();
+    }
+}
