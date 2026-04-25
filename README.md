@@ -10,12 +10,17 @@ Users can register, log in and they will be asked for information relevant to wo
 
 Users have a profile (profiles are private currently and users can't interact with each other)
 
+## Admin page
+
+Admin users have CRUD functionality over the database
+
+## Workouts page
+
+Users can create workouts and select from premade ones
 
 ## To-do
 
 - User profiles - add profile system where users can search for each other and add each other as friends
-- Admin page
 - Exercises list - add base exercises
-- Workouts section - add premade workouts with workout types (exercises, timers, calories)
-- Running section - add running section with run estimations (timers, calories)
+- Running section - add running section with run estimations (timers, calories, programs with recommended times and distances to build habit etc.)
 - Foods section - add ingredients to use/avoid
