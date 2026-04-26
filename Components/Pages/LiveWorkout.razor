@@ -1,6 +1,7 @@
 @page "/live-workout"
 @inject DashboardService DashService
 @inject WorkoutService WorkoutService
+@inject LoggingService LogService
 @inject CustomAuthStateProvider AuthState
 @inject NavigationManager Navigation
 @using FitnessApp.Models.Enums
@@ -404,10 +405,72 @@ else
     private async Task ConfirmFinish()
     {
         if (_session is not null)
+        {
             await DashService.CompleteWorkoutAsync(_session.Id, _userId);
+
+            var exercises = BuildExerciseLogEntries();
+            await LogService.SaveWorkoutLogAsync(
+                _userId,
+                _session.WorkoutId,
+                _startTime,
+                DateTime.UtcNow,
+                _estCalBurned,
+                exercises);
+
+            await LogService.CheckAndSavePersonalRecordsAsync(_userId, exercises);
+        }
 
         _showFinish = false;
         try { Navigation.NavigateTo("/dashboard"); } catch { }
+    }
+
+    private List<ExerciseLogEntry> BuildExerciseLogEntries()
+    {
+        var entries = new List<ExerciseLogEntry>();
+        decimal weight = _user?.WeightKg ?? 70m;
+
+        for (int i = 0; i < _liveState.Exercises.Count && i < _orderedExercises.Count; i++)
+        {
+            var les = _liveState.Exercises[i];
+            var we = _orderedExercises[i];
+            var status = LogStatus.Completed;
+
+            if (les.IsSkipped)
+                status = LogStatus.Skipped;
+            else if (les.Sets.Count != les.OriginalSets || les.Sets.Any(s => s.Reps != les.OriginalReps || s.IsSkipped))
+                status = LogStatus.Modified;
+
+            decimal cal = 0;
+            if (!les.IsSkipped)
+            {
+                var doneSets = les.Sets.Where(s => s.IsCompleted && !s.IsSkipped).ToList();
+                if (doneSets.Count > 0)
+                {
+                    int avgReps = (int)Math.Round(doneSets.Average(s => s.Reps));
+                    cal = WorkoutService.EstimateExerciseCalories(we.Exercise, doneSets.Count, avgReps, we.RestTimeSec ?? 60, weight);
+                }
+            }
+
+            var entry = new ExerciseLogEntry
+            {
+                ExerciseId = les.ExerciseId,
+                Status = status,
+                CaloriesBurned = Math.Round(cal, 1)
+            };
+
+            foreach (var setS in les.Sets)
+            {
+                entry.Sets.Add(new SetLogEntry
+                {
+                    RepsCompleted = setS.IsSkipped ? null : setS.Reps,
+                    IsCompleted = setS.IsCompleted && !setS.IsSkipped
+                });
+            }
+
+            entries.Add(entry);
+        }
+
+        return entries;
     }
 
     private string FormatElapsed()

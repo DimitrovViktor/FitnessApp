@@ -17,6 +17,7 @@ builder.Services.AddScoped<ProfileService>();
 builder.Services.AddScoped<AdminService>();
 builder.Services.AddScoped<WorkoutService>();
 builder.Services.AddScoped<DashboardService>();
+builder.Services.AddScoped<LoggingService>();
 builder.Services.AddScoped<CustomAuthStateProvider>();
 builder.Services.AddScoped<AuthenticationStateProvider>(sp =>
     sp.GetRequiredService<CustomAuthStateProvider>());
