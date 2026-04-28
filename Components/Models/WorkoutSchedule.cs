@@ -37,6 +37,7 @@ public class LiveExerciseState
 public class LiveSetState
 {
     public int Reps { get; set; }
+    public decimal? WeightKg { get; set; }
     public bool IsCompleted { get; set; }
     public bool IsSkipped { get; set; }
 }

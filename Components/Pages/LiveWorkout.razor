@@ -100,6 +100,12 @@ else
                                             <span class="set-detail">@setS.Reps reps</span>
                                             <button type="button" class="reps-btn" disabled="@(setS.IsCompleted || setS.IsSkipped)" @onclick="() => AdjustReps(exIdx, setIdx, 1)">+</button>
                                         </div>
+                                        <div class="set-weight-control">
+                                            <input type="number" class="weight-input" placeholder="kg" step="0.5" min="0"
+                                                   disabled="@(setS.IsCompleted || setS.IsSkipped)"
+                                                   value="@setS.WeightKg"
+                                                   @onchange="(e) => SetWeight(exIdx, setIdx, e)" />
+                                        </div>
                                         @if (setS.IsSkipped)
                                         {
                                             <span class="skip-label">Skipped</span>
@@ -345,10 +351,24 @@ else
         StateHasChanged();
     }
 
+    private async void SetWeight(int exIdx, int setIdx, ChangeEventArgs e)
+    {
+        if (decimal.TryParse(e.Value?.ToString(), out var val) && val >= 0)
+            _liveState.Exercises[exIdx].Sets[setIdx].WeightKg = val;
+        else
+            _liveState.Exercises[exIdx].Sets[setIdx].WeightKg = null;
+        await PersistState();
+        StateHasChanged();
+    }
+
     private async void AddSet(int exIdx, WorkoutExercise we)
     {
-        int defaultReps = _liveState.Exercises[exIdx].Sets.LastOrDefault()?.Reps ?? we.Reps;
-        _liveState.Exercises[exIdx].Sets.Add(new LiveSetState { Reps = defaultReps });
+        var lastSet = _liveState.Exercises[exIdx].Sets.LastOrDefault();
+        _liveState.Exercises[exIdx].Sets.Add(new LiveSetState
+        {
+            Reps = lastSet?.Reps ?? we.Reps,
+            WeightKg = lastSet?.WeightKg
+        });
         RecalcTotals();
         await PersistState();
         StateHasChanged();
@@ -463,6 +483,7 @@ else
                 entry.Sets.Add(new SetLogEntry
                 {
                     RepsCompleted = setS.IsSkipped ? null : setS.Reps,
+                    WeightKg = setS.IsSkipped ? null : setS.WeightKg,
                     IsCompleted = setS.IsCompleted && !setS.IsSkipped
                 });
             }
