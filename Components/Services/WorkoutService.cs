@@ -23,7 +23,7 @@ public class WorkoutService
             .Include(w => w.WorkoutExercises).ThenInclude(we => we.Exercise)
                 .ThenInclude(e => e.Media)
             .Include(w => w.Program)
-            .Where(w => w.UserId == userId)
+            .Where(w => w.UserId == userId && (w.Program == null || !w.Program.IsPreBuilt))
             .OrderBy(w => w.SortOrder).ThenBy(w => w.Name)
             .ToListAsync();
     }
@@ -145,7 +145,7 @@ public class WorkoutService
 
     public async Task<bool> UpdateProgramAsync(int programId, int userId, string name, string? description, int durationWeeks, int daysPerWeek, string? targetLevel, string? targetGoal)
     {
-        var program = await _db.Programs.FirstOrDefaultAsync(p => p.Id == programId && p.CreatedByUserId == userId);
+        var program = await _db.Programs.FirstOrDefaultAsync(p => p.Id == programId && p.CreatedByUserId == userId && !p.IsPreBuilt);
         if (program is null) return false;
 
         program.Name = name.Trim();
@@ -162,7 +162,7 @@ public class WorkoutService
     {
         var program = await _db.Programs
             .Include(p => p.Workouts).ThenInclude(w => w.WorkoutExercises)
-            .FirstOrDefaultAsync(p => p.Id == programId && p.CreatedByUserId == userId);
+            .FirstOrDefaultAsync(p => p.Id == programId && p.CreatedByUserId == userId && !p.IsPreBuilt);
 
         if (program is null) return false;
 
@@ -236,9 +236,10 @@ public class WorkoutService
     {
         var workout = await _db.Workouts
             .Include(w => w.WorkoutExercises)
+            .Include(w => w.Program)
             .FirstOrDefaultAsync(w => w.Id == id && w.UserId == userId);
 
-        if (workout is null) return false;
+        if (workout is null || (workout.Program is not null && workout.Program.IsPreBuilt)) return false;
 
         workout.Name = data.Name.Trim();
         workout.SortOrder = data.SortOrder;
@@ -267,9 +268,10 @@ public class WorkoutService
     {
         var workout = await _db.Workouts
             .Include(w => w.WorkoutExercises)
+            .Include(w => w.Program)
             .FirstOrDefaultAsync(w => w.Id == id && w.UserId == userId);
 
-        if (workout is null) return false;
+        if (workout is null || (workout.Program is not null && workout.Program.IsPreBuilt)) return false;
 
         _db.WorkoutExercises.RemoveRange(workout.WorkoutExercises);
         _db.Workouts.Remove(workout);

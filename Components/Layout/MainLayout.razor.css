@@ -3,52 +3,50 @@
     display: flex;
     flex-direction: column;
     min-height: 100vh;
-    background: #0f172a;
+    background: var(--bg);
+    overflow: hidden;
 }
 
 main {
     flex: 1;
+    overflow-y: auto;
+    overflow-x: hidden;
 }
 
 .sidebar {
-    background: #0f172a;
-    border-right: 1px solid rgba(148, 163, 184, 0.08);
+    background: #040d1a;
+    border-right: 1px solid rgba(255,255,255,0.05);
 }
 
 .content {
-    padding-top: 2rem;
-    padding-bottom: 2rem;
+    padding: 36px 48px 36px;
 }
 
 @media (max-width: 640.98px) {
     .content {
-        padding-left: 1rem !important;
-        padding-right: 1rem !important;
+        padding: 20px 16px !important;
     }
 }
 
 @media (min-width: 641px) {
     .page {
         flex-direction: row;
+        height: 100vh;
     }
 
     .sidebar {
-        width: 260px;
+        width: 220px;
+        min-width: 220px;
         height: 100vh;
         position: sticky;
         top: 0;
-    }
-
-    .content {
-        padding-left: 2.5rem !important;
-        padding-right: 2rem !important;
     }
 }
 
 #blazor-error-ui {
     color-scheme: dark only;
-    background: #1e293b;
-    color: #f87171;
+    background: var(--surface);
+    color: var(--danger);
     bottom: 0;
     box-shadow: 0 -1px 4px rgba(0, 0, 0, 0.4);
     box-sizing: border-box;
@@ -68,5 +66,5 @@ main {
 }
 
 #blazor-error-ui .reload {
-    color: #38bdf8;
+    color: var(--accent);
 }

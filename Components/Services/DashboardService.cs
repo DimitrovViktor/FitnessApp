@@ -164,7 +164,8 @@ public class DashboardService
     {
         return await _db.Workouts
             .Include(w => w.WorkoutExercises).ThenInclude(we => we.Exercise)
-            .Where(w => w.UserId == userId)
+            .Include(w => w.Program)
+            .Where(w => w.UserId == userId && (w.Program == null || !w.Program.IsPreBuilt))
             .OrderBy(w => w.Name)
             .ToListAsync();
     }
