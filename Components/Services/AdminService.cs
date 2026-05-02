@@ -208,6 +208,7 @@ public class AdminService
         return await _db.Exercises
             .Include(e => e.ExerciseMuscleGroups).ThenInclude(em => em.MuscleGroup)
             .Include(e => e.ExerciseEquipment).ThenInclude(ee => ee.Equipment)
+            .Include(e => e.Alternatives)
             .FirstOrDefaultAsync(e => e.Id == id);
     }
 
@@ -234,6 +235,9 @@ public class AdminService
         foreach (var eqId in data.EquipmentIds)
             _db.ExerciseEquipment.Add(new ExerciseEquipment { ExerciseId = exercise.Id, EquipmentId = eqId });
 
+        foreach (var altId in data.AlternativeIds)
+            _db.ExerciseAlternatives.Add(new ExerciseAlternative { ExerciseId = exercise.Id, AlternativeExerciseId = altId });
+
         await _db.SaveChangesAsync();
         return exercise;
     }
@@ -243,6 +247,7 @@ public class AdminService
         var exercise = await _db.Exercises
             .Include(e => e.ExerciseMuscleGroups)
             .Include(e => e.ExerciseEquipment)
+            .Include(e => e.Alternatives)
             .FirstOrDefaultAsync(e => e.Id == id);
 
         if (exercise is null) return false;
@@ -258,12 +263,16 @@ public class AdminService
 
         _db.ExerciseMuscleGroups.RemoveRange(exercise.ExerciseMuscleGroups);
         _db.ExerciseEquipment.RemoveRange(exercise.ExerciseEquipment);
+        _db.ExerciseAlternatives.RemoveRange(exercise.Alternatives);
 
         foreach (var mgId in data.MuscleGroupIds)
             _db.ExerciseMuscleGroups.Add(new ExerciseMuscleGroup { ExerciseId = id, MuscleGroupId = mgId, IsPrimary = data.PrimaryMuscleGroupIds.Contains(mgId) });
 
         foreach (var eqId in data.EquipmentIds)
             _db.ExerciseEquipment.Add(new ExerciseEquipment { ExerciseId = id, EquipmentId = eqId });
+
+        foreach (var altId in data.AlternativeIds)
+            _db.ExerciseAlternatives.Add(new ExerciseAlternative { ExerciseId = id, AlternativeExerciseId = altId });
 
         await _db.SaveChangesAsync();
         return true;
@@ -275,6 +284,8 @@ public class AdminService
             .Include(e => e.ExerciseMuscleGroups)
             .Include(e => e.ExerciseEquipment)
             .Include(e => e.Media)
+            .Include(e => e.Alternatives)
+            .Include(e => e.AlternativeOf)
             .FirstOrDefaultAsync(e => e.Id == id);
 
         if (exercise is null) return false;
@@ -282,6 +293,8 @@ public class AdminService
         _db.ExerciseMuscleGroups.RemoveRange(exercise.ExerciseMuscleGroups);
         _db.ExerciseEquipment.RemoveRange(exercise.ExerciseEquipment);
         _db.ExerciseMedia.RemoveRange(exercise.Media);
+        _db.ExerciseAlternatives.RemoveRange(exercise.Alternatives);
+        _db.ExerciseAlternatives.RemoveRange(exercise.AlternativeOf);
         _db.Exercises.Remove(exercise);
         await _db.SaveChangesAsync();
         return true;
@@ -409,6 +422,7 @@ public class ExerciseFormData
     public List<int> MuscleGroupIds { get; set; } = new();
     public List<int> PrimaryMuscleGroupIds { get; set; } = new();
     public List<int> EquipmentIds { get; set; } = new();
+    public List<int> AlternativeIds { get; set; } = new();
 }
 
 public class WorkoutFormData

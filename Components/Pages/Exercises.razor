@@ -1,0 +1,275 @@
+@page "/exercises"
+@inject WorkoutService WorkoutService
+@inject CustomAuthStateProvider AuthState
+@inject NavigationManager Navigation
+@using FitnessApp.Models.Enums
+
+<PageTitle>Exercise Library - Fitness App</PageTitle>
+
+@if (_isLoading)
+{
+    <div class="loading-state"><p>Loading...</p></div>
+}
+else
+{
+    <div class="exercises-page">
+        <div class="page-header">
+            <h1>Exercise Library</h1>
+            <p class="page-sub">Browse @_allExercises.Count exercises with form guides, videos, and calorie data</p>
+        </div>
+
+        <div class="search-box">
+            <span class="search-icon">⌕</span>
+            <input class="search-input" placeholder="Search exercises, muscles..." @bind="_search" @bind:event="oninput" />
+        </div>
+
+        <div class="filter-section">
+            <div class="filter-group">
+                <span class="filter-label">Muscle Group</span>
+                <div class="pill-row">
+                    <button type="button" class="pill @(_filterMuscles.Count == 0 ? "pill-active" : "")" @onclick="() => _filterMuscles.Clear()">All</button>
+                    @foreach (var mg in _allMuscleGroups)
+                    {
+                        var name = mg.Name;
+                        <button type="button" class="pill @(_filterMuscles.Contains(name) ? "pill-active" : "")" @onclick="() => ToggleMuscle(name)">@name</button>
+                    }
+                </div>
+            </div>
+            <div class="filter-row">
+                <div class="filter-group">
+                    <span class="filter-label">Difficulty</span>
+                    <div class="pill-row">
+                        <button type="button" class="pill-sub @(_filterDiff == "" ? "pill-sub-active" : "")" @onclick='() => _filterDiff = ""'>All</button>
+                        @foreach (var lv in Enum.GetValues<ExerciseLevel>())
+                        {
+                            var lvStr = lv.ToString();
+                            <button type="button" class="pill-sub @(_filterDiff == lvStr ? "pill-sub-active" : "")" @onclick="() => _filterDiff = lvStr">@lvStr</button>
+                        }
+                    </div>
+                </div>
+                <div class="filter-group">
+                    <span class="filter-label">Equipment</span>
+                    <div class="pill-row">
+                        <button type="button" class="pill-sub @(_filterEquip == "" ? "pill-sub-active" : "")" @onclick='() => _filterEquip = ""'>All</button>
+                        @foreach (var eq in _allEquipment)
+                        {
+                            var name = eq.Name;
+                            <button type="button" class="pill-sub @(_filterEquip == name ? "pill-sub-active" : "")" @onclick="() => _filterEquip = name">@name</button>
+                        }
+                    </div>
+                </div>
+                <div class="filter-count">@GetFiltered().Count exercises</div>
+            </div>
+        </div>
+
+        <div class="ex-grid">
+            @foreach (var ex in GetFiltered().Take(60))
+            {
+                var exRef = ex;
+                <div class="ex-card" @onclick="() => OpenDetail(exRef)">
+                    <div class="ex-card-img">
+                        @{ var thumb = ex.Media.FirstOrDefault(m => m.MediaType == MediaType.Image); }
+                        @if (thumb is not null)
+                        {
+                            <img src="@thumb.Url" alt="@ex.Name" />
+                        }
+                        else
+                        {
+                            <span class="ex-card-placeholder">@ex.Name[0]</span>
+                        }
+                    </div>
+                    <div class="ex-card-body">
+                        <span class="ex-card-name">@ex.Name</span>
+                        <span class="ex-card-muscles">@PrimaryStr(ex)@(SecondaryFirst(ex) is not null ? $" · {SecondaryFirst(ex)}" : "")</span>
+                        <div class="ex-card-tags">
+                            <span class="diff-tag diff-@ex.Level.ToString().ToLower()">@ex.Level</span>
+                            <span class="equip-tag">@EquipFirst(ex)</span>
+                        </div>
+                    </div>
+                </div>
+            }
+        </div>
+    </div>
+}
+
+<Modal IsOpen="_showDetail" OnClose="CloseDetail" Size="xl">
+    @if (_detailEx is not null)
+    {
+        <div class="detail-modal">
+            <div class="detail-banner">
+                @{ var detailVid = _detailEx.Media.FirstOrDefault(m => m.MediaType == MediaType.Video); }
+                @{ var detailImg = _detailEx.Media.FirstOrDefault(m => m.MediaType == MediaType.Image); }
+                @if (detailImg is not null)
+                {
+                    <img src="@detailImg.Url" alt="@_detailEx.Name" class="detail-banner-img" />
+                }
+                else
+                {
+                    <div class="detail-banner-placeholder">@_detailEx.Name</div>
+                }
+            </div>
+
+            <div class="detail-body">
+                <div class="detail-title-row">
+                    <h2>@_detailEx.Name</h2>
+                    <div class="detail-badges">
+                        <span class="diff-tag diff-@_detailEx.Level.ToString().ToLower()">@_detailEx.Level</span>
+                        <span class="equip-tag">@EquipFirst(_detailEx)</span>
+                        <span class="equip-tag">@_detailEx.MovementType</span>
+                        <span class="met-tag">MET @_detailEx.MetValue</span>
+                    </div>
+                </div>
+
+                <div class="detail-grid">
+                    <div class="detail-left">
+                        <div class="detail-section">
+                            <span class="detail-heading">Proper Form</span>
+                            <p class="detail-text">@_detailEx.Description</p>
+                        </div>
+
+                        <div class="detail-section">
+                            <span class="detail-heading">Targeted Muscles</span>
+                            <div class="muscle-list">
+                                @foreach (var mg in _detailEx.ExerciseMuscleGroups.OrderByDescending(m => m.IsPrimary))
+                                {
+                                    <div class="muscle-row">
+                                        <span class="muscle-dot @(mg.IsPrimary ? "dot-primary" : "dot-secondary")"></span>
+                                        <span class="muscle-name @(mg.IsPrimary ? "" : "muscle-sec")">@mg.MuscleGroup.Name</span>
+                                        <span class="muscle-role">@(mg.IsPrimary ? "Primary" : "Secondary")</span>
+                                    </div>
+                                }
+                            </div>
+                        </div>
+
+                        @if (_detailEx.Alternatives.Count > 0)
+                        {
+                            <div class="detail-section">
+                                <span class="detail-heading">Alternatives</span>
+                                <div class="alt-list">
+                                    @foreach (var alt in _detailEx.Alternatives)
+                                    {
+                                        var altEx = alt.AlternativeExercise;
+                                        <div class="alt-row" @onclick="() => OpenDetail(FindExercise(altEx.Id))" @onclick:stopPropagation>
+                                            <span class="alt-name">@altEx.Name</span>
+                                            <span class="alt-arrow">→</span>
+                                        </div>
+                                    }
+                                </div>
+                            </div>
+                        }
+                    </div>
+
+                    <div class="detail-right">
+                        <div class="detail-section">
+                            <span class="detail-heading">Video Demo</span>
+                            @if (detailVid is not null)
+                            {
+                                <div class="detail-video">
+                                    <iframe src="@WorkoutService.GetYouTubeEmbedUrl(detailVid.Url)" allow="autoplay; encrypted-media" allowfullscreen frameborder="0"></iframe>
+                                </div>
+                            }
+                            else
+                            {
+                                <div class="detail-video-placeholder">
+                                    <div class="play-circle"><div class="play-triangle"></div></div>
+                                    <span class="vid-label">Video demonstration</span>
+                                </div>
+                            }
+                        </div>
+
+                        <div class="detail-section">
+                            <span class="detail-heading">Calorie Estimates</span>
+                            <div class="cal-table">
+                                <div class="cal-hdr">
+                                    <span>Weight</span>
+                                    <span>10 min</span>
+                                    <span>20 min</span>
+                                    <span>30 min</span>
+                                </div>
+                                @foreach (var (label, kg) in CalRanges())
+                                {
+                                    <div class="cal-row">
+                                        <span class="cal-range">@label</span>
+                                        <span class="cal-val">@CalBurn(kg, 10)</span>
+                                        <span class="cal-val">@CalBurn(kg, 20)</span>
+                                        <span class="cal-val">@CalBurn(kg, 30)</span>
+                                    </div>
+                                }
+                            </div>
+                            <span class="cal-source">Source: Compendium of Physical Activities</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="detail-footer">
+                <button type="button" class="btn-ghost" @onclick="CloseDetail">Close</button>
+            </div>
+        </div>
+    }
+</Modal>
+
+@code {
+    private bool _isLoading = true;
+    private int _userId;
+    private List<Exercise> _allExercises = new();
+    private List<MuscleGroup> _allMuscleGroups = new();
+    private List<Equipment> _allEquipment = new();
+
+    private string _search = "";
+    private HashSet<string> _filterMuscles = new();
+    private string _filterDiff = "";
+    private string _filterEquip = "";
+
+    private bool _showDetail;
+    private Exercise? _detailEx;
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!firstRender) return;
+        var state = await AuthState.GetAuthenticationStateAsync();
+        if (state.User.Identity is not { IsAuthenticated: true }) { try { Navigation.NavigateTo("/login", forceLoad: true); } catch { } return; }
+        _userId = int.Parse(state.User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)!.Value);
+        _allExercises = await WorkoutService.GetExerciseLibraryAsync();
+        _allMuscleGroups = await WorkoutService.GetAllMuscleGroupsAsync();
+        _allEquipment = await WorkoutService.GetAllEquipmentAsync();
+        _isLoading = false;
+        StateHasChanged();
+    }
+
+    private List<Exercise> GetFiltered()
+    {
+        return _allExercises.Where(e =>
+        {
+            if (!string.IsNullOrWhiteSpace(_search) && !e.Name.Contains(_search, StringComparison.OrdinalIgnoreCase)
+                && !e.ExerciseMuscleGroups.Any(m => m.MuscleGroup.Name.Contains(_search, StringComparison.OrdinalIgnoreCase))) return false;
+            if (_filterMuscles.Count > 0 && !_filterMuscles.All(fm => e.ExerciseMuscleGroups.Any(m => m.MuscleGroup.Name == fm))) return false;
+            if (!string.IsNullOrEmpty(_filterDiff) && e.Level.ToString() != _filterDiff) return false;
+            if (!string.IsNullOrEmpty(_filterEquip) && !e.ExerciseEquipment.Any(eq => eq.Equipment.Name == _filterEquip)) return false;
+            return true;
+        }).ToList();
+    }
+
+    private void OpenDetail(Exercise? ex) { if (ex is null) return; _detailEx = ex; _showDetail = true; }
+    private void CloseDetail() { _showDetail = false; _detailEx = null; }
+    private void ToggleMuscle(string name) { if (!_filterMuscles.Remove(name)) _filterMuscles.Add(name); }
+
+    private Exercise? FindExercise(int id) => _allExercises.FirstOrDefault(e => e.Id == id);
+
+    private static string PrimaryStr(Exercise ex) =>
+        string.Join(", ", ex.ExerciseMuscleGroups.Where(m => m.IsPrimary).Select(m => m.MuscleGroup.Name));
+
+    private static string? SecondaryFirst(Exercise ex) =>
+        ex.ExerciseMuscleGroups.Where(m => !m.IsPrimary).Select(m => m.MuscleGroup.Name).FirstOrDefault();
+
+    private static string EquipFirst(Exercise ex) =>
+        ex.ExerciseEquipment.Select(e => e.Equipment.Name).FirstOrDefault() ?? "Bodyweight";
+
+    private int CalBurn(int weightKg, int minutes) =>
+        _detailEx is null ? 0 : (int)Math.Round(_detailEx.MetValue * weightKg * (minutes / 60m));
+
+    private static (string Label, int Kg)[] CalRanges() => new[]
+    {
+        ("50–60 kg", 55), ("60–70 kg", 65), ("70–80 kg", 75), ("80–90 kg", 85), ("90+ kg", 95)
+    };
+}

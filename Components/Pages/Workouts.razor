@@ -298,32 +298,115 @@ else
     </div>
 </Modal>
 
-<Modal IsOpen="_showExPreview" OnClose="CloseExPreview" Size="md">
+<Modal IsOpen="_showExPreview" OnClose="CloseExPreview" Size="xl">
     @if (_previewEx is not null)
     {
-        <div class="ex-preview">
-            @{ var vid = _previewEx.Media.FirstOrDefault(m => m.MediaType == MediaType.Video); }
-            @if (vid is not null)
-            {
-                <div class="ex-video">
-                    <iframe src="@WorkoutService.GetYouTubeEmbedUrl(vid.Url)" allow="autoplay; encrypted-media" allowfullscreen frameborder="0"></iframe>
+        <div class="ex-detail-modal">
+            <div class="ex-detail-banner">
+                @{ var vid = _previewEx.Media.FirstOrDefault(m => m.MediaType == MediaType.Video); }
+                @{ var img = _previewEx.Media.FirstOrDefault(m => m.MediaType == MediaType.Image); }
+                @if (img is not null)
+                {
+                    <img src="@img.Url" alt="@_previewEx.Name" class="ex-detail-banner-img" />
+                }
+                else
+                {
+                    <span class="ex-detail-banner-ph">@_previewEx.Name</span>
+                }
+            </div>
+
+            <div class="ex-detail-body">
+                <div class="ex-detail-title">
+                    <h2>@_previewEx.Name</h2>
+                    <div class="ex-detail-badges">
+                        <span class="ex-diff-tag ex-diff-@_previewEx.Level.ToString().ToLower()">@_previewEx.Level</span>
+                        <span class="ex-equip-tag">@EquipStr(_previewEx)</span>
+                        <span class="ex-equip-tag">@_previewEx.MovementType</span>
+                        <span class="ex-met-tag">MET @_previewEx.MetValue</span>
+                    </div>
                 </div>
-            }
-            <div class="ex-prev-body">
-                <h2>@_previewEx.Name</h2>
-                <div class="ex-prev-badges">
-                    <span class="bdg bdg-cal">@_previewEx.Level</span>
-                    <span class="bdg bdg-sets">@_previewEx.MovementType</span>
-                    <span class="bdg bdg-time">MET @_previewEx.MetValue</span>
+
+                <div class="ex-detail-grid">
+                    <div>
+                        <div class="ex-detail-sec">
+                            <span class="ex-detail-heading">Proper Form</span>
+                            <p class="ex-detail-text">@_previewEx.Description</p>
+                        </div>
+                        <div class="ex-detail-sec">
+                            <span class="ex-detail-heading">Targeted Muscles</span>
+                            <div class="ex-muscle-list">
+                                @foreach (var mg in _previewEx.ExerciseMuscleGroups.OrderByDescending(m => m.IsPrimary))
+                                {
+                                    <div class="ex-muscle-row">
+                                        <span class="ex-muscle-dot @(mg.IsPrimary ? "ex-dot-pri" : "ex-dot-sec")"></span>
+                                        <span class="ex-muscle-name @(mg.IsPrimary ? "" : "ex-muscle-secondary")">@mg.MuscleGroup.Name</span>
+                                        <span class="ex-muscle-role">@(mg.IsPrimary ? "Primary" : "Secondary")</span>
+                                    </div>
+                                }
+                            </div>
+                        </div>
+                        @if (_previewEx.Alternatives.Count > 0)
+                        {
+                            <div class="ex-detail-sec">
+                                <span class="ex-detail-heading">Alternatives</span>
+                                <div class="ex-alt-list">
+                                    @foreach (var alt in _previewEx.Alternatives)
+                                    {
+                                        var altEx = _allExercises.FirstOrDefault(e => e.Id == alt.AlternativeExerciseId);
+                                        @if (altEx is not null)
+                                        {
+                                            <div class="ex-alt-row" @onclick="() => OpenExPreview(altEx)">
+                                                <span class="ex-alt-name">@altEx.Name</span>
+                                                <span class="ex-alt-arrow">→</span>
+                                            </div>
+                                        }
+                                    }
+                                </div>
+                            </div>
+                        }
+                    </div>
+                    <div>
+                        <div class="ex-detail-sec">
+                            <span class="ex-detail-heading">Video Demo</span>
+                            @if (vid is not null)
+                            {
+                                <div class="ex-detail-video">
+                                    <iframe src="@WorkoutService.GetYouTubeEmbedUrl(vid.Url)" allow="autoplay; encrypted-media" allowfullscreen frameborder="0"></iframe>
+                                </div>
+                            }
+                            else
+                            {
+                                <div class="ex-detail-vid-ph">
+                                    <div class="ex-play-circle"><div class="ex-play-tri"></div></div>
+                                    <span class="ex-vid-label">Video demonstration</span>
+                                </div>
+                            }
+                        </div>
+                        <div class="ex-detail-sec">
+                            <span class="ex-detail-heading">Calorie Estimates</span>
+                            <div class="ex-cal-table">
+                                <div class="ex-cal-hdr"><span>Weight</span><span>10 min</span><span>20 min</span><span>30 min</span></div>
+                                @foreach (var (label, kg) in new (string,int)[] { ("50–60 kg",55), ("60–70 kg",65), ("70–80 kg",75), ("80–90 kg",85), ("90+ kg",95) })
+                                {
+                                    <div class="ex-cal-row">
+                                        <span class="ex-cal-range">@label</span>
+                                        <span class="ex-cal-val">@((int)Math.Round(_previewEx.MetValue * kg * (10m/60m)))</span>
+                                        <span class="ex-cal-val">@((int)Math.Round(_previewEx.MetValue * kg * (20m/60m)))</span>
+                                        <span class="ex-cal-val">@((int)Math.Round(_previewEx.MetValue * kg * (30m/60m)))</span>
+                                    </div>
+                                }
+                            </div>
+                            <span class="ex-cal-source">Source: Compendium of Physical Activities</span>
+                        </div>
+                    </div>
                 </div>
-                <p class="ex-desc">@_previewEx.Description</p>
-                <div class="ex-prev-detail">
-                    <div><strong>Muscles:</strong> @MuscleStr(_previewEx)</div>
-                    <div><strong>Equipment:</strong> @EquipStr(_previewEx)</div>
-                </div>
+            </div>
+
+            <div class="ex-detail-footer">
+                <button type="button" class="btn-ghost" @onclick="CloseExPreview">Close</button>
                 @if (!_form.Exercises.Any(e => e.ExerciseId == _previewEx.Id))
                 {
-                    <button type="button" class="btn-action ex-add-btn" @onclick="() => AddFromPreview(_previewEx)">+ Add to Workout</button>
+                    <button type="button" class="btn-action" @onclick="() => AddFromPreview(_previewEx)">+ Add to Workout</button>
                 }
                 else
                 {

@@ -182,6 +182,7 @@ public class WorkoutService
             .Include(e => e.ExerciseMuscleGroups).ThenInclude(em => em.MuscleGroup)
             .Include(e => e.ExerciseEquipment).ThenInclude(ee => ee.Equipment)
             .Include(e => e.Media)
+            .Include(e => e.Alternatives).ThenInclude(a => a.AlternativeExercise)
             .OrderBy(e => e.Name)
             .ToListAsync();
     }

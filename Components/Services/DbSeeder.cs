@@ -12,6 +12,7 @@ public static class DbSeeder
     {
         await SeedMuscleGroupsAsync(db);
         await SeedExercisesAsync(db);
+        await SeedAlternativesAsync(db);
         await SeedFoodsAsync(db);
         await SeedProgramsAsync(db);
         await SeedPremadeWorkoutsAsync(db);
@@ -78,6 +79,49 @@ public static class DbSeeder
 
             await db.SaveChangesAsync();
         }
+    }
+
+    private static async Task SeedAlternativesAsync(AppDbContext db)
+    {
+        if (await db.ExerciseAlternatives.AnyAsync()) return;
+
+        var exercises = await db.Exercises.ToDictionaryAsync(e => e.Name, e => e.Id);
+
+        var alternatives = new (string Exercise, string[] Alts)[]
+        {
+            ("Barbell Back Squat", new[] { "Leg Press", "Bulgarian Split Squat", "Front Squat", "Goblet Squat" }),
+            ("Barbell Bench Press", new[] { "Incline Dumbbell Press", "Push-Up", "Dips", "Cable Flye" }),
+            ("Barbell Row", new[] { "Dumbbell Row", "Seated Cable Row", "Lat Pulldown" }),
+            ("Overhead Press", new[] { "Dumbbell Shoulder Press", "Push-Up" }),
+            ("Conventional Deadlift", new[] { "Romanian Deadlift", "Hip Thrust" }),
+            ("Chin-Up", new[] { "Lat Pulldown", "Dumbbell Row" }),
+            ("Pull-Up", new[] { "Lat Pulldown", "Chin-Up", "Seated Cable Row" }),
+            ("Incline Dumbbell Press", new[] { "Incline Barbell Bench Press", "Push-Up", "Cable Flye" }),
+            ("Dumbbell Shoulder Press", new[] { "Overhead Press", "Lateral Raise" }),
+            ("Leg Press", new[] { "Barbell Back Squat", "Front Squat", "Bulgarian Split Squat" }),
+            ("Romanian Deadlift", new[] { "Conventional Deadlift", "Hip Thrust", "Leg Curl" }),
+            ("Tricep Pushdown", new[] { "Skull Crushers", "Close Grip Bench Press", "Dips" }),
+            ("Dumbbell Curl", new[] { "Barbell Curl", "Hammer Curl" }),
+            ("Lat Pulldown", new[] { "Pull-Up", "Chin-Up", "Seated Cable Row" }),
+            ("Hip Thrust", new[] { "Glute Bridge", "Romanian Deadlift" }),
+            ("Dips", new[] { "Close Grip Bench Press", "Tricep Pushdown", "Push-Up" }),
+        };
+
+        foreach (var (exName, alts) in alternatives)
+        {
+            if (!exercises.ContainsKey(exName)) continue;
+            foreach (var altName in alts)
+            {
+                if (!exercises.ContainsKey(altName)) continue;
+                db.ExerciseAlternatives.Add(new ExerciseAlternative
+                {
+                    ExerciseId = exercises[exName],
+                    AlternativeExerciseId = exercises[altName]
+                });
+            }
+        }
+
+        await db.SaveChangesAsync();
     }
 
     private static async Task SeedFoodsAsync(AppDbContext db)

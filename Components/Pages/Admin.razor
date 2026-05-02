@@ -112,6 +112,9 @@ else
             <div class="mf-group"><label>Equipment</label>
                 <div class="chip-grid">@foreach (var eq in _equipment) { var sel = _exForm.EquipmentIds.Contains(eq.Id); <button type="button" class="chip @(sel ? "chip-selected" : "")" @onclick="() => ToggleExEq(eq.Id)">@eq.Name</button> }</div>
             </div>
+            <div class="mf-group"><label>Alternatives</label>
+                <div class="chip-grid">@foreach (var ex in _exercises.Where(e => !_editingExId.HasValue || e.Id != _editingExId.Value)) { var sel = _exForm.AlternativeIds.Contains(ex.Id); <button type="button" class="chip @(sel ? "chip-selected" : "")" @onclick="() => ToggleExAlt(ex.Id)">@ex.Name</button> }</div>
+            </div>
             <div class="mf-actions"><button type="button" class="btn-ghost" @onclick="() => _exStep = 0">Back</button><button type="button" class="btn-glow" @onclick="SaveExercise" disabled="@_isSaving">@(_isSaving ? "Saving..." : "Save")</button></div>
         }
     </div>
@@ -273,7 +276,7 @@ else
         var ex = await AdminService.GetExerciseByIdAsync(id);
         if (ex is null) return;
         _editingExId = id;
-        _exForm = new ExerciseFormData { Name = ex.Name, Description = ex.Description, ExerciseType = ex.ExerciseType, DifficultyRating = ex.DifficultyRating, Level = ex.Level, MovementType = ex.MovementType, MetValue = ex.MetValue, RepTimeSec = ex.RepTimeSec, MuscleGroupIds = ex.ExerciseMuscleGroups.Select(m => m.MuscleGroupId).ToList(), PrimaryMuscleGroupIds = ex.ExerciseMuscleGroups.Where(m => m.IsPrimary).Select(m => m.MuscleGroupId).ToList(), EquipmentIds = ex.ExerciseEquipment.Select(e => e.EquipmentId).ToList() };
+        _exForm = new ExerciseFormData { Name = ex.Name, Description = ex.Description, ExerciseType = ex.ExerciseType, DifficultyRating = ex.DifficultyRating, Level = ex.Level, MovementType = ex.MovementType, MetValue = ex.MetValue, RepTimeSec = ex.RepTimeSec, MuscleGroupIds = ex.ExerciseMuscleGroups.Select(m => m.MuscleGroupId).ToList(), PrimaryMuscleGroupIds = ex.ExerciseMuscleGroups.Where(m => m.IsPrimary).Select(m => m.MuscleGroupId).ToList(), EquipmentIds = ex.ExerciseEquipment.Select(e => e.EquipmentId).ToList(), AlternativeIds = ex.Alternatives.Select(a => a.AlternativeExerciseId).ToList() };
         _exStep = 0; _showExModal = true;
     }
 
@@ -360,4 +363,5 @@ else
     private void ToggleExMg(int id) { if (!_exForm.MuscleGroupIds.Remove(id)) _exForm.MuscleGroupIds.Add(id); else _exForm.PrimaryMuscleGroupIds.Remove(id); }
     private void ToggleExPri(int id) { if (_exForm.MuscleGroupIds.Contains(id)) { if (!_exForm.PrimaryMuscleGroupIds.Remove(id)) _exForm.PrimaryMuscleGroupIds.Add(id); } }
     private void ToggleExEq(int id) { if (!_exForm.EquipmentIds.Remove(id)) _exForm.EquipmentIds.Add(id); }
+    private void ToggleExAlt(int id) { if (!_exForm.AlternativeIds.Remove(id)) _exForm.AlternativeIds.Add(id); }
 }
