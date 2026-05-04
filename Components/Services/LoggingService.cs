@@ -14,8 +14,11 @@ public class LoggingService
         _db = db;
     }
 
-    public async Task<WorkoutLog> SaveWorkoutLogAsync(int userId, int? workoutId, DateTime startedAt, DateTime completedAt, decimal caloriesBurned, List<ExerciseLogEntry> exercises)
+    public async Task<WorkoutLog?> SaveWorkoutLogAsync(int userId, int? workoutId, DateTime startedAt, DateTime completedAt, decimal caloriesBurned, List<ExerciseLogEntry> exercises, WorkoutLogStatus status)
     {
+        int totalCompletedSets = exercises.Sum(e => e.Sets.Count(s => s.IsCompleted));
+        if (totalCompletedSets == 0) return null;
+
         var log = new WorkoutLog
         {
             UserId = userId,
@@ -23,7 +26,8 @@ public class LoggingService
             Date = DateOnly.FromDateTime(startedAt),
             StartedAt = startedAt,
             CompletedAt = completedAt,
-            TotalCaloriesBurned = caloriesBurned
+            TotalCaloriesBurned = caloriesBurned,
+            Status = status
         };
 
         _db.WorkoutLogs.Add(log);

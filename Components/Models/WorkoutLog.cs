@@ -13,6 +13,7 @@ public class WorkoutLog
     public DateTime StartedAt { get; set; }
     public DateTime? CompletedAt { get; set; }
     public decimal TotalCaloriesBurned { get; set; }
+    public WorkoutLogStatus Status { get; set; } = WorkoutLogStatus.Complete;
 
     public ICollection<ExerciseLog> ExerciseLogs { get; set; } = new List<ExerciseLog>();
 }

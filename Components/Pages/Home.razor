@@ -171,13 +171,17 @@ else
                         <div class="log-card">
                             <div class="log-header" @onclick="() => _expandedLogId = isExpanded ? -1 : wlRef.Id">
                                 <div class="log-header-left">
-                                    <span class="log-name">@(wl.Workout?.Name ?? "Workout")</span>
-                                    <span class="log-meta">
-                                        @wl.StartedAt.ToLocalTime().ToString("HH:mm")–@(wl.CompletedAt?.ToLocalTime().ToString("HH:mm") ?? "?")
-                                        · @FormatDuration(wl.StartedAt, wl.CompletedAt)
-                                    </span>
+                                    <div class="log-status-bar log-st-@wl.Status.ToString().ToLower()"></div>
+                                    <div>
+                                        <span class="log-name">@(wl.Workout?.Name ?? "Workout")</span>
+                                        <span class="log-meta">
+                                            @wl.StartedAt.ToLocalTime().ToString("HH:mm")–@(wl.CompletedAt?.ToLocalTime().ToString("HH:mm") ?? "?")
+                                            · @FormatDuration(wl.StartedAt, wl.CompletedAt)
+                                        </span>
+                                    </div>
                                 </div>
                                 <div class="log-header-right">
+                                    <span class="log-status-tag log-st-tag-@wl.Status.ToString().ToLower()">@FormatLogStatus(wl.Status)</span>
                                     <span class="log-cal">@Math.Round(wl.TotalCaloriesBurned) kcal</span>
                                     <span class="log-toggle">@(isExpanded ? "−" : "+")</span>
                                 </div>
@@ -494,6 +498,14 @@ else
         var elapsed = end.Value - start;
         return elapsed.TotalHours >= 1 ? $"{(int)elapsed.TotalHours}h {elapsed.Minutes}m" : $"{(int)elapsed.TotalMinutes}m";
     }
+
+    private static string FormatLogStatus(WorkoutLogStatus status) => status switch
+    {
+        WorkoutLogStatus.Complete => "Complete",
+        WorkoutLogStatus.Modified => "Modified",
+        WorkoutLogStatus.Partial => "Partial",
+        _ => ""
+    };
 
     private void GoToLiveWorkout()
     {

@@ -43,6 +43,10 @@ else
             <div class="live-bar" style="width:@(_totalSets > 0 ? (int)((double)_completedSets / _totalSets * 100) : 0)%"></div>
         </div>
 
+        <div class="cancel-row">
+            <button type="button" class="btn-cancel-workout" @onclick="CancelWorkout">Cancel Workout</button>
+        </div>
+
         @if (_resting)
         {
             <div class="rest-overlay">
@@ -119,7 +123,7 @@ else
                                         }
                                         else
                                         {
-                                            <span class="set-complete">Done</span>
+                                            <span class="set-check">&#10003;</span>
                                         }
                                     </div>
                                 }
@@ -145,14 +149,32 @@ else
 
 <Modal IsOpen="_showFinish" OnClose="() => _showFinish = false" Size="sm">
     <div class="finish-modal">
-        <h2>Workout Complete!</h2>
+        <h2>@_finishTitle</h2>
+        @if (_finishStatus is not null)
+        {
+            <div class="finish-status-row">
+                <span class="finish-status-tag finish-status-@_finishStatus.Value.ToString().ToLower()">@_finishStatus</span>
+            </div>
+        }
         <div class="finish-stats">
             <div class="fs-item"><span class="fs-val">@_completedSets</span><span class="fs-label">Sets</span></div>
             <div class="fs-item"><span class="fs-val">@FormatElapsed()</span><span class="fs-label">Duration</span></div>
             <div class="fs-item"><span class="fs-val">@_estCalBurned</span><span class="fs-label">Calories</span></div>
         </div>
         <div class="mf-actions">
-            <button type="button" class="btn-action" @onclick="ConfirmFinish">Done</button>
+            <button type="button" class="btn-ghost" @onclick="() => _showFinish = false">Back</button>
+            <button type="button" class="btn-action" @onclick="ConfirmFinish">@(_completedSets > 0 ? "Save & Exit" : "Discard & Exit")</button>
+        </div>
+    </div>
+</Modal>
+
+<Modal IsOpen="_showCancelConfirm" OnClose="() => _showCancelConfirm = false" Size="sm">
+    <div class="finish-modal">
+        <h2>Cancel Workout?</h2>
+        <p class="cancel-desc">@(_completedSets > 0 ? $"You have {_completedSets} completed sets. This will be saved as a partial workout." : "No sets completed. This workout will not be recorded.")</p>
+        <div class="mf-actions">
+            <button type="button" class="btn-ghost" @onclick="() => _showCancelConfirm = false">Continue Training</button>
+            <button type="button" class="btn-action btn-finish-style" @onclick="ConfirmCancel">@(_completedSets > 0 ? "Stop & Save" : "Discard")</button>
         </div>
     </div>
 </Modal>
@@ -177,6 +199,9 @@ else
     private System.Threading.Timer? _elapsedTimer;
 
     private bool _showFinish;
+    private bool _showCancelConfirm;
+    private string _finishTitle = "";
+    private WorkoutLogStatus? _finishStatus;
 
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
@@ -419,7 +444,36 @@ else
 
     private void FinishWorkout()
     {
+        _finishStatus = ComputeWorkoutStatus();
+        _finishTitle = _finishStatus switch
+        {
+            WorkoutLogStatus.Complete => "Workout Complete!",
+            WorkoutLogStatus.Modified => "Workout Modified",
+            WorkoutLogStatus.Partial => "Workout Partial",
+            _ => "Workout Summary"
+        };
         _showFinish = true;
+    }
+
+    private void CancelWorkout()
+    {
+        _showCancelConfirm = true;
+    }
+
+    private async Task ConfirmCancel()
+    {
+        if (_session is not null)
+        {
+            if (_completedSets > 0)
+            {
+                var exercises = BuildExerciseLogEntries();
+                await LogService.SaveWorkoutLogAsync(_userId, _session.WorkoutId, _startTime, DateTime.UtcNow, _estCalBurned, exercises, WorkoutLogStatus.Partial);
+                await LogService.CheckAndSavePersonalRecordsAsync(_userId, exercises);
+            }
+            await DashService.CancelScheduleAsync(_session.Id, _userId);
+        }
+        _showCancelConfirm = false;
+        try { Navigation.NavigateTo("/dashboard"); } catch { }
     }
 
     private async Task ConfirmFinish()
@@ -428,20 +482,28 @@ else
         {
             await DashService.CompleteWorkoutAsync(_session.Id, _userId);
 
-            var exercises = BuildExerciseLogEntries();
-            await LogService.SaveWorkoutLogAsync(
-                _userId,
-                _session.WorkoutId,
-                _startTime,
-                DateTime.UtcNow,
-                _estCalBurned,
-                exercises);
-
-            await LogService.CheckAndSavePersonalRecordsAsync(_userId, exercises);
+            if (_completedSets > 0)
+            {
+                var exercises = BuildExerciseLogEntries();
+                var status = ComputeWorkoutStatus();
+                await LogService.SaveWorkoutLogAsync(_userId, _session.WorkoutId, _startTime, DateTime.UtcNow, _estCalBurned, exercises, status);
+                await LogService.CheckAndSavePersonalRecordsAsync(_userId, exercises);
+            }
         }
 
         _showFinish = false;
         try { Navigation.NavigateTo("/dashboard"); } catch { }
+    }
+
+    private WorkoutLogStatus ComputeWorkoutStatus()
+    {
+        bool anySkipped = _liveState.Exercises.Any(e => e.IsSkipped);
+        bool anyIncomplete = _liveState.Exercises.Any(e => !e.IsSkipped && e.Sets.Any(s => !s.IsCompleted && !s.IsSkipped));
+        bool anyModified = _liveState.Exercises.Any(e => !e.IsSkipped && (e.Sets.Count != e.OriginalSets || e.Sets.Any(s => s.Reps != e.OriginalReps || s.IsSkipped)));
+
+        if (anySkipped || anyIncomplete) return WorkoutLogStatus.Partial;
+        if (anyModified) return WorkoutLogStatus.Modified;
+        return WorkoutLogStatus.Complete;
     }
 
     private List<ExerciseLogEntry> BuildExerciseLogEntries()

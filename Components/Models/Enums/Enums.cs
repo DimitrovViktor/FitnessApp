@@ -66,3 +66,10 @@ public enum ScheduleStatus
     Cancelled,
     Postponed
 }
+
+public enum WorkoutLogStatus
+{
+    Complete,
+    Modified,
+    Partial
+}
