@@ -26,6 +26,8 @@ Personal workout creation with exercise library, premade workouts and programs b
 
 ## Exercise library page
 
+Exercise descriptions, videos(through links), weight examples
+
 ## To-do
 
 - Progress section - statistics about user and their activities
