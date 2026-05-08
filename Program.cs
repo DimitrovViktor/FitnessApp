@@ -41,6 +41,18 @@ using (var scope = app.Services.CreateScope())
     }
     catch { }
 
+    try
+    {
+        db.Database.ExecuteSqlRaw("ALTER TABLE Programs ADD COLUMN Notes TEXT NULL");
+    }
+    catch { }
+
+    try
+    {
+        db.Database.ExecuteSqlRaw("ALTER TABLE Programs ADD COLUMN Tags TEXT NULL");
+    }
+    catch { }
+
     var auth = scope.ServiceProvider.GetRequiredService<AuthService>();
     var adminUser = db.Users.FirstOrDefault(u => u.Username == "admin");
     if (adminUser is null)

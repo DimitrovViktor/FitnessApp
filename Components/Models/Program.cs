@@ -12,6 +12,8 @@ public class Program
     public bool IsPreBuilt { get; set; }
     public int? CreatedByUserId { get; set; }
     public User? CreatedByUser { get; set; }
+    public string? Notes { get; set; }
+    public string? Tags { get; set; }
     public ICollection<Workout> Workouts { get; set; } = new List<Workout>();
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
 }
