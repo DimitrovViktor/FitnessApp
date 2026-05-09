@@ -28,6 +28,10 @@ Personal workout creation with exercise library, premade workouts and programs b
 
 Exercise descriptions, videos(through links), weight examples
 
+## Programs library page
+
+Program descriptions with workouts, recommended schedules, muscle exercise volume
+
 ## To-do
 
 - Progress section - statistics about user and their activities
