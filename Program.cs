@@ -21,6 +21,7 @@ builder.Services.AddScoped<LoggingService>();
 builder.Services.AddScoped<CustomAuthStateProvider>();
 builder.Services.AddScoped<AuthenticationStateProvider>(sp =>
     sp.GetRequiredService<CustomAuthStateProvider>());
+builder.Services.AddScoped<ProgressService>();
 
 var app = builder.Build();
 

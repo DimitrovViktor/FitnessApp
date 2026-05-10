@@ -1,0 +1,299 @@
+@page "/progress"
+@inject ProgressService ProgressSvc
+@inject CustomAuthStateProvider AuthState
+@inject NavigationManager Navigation
+@using FitnessApp.Models.Enums
+
+<PageTitle>Progress - Fitness App</PageTitle>
+
+@if (_isLoading)
+{
+    <div class="loading-state"><p>Loading...</p></div>
+}
+else
+{
+    <div class="progress-page">
+        <div class="page-header">
+            <h1>Progress</h1>
+            <p class="page-sub">Track your performance, volume, and body over time</p>
+        </div>
+
+        <div class="stats-grid">
+            @foreach (var (label, value, sub) in new[] {
+                ("Total Workouts", $"{_totalWorkouts}", "All time"),
+                ("Current Streak", $"{_streak}", "Days"),
+                ("Weekly Volume", FormatVolume(_weeklyVolume), "kg lifted"),
+                ("Avg Session", $"{_avgSession}m", "This month")
+            })
+            {
+                <div class="stat-card">
+                    <span class="stat-label">@label</span>
+                    <span class="stat-val">@value</span>
+                    <span class="stat-sub">@sub</span>
+                </div>
+            }
+        </div>
+
+        <div class="two-col">
+            <div class="panel">
+                <div class="panel-header">
+                    <span class="panel-title">Weekly Muscle Coverage</span>
+                    <span class="panel-hint">This week</span>
+                </div>
+                <div class="legend-row">
+                    @foreach (var (key, color, label) in new[] { ("good","var(--success)","On track"), ("low","var(--accent)","Undertrained"), ("missing","#4a607a","Missing"), ("excess","var(--danger)","High volume") })
+                    {
+                        <div class="legend-item">
+                            <span class="legend-dot" style="background:@color"></span>
+                            <span class="legend-text">@label</span>
+                        </div>
+                    }
+                </div>
+                <div class="muscle-list">
+                    @foreach (var m in _muscleCoverage)
+                    {
+                        var color = m.Status switch { "good" => "var(--success)", "low" => "var(--accent)", "excess" => "var(--danger)", _ => "#4a607a" };
+                        var statusLabel = m.Status switch { "good" => "On track", "low" => "Undertrained", "excess" => "High volume", _ => "Missing" };
+                        <div class="muscle-row">
+                            <div class="muscle-labels">
+                                <span class="muscle-name">@m.Name</span>
+                                <div class="muscle-right">
+                                    <span class="muscle-sets">@m.Sets/@m.Target sets</span>
+                                    <span class="muscle-status" style="color:@color">@statusLabel</span>
+                                </div>
+                            </div>
+                            <div class="muscle-bar-bg">
+                                <div class="muscle-bar-fill" style="width:@(m.Target > 0 ? Math.Min((int)((double)m.Sets / m.Target * 100), 100) : 0)%;background:@color"></div>
+                            </div>
+                        </div>
+                    }
+                </div>
+            </div>
+
+            <div class="panel">
+                <div class="panel-header">
+                    <span class="panel-title">Weekly Calorie Burn</span>
+                    <span class="panel-hint">Last @_weeklyCalories.Count weeks</span>
+                </div>
+                <div class="cal-chart">
+                    @{ var maxKcal = _weeklyCalories.Count > 0 ? _weeklyCalories.Max(w => w.Kcal) : 1; }
+                    @for (int i = 0; i < _weeklyCalories.Count; i++)
+                    {
+                        var w = _weeklyCalories[i];
+                        var h = maxKcal > 0 ? (int)((double)w.Kcal / maxKcal * 140) : 0;
+                        var isLatest = i == _weeklyCalories.Count - 1;
+                        <div class="cal-bar-col">
+                            <span class="cal-bar-val @(isLatest ? "cal-bar-latest" : "")">@w.Kcal</span>
+                            <div class="cal-bar-track">
+                                <div class="cal-bar @(isLatest ? "cal-bar-active" : "")" style="height:@(h)px"></div>
+                            </div>
+                            <span class="cal-bar-label">@w.Label</span>
+                        </div>
+                    }
+                </div>
+            </div>
+        </div>
+
+        <div class="two-col">
+            <div class="panel">
+                <div class="panel-title" style="margin-bottom:16px">Personal Records</div>
+                <div class="pr-list">
+                    @for (int i = 0; i < _personalRecords.Count; i++)
+                    {
+                        var pr = _personalRecords[i];
+                        <div class="pr-row @(i % 2 == 0 ? "pr-alt" : "")">
+                            <div>
+                                <span class="pr-name">@pr.Exercise.Name</span>
+                                <span class="pr-date">@pr.Date.ToString("MMM d")</span>
+                            </div>
+                            <div class="pr-right">
+                                <span class="pr-weight">@pr.WeightKg kg</span>
+                                <span class="pr-reps">@pr.Reps reps</span>
+                            </div>
+                        </div>
+                    }
+                    @if (_personalRecords.Count == 0)
+                    {
+                        <div class="empty-text">No personal records yet. Complete workouts with tracked weight to start recording PRs.</div>
+                    }
+                </div>
+            </div>
+
+            <div class="right-stack">
+                <div class="panel">
+                    <div class="panel-header">
+                        <span class="panel-title">Body Measurements</span>
+                        <button type="button" class="btn-log" @onclick="() => _showLogModal = true">+ Log</button>
+                    </div>
+                    <div class="measurements-grid">
+                        @foreach (var (label, value, change, trend) in GetMeasurementDisplay())
+                        {
+                            <div class="meas-card">
+                                <span class="meas-label">@label</span>
+                                <span class="meas-value">@value</span>
+                                <span class="meas-change @(trend == "down" ? "meas-down" : "meas-up")">@(trend == "down" ? "↓" : "↑") @change</span>
+                            </div>
+                        }
+                    </div>
+                </div>
+
+                <div class="panel">
+                    <div class="panel-header">
+                        <span class="panel-title">Consistency</span>
+                        <span class="panel-hint">Last 30 days</span>
+                    </div>
+                    <div class="consistency-grid">
+                        @foreach (var active in _consistency)
+                        {
+                            <div class="c-cell @(active ? "c-active" : "")"></div>
+                        }
+                    </div>
+                    <div class="consistency-stats">
+                        <div class="cs-item">
+                            <span class="cs-label">Current streak</span>
+                            <span class="cs-val cs-success">@_streak days</span>
+                        </div>
+                        <div class="cs-item">
+                            <span class="cs-label">Best streak</span>
+                            <span class="cs-val cs-accent">@_bestStreak days</span>
+                        </div>
+                        <div class="cs-item">
+                            <span class="cs-label">Active days</span>
+                            <span class="cs-val">@_consistency.Count(c => c)/@_consistency.Length</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        @if (_suggestions.Count > 0)
+        {
+            <div class="panel">
+                <div class="panel-title" style="margin-bottom:16px">Progressive Overload Suggestions</div>
+                <div class="suggestions-grid">
+                    @foreach (var s in _suggestions)
+                    {
+                        <div class="sug-card">
+                            <span class="sug-type">@s.Type</span>
+                            <span class="sug-name">@s.ExerciseName</span>
+                            <span class="sug-action">→ @s.Suggestion</span>
+                            <span class="sug-reason">@s.Reason</span>
+                        </div>
+                    }
+                </div>
+            </div>
+        }
+    </div>
+}
+
+<Modal IsOpen="_showLogModal" OnClose="() => _showLogModal = false" Size="sm">
+    <div class="log-modal">
+        <h2>Log Measurements</h2>
+        <div class="log-fields">
+            <div class="log-field">
+                <label>Weight (kg)</label>
+                <input type="number" step="0.1" @bind="_logWeight" />
+            </div>
+            <div class="log-field">
+                <label>Body Fat (%)</label>
+                <input type="number" step="0.1" @bind="_logBodyFat" />
+            </div>
+            <div class="log-field">
+                <label>Chest (cm)</label>
+                <input type="number" step="0.1" @bind="_logChest" />
+            </div>
+            <div class="log-field">
+                <label>Waist (cm)</label>
+                <input type="number" step="0.1" @bind="_logWaist" />
+            </div>
+        </div>
+        <div class="log-actions">
+            <button type="button" class="btn-ghost" @onclick="() => _showLogModal = false">Cancel</button>
+            <button type="button" class="btn-primary" @onclick="SaveMeasurement">Save</button>
+        </div>
+    </div>
+</Modal>
+
+@code {
+    private bool _isLoading = true;
+    private int _userId;
+
+    private int _totalWorkouts;
+    private int _streak;
+    private int _bestStreak;
+    private decimal _weeklyVolume;
+    private int _avgSession;
+    private List<MuscleCoverageItem> _muscleCoverage = new();
+    private List<WeeklyCalorieItem> _weeklyCalories = new();
+    private List<PersonalRecord> _personalRecords = new();
+    private List<BodyMeasurement> _measurements = new();
+    private bool[] _consistency = Array.Empty<bool>();
+    private List<OverloadSuggestion> _suggestions = new();
+
+    private bool _showLogModal;
+    private decimal? _logWeight;
+    private decimal? _logBodyFat;
+    private decimal? _logChest;
+    private decimal? _logWaist;
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!firstRender) return;
+        var state = await AuthState.GetAuthenticationStateAsync();
+        if (state.User.Identity is not { IsAuthenticated: true }) { try { Navigation.NavigateTo("/login", forceLoad: true); } catch { } return; }
+        _userId = int.Parse(state.User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)!.Value);
+        await LoadData();
+        _isLoading = false;
+        StateHasChanged();
+    }
+
+    private async Task LoadData()
+    {
+        _totalWorkouts = await ProgressSvc.GetTotalWorkoutsAsync(_userId);
+        _streak = await ProgressSvc.GetStreakAsync(_userId);
+        _bestStreak = await ProgressSvc.GetBestStreakAsync(_userId);
+        _weeklyVolume = await ProgressSvc.GetWeeklyVolumeAsync(_userId);
+        _avgSession = await ProgressSvc.GetAvgSessionMinutesAsync(_userId);
+        _muscleCoverage = await ProgressSvc.GetMuscleCoverageAsync(_userId);
+        _weeklyCalories = await ProgressSvc.GetWeeklyCaloriesAsync(_userId);
+        _personalRecords = await ProgressSvc.GetPersonalRecordsAsync(_userId);
+        _measurements = await ProgressSvc.GetRecentMeasurementsAsync(_userId);
+        _consistency = await ProgressSvc.GetConsistencyAsync(_userId);
+        _suggestions = await ProgressSvc.GetOverloadSuggestionsAsync(_userId);
+    }
+
+    private async Task SaveMeasurement()
+    {
+        await ProgressSvc.SaveMeasurementAsync(_userId, _logWeight, _logBodyFat, _logChest, _logWaist);
+        _measurements = await ProgressSvc.GetRecentMeasurementsAsync(_userId);
+        _showLogModal = false;
+        _logWeight = null; _logBodyFat = null; _logChest = null; _logWaist = null;
+    }
+
+    private List<(string Label, string Value, string Change, string Trend)> GetMeasurementDisplay()
+    {
+        var latest = _measurements.FirstOrDefault();
+        var prev = _measurements.Count > 1 ? _measurements[1] : null;
+        if (latest is null) return new() { ("Weight", "—", "", "down"), ("Body Fat", "—", "", "down"), ("Chest", "—", "", "up"), ("Waist", "—", "", "down") };
+
+        return new()
+        {
+            ("Weight", latest.WeightKg.HasValue ? $"{latest.WeightKg:F1} kg" : "—", FormatChange(latest.WeightKg, prev?.WeightKg, "kg"), latest.WeightKg < prev?.WeightKg ? "down" : "up"),
+            ("Body Fat", latest.BodyFatPercent.HasValue ? $"{latest.BodyFatPercent:F1}%" : "—", FormatChange(latest.BodyFatPercent, prev?.BodyFatPercent, "%"), latest.BodyFatPercent < prev?.BodyFatPercent ? "down" : "up"),
+            ("Chest", latest.ChestCm.HasValue ? $"{latest.ChestCm:F0} cm" : "—", FormatChange(latest.ChestCm, prev?.ChestCm, "cm"), latest.ChestCm > prev?.ChestCm ? "up" : "down"),
+            ("Waist", latest.WaistCm.HasValue ? $"{latest.WaistCm:F0} cm" : "—", FormatChange(latest.WaistCm, prev?.WaistCm, "cm"), latest.WaistCm < prev?.WaistCm ? "down" : "up"),
+        };
+    }
+
+    private static string FormatChange(decimal? current, decimal? previous, string unit)
+    {
+        if (!current.HasValue || !previous.HasValue) return "";
+        var diff = current.Value - previous.Value;
+        return $"{(diff >= 0 ? "+" : "")}{diff:F1} {unit}";
+    }
+
+    private static string FormatVolume(decimal vol)
+    {
+        return vol >= 1000 ? $"{vol / 1000:F1}k" : $"{(int)vol}";
+    }
+}
