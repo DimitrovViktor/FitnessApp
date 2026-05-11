@@ -133,6 +133,26 @@ public class ProgressService
             .ToListAsync();
     }
 
+    public async Task<List<BodyMeasurement>> GetAllMeasurementsAsync(int userId)
+    {
+        return await _db.BodyMeasurements
+            .Where(bm => bm.UserId == userId)
+            .OrderByDescending(bm => bm.Date)
+            .ToListAsync();
+    }
+
+    public async Task<bool> UpdateMeasurementAsync(int id, int userId, decimal? weight, decimal? bodyFat, decimal? chest, decimal? waist)
+    {
+        var m = await _db.BodyMeasurements.FirstOrDefaultAsync(bm => bm.Id == id && bm.UserId == userId);
+        if (m is null) return false;
+        m.WeightKg = weight;
+        m.BodyFatPercent = bodyFat;
+        m.ChestCm = chest;
+        m.WaistCm = waist;
+        await _db.SaveChangesAsync();
+        return true;
+    }
+
     public async Task SaveMeasurementAsync(int userId, decimal? weight, decimal? bodyFat, decimal? chest, decimal? waist)
     {
         _db.BodyMeasurements.Add(new BodyMeasurement
@@ -147,7 +167,7 @@ public class ProgressService
         await _db.SaveChangesAsync();
     }
 
-    public async Task<bool[]> GetConsistencyAsync(int userId, int days = 30)
+    public async Task<List<ConsistencyDay>> GetConsistencyAsync(int userId, int days = 30)
     {
         var today = DateOnly.FromDateTime(DateTime.Now);
         var start = today.AddDays(-(days - 1));
@@ -157,9 +177,12 @@ public class ProgressService
             .Distinct()
             .ToListAsync();
 
-        var result = new bool[days];
+        var result = new List<ConsistencyDay>();
         for (int i = 0; i < days; i++)
-            result[i] = activeDates.Contains(start.AddDays(i));
+        {
+            var date = start.AddDays(i);
+            result.Add(new ConsistencyDay { Date = date, IsActive = activeDates.Contains(date) });
+        }
         return result;
     }
 
@@ -252,4 +275,10 @@ public class OverloadSuggestion
     public string Suggestion { get; set; } = "";
     public string Type { get; set; } = "";
     public string Reason { get; set; } = "";
+}
+
+public class ConsistencyDay
+{
+    public DateOnly Date { get; set; }
+    public bool IsActive { get; set; }
 }

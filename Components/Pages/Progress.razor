@@ -123,7 +123,10 @@ else
                 <div class="panel">
                     <div class="panel-header">
                         <span class="panel-title">Body Measurements</span>
-                        <button type="button" class="btn-log" @onclick="() => _showLogModal = true">+ Log</button>
+                        <div class="panel-header-btns">
+                            <button type="button" class="btn-log" @onclick="OpenHistory">History</button>
+                            <button type="button" class="btn-log" @onclick="() => _showLogModal = true">+ Log</button>
+                        </div>
                     </div>
                     <div class="measurements-grid">
                         @foreach (var (label, value, change, trend) in GetMeasurementDisplay())
@@ -143,9 +146,11 @@ else
                         <span class="panel-hint">Last 30 days</span>
                     </div>
                     <div class="consistency-grid">
-                        @foreach (var active in _consistency)
+                        @foreach (var day in _consistency)
                         {
-                            <div class="c-cell @(active ? "c-active" : "")"></div>
+                            <div class="c-cell @(day.IsActive ? "c-active" : "")" title="@day.Date.ToString("ddd, d MMM yyyy") — @(day.IsActive ? "Active" : "Rest")">
+                                <span class="c-tooltip">@day.Date.ToString("d MMM")<br />@(day.IsActive ? "Active" : "Rest")</span>
+                            </div>
                         }
                     </div>
                     <div class="consistency-stats">
@@ -159,7 +164,7 @@ else
                         </div>
                         <div class="cs-item">
                             <span class="cs-label">Active days</span>
-                            <span class="cs-val">@_consistency.Count(c => c)/@_consistency.Length</span>
+                            <span class="cs-val">@_consistency.Count(c => c.IsActive)/@_consistency.Count</span>
                         </div>
                     </div>
                 </div>
@@ -214,6 +219,58 @@ else
     </div>
 </Modal>
 
+<Modal IsOpen="_showHistoryModal" OnClose="() => _showHistoryModal = false" Size="lg">
+    <div class="log-modal">
+        <h2>Measurement History</h2>
+        @if (_allMeasurements.Count == 0)
+        {
+            <div class="empty-text">No measurements logged yet.</div>
+        }
+        else
+        {
+            <div class="history-table">
+                <div class="history-header">
+                    <span class="history-col-date">Date</span>
+                    <span class="history-col">Weight</span>
+                    <span class="history-col">Body Fat</span>
+                    <span class="history-col">Chest</span>
+                    <span class="history-col">Waist</span>
+                    <span class="history-col-action"></span>
+                </div>
+                @foreach (var m in _allMeasurements)
+                {
+                    var mRef = m;
+                    var isEditing = _editingMeasId == m.Id;
+                    <div class="history-row">
+                        <span class="history-col-date">@m.Date.ToString("d MMM yyyy")</span>
+                        @if (isEditing)
+                        {
+                            <span class="history-col"><input type="number" step="0.1" class="history-input" @bind="_editWeight" /></span>
+                            <span class="history-col"><input type="number" step="0.1" class="history-input" @bind="_editBodyFat" /></span>
+                            <span class="history-col"><input type="number" step="0.1" class="history-input" @bind="_editChest" /></span>
+                            <span class="history-col"><input type="number" step="0.1" class="history-input" @bind="_editWaist" /></span>
+                            <span class="history-col-action">
+                                <button type="button" class="history-btn history-save" @onclick="SaveEdit">✓</button>
+                                <button type="button" class="history-btn history-cancel" @onclick="() => _editingMeasId = -1">✕</button>
+                            </span>
+                        }
+                        else
+                        {
+                            <span class="history-col">@(m.WeightKg.HasValue ? $"{m.WeightKg:F1}" : "—")</span>
+                            <span class="history-col">@(m.BodyFatPercent.HasValue ? $"{m.BodyFatPercent:F1}%" : "—")</span>
+                            <span class="history-col">@(m.ChestCm.HasValue ? $"{m.ChestCm:F0}" : "—")</span>
+                            <span class="history-col">@(m.WaistCm.HasValue ? $"{m.WaistCm:F0}" : "—")</span>
+                            <span class="history-col-action">
+                                <button type="button" class="history-btn history-edit" @onclick="() => StartEdit(mRef)">Edit</button>
+                            </span>
+                        }
+                    </div>
+                }
+            </div>
+        }
+    </div>
+</Modal>
+
 @code {
     private bool _isLoading = true;
     private int _userId;
@@ -227,7 +284,7 @@ else
     private List<WeeklyCalorieItem> _weeklyCalories = new();
     private List<PersonalRecord> _personalRecords = new();
     private List<BodyMeasurement> _measurements = new();
-    private bool[] _consistency = Array.Empty<bool>();
+    private List<ConsistencyDay> _consistency = new();
     private List<OverloadSuggestion> _suggestions = new();
 
     private bool _showLogModal;
@@ -235,6 +292,14 @@ else
     private decimal? _logBodyFat;
     private decimal? _logChest;
     private decimal? _logWaist;
+
+    private bool _showHistoryModal;
+    private List<BodyMeasurement> _allMeasurements = new();
+    private int _editingMeasId = -1;
+    private decimal? _editWeight;
+    private decimal? _editBodyFat;
+    private decimal? _editChest;
+    private decimal? _editWaist;
 
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
@@ -268,6 +333,30 @@ else
         _measurements = await ProgressSvc.GetRecentMeasurementsAsync(_userId);
         _showLogModal = false;
         _logWeight = null; _logBodyFat = null; _logChest = null; _logWaist = null;
+    }
+
+    private async Task OpenHistory()
+    {
+        _allMeasurements = await ProgressSvc.GetAllMeasurementsAsync(_userId);
+        _editingMeasId = -1;
+        _showHistoryModal = true;
+    }
+
+    private void StartEdit(BodyMeasurement m)
+    {
+        _editingMeasId = m.Id;
+        _editWeight = m.WeightKg;
+        _editBodyFat = m.BodyFatPercent;
+        _editChest = m.ChestCm;
+        _editWaist = m.WaistCm;
+    }
+
+    private async Task SaveEdit()
+    {
+        await ProgressSvc.UpdateMeasurementAsync(_editingMeasId, _userId, _editWeight, _editBodyFat, _editChest, _editWaist);
+        _allMeasurements = await ProgressSvc.GetAllMeasurementsAsync(_userId);
+        _measurements = await ProgressSvc.GetRecentMeasurementsAsync(_userId);
+        _editingMeasId = -1;
     }
 
     private List<(string Label, string Value, string Change, string Trend)> GetMeasurementDisplay()
