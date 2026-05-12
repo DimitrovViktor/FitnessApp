@@ -141,6 +141,23 @@ public class ProgressService
             .ToListAsync();
     }
 
+    public async Task<List<BodyMeasurement>> GetMeasurementsForChartAsync(int userId)
+    {
+        return await _db.BodyMeasurements
+            .Where(bm => bm.UserId == userId)
+            .OrderBy(bm => bm.Date)
+            .ToListAsync();
+    }
+
+    public async Task<List<PersonalRecord>> GetAllPersonalRecordsAsync(int userId)
+    {
+        return await _db.PersonalRecords
+            .Include(pr => pr.Exercise)
+            .Where(pr => pr.UserId == userId)
+            .OrderBy(pr => pr.Date)
+            .ToListAsync();
+    }
+
     public async Task<bool> UpdateMeasurementAsync(int id, int userId, decimal? weight, decimal? bodyFat, decimal? chest, decimal? waist)
     {
         var m = await _db.BodyMeasurements.FirstOrDefaultAsync(bm => bm.Id == id && bm.UserId == userId);

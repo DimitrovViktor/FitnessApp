@@ -117,6 +117,56 @@ else
                         <div class="empty-text">No personal records yet. Complete workouts with tracked weight to start recording PRs.</div>
                     }
                 </div>
+                @if (_prChartExercises.Count > 0)
+                {
+                    <div class="chart-divider"></div>
+                    <div class="chart-title">PR Progression Over Time</div>
+                    <div class="chart-container">
+                        <svg viewBox="0 0 560 220" class="chart-svg">
+                            @{ var prPad = new ChartPad(44, 10, 10, 28); }
+                            @foreach (var ex in _prChartExercises)
+                            {
+                                if (_hiddenPrSeries.Contains(ex.Name)) continue;
+                                var points = GetPrPoints(ex.Name, 560, 220, prPad);
+                                if (points.Count < 2) continue;
+                                <polyline points="@string.Join(" ", points.Select(p => $"{p.X},{p.Y}"))" fill="none" stroke="@ex.Color" stroke-width="2" stroke-linejoin="round" opacity="0.8" />
+                            }
+                            @foreach (var ex in _prChartExercises)
+                            {
+                                if (_hiddenPrSeries.Contains(ex.Name)) continue;
+                                var points = GetPrPoints(ex.Name, 560, 220, prPad);
+                                @foreach (var pt in points)
+                                {
+                                    <circle cx="@pt.X" cy="@pt.Y" r="4.5" fill="@ex.Color" stroke="#0d1a2e" stroke-width="2" class="chart-point">
+                                        <title>@pt.Label</title>
+                                    </circle>
+                                }
+                            }
+                            @{ var prYLabels = GetPrYLabels(220, prPad); }
+                            @foreach (var yl in prYLabels)
+                            {
+                                @((MarkupString)$"<text x='{prPad.Left - 6}' y='{yl.Y + 4}' text-anchor='end' fill='#3a5470' font-size='10' font-family='Inter,sans-serif'>{yl.Label}</text>")
+                                <line x1="@prPad.Left" y1="@yl.Y" x2="@(560 - prPad.Right)" y2="@yl.Y" stroke="rgba(255,255,255,0.04)" stroke-width="1" />
+                            }
+                            @{ var prXLabels = GetPrXLabels(560, prPad); }
+                            @foreach (var xl in prXLabels)
+                            {
+                                @((MarkupString)$"<text x='{xl.X}' y='{220 - 6}' text-anchor='middle' fill='#3a5470' font-size='10' font-family='Inter,sans-serif'>{xl.Label}</text>")
+                            }
+                        </svg>
+                    </div>
+                    <div class="chart-legend">
+                        @foreach (var ex in _prChartExercises)
+                        {
+                            var name = ex.Name;
+                            var hidden = _hiddenPrSeries.Contains(name);
+                            <button type="button" class="legend-btn @(hidden ? "legend-hidden" : "")" @onclick="() => TogglePrSeries(name)">
+                                <span class="legend-swatch" style="background:@(hidden ? "#3a5470" : ex.Color)"></span>
+                                @name
+                            </button>
+                        }
+                    </div>
+                }
             </div>
 
             <div class="right-stack">
@@ -138,6 +188,55 @@ else
                             </div>
                         }
                     </div>
+                    @if (_chartMeasurements.Count >= 2)
+                    {
+                        <div class="chart-divider"></div>
+                        <div class="chart-title">Measurements Over Time</div>
+                        <div class="chart-container">
+                            <svg viewBox="0 0 560 220" class="chart-svg">
+                                @{ var mPad = new ChartPad(16, 10, 10, 28); }
+                                @for (int gi = 0; gi <= 4; gi++)
+                                {
+                                    var gy = mPad.Top + (double)gi / 4 * (220 - mPad.Top - mPad.Bottom);
+                                    <line x1="@mPad.Left" y1="@Math.Round(gy,1)" x2="@(560 - mPad.Right)" y2="@Math.Round(gy,1)" stroke="rgba(255,255,255,0.04)" stroke-width="1" />
+                                }
+                                @foreach (var series in _measSeries)
+                                {
+                                    if (_hiddenMeasSeries.Contains(series.Key)) continue;
+                                    var points = GetMeasPoints(series.Key, 560, 220, mPad);
+                                    if (points.Count < 2) continue;
+                                    <polyline points="@string.Join(" ", points.Select(p => $"{p.X},{p.Y}"))" fill="none" stroke="@series.Color" stroke-width="2" stroke-linejoin="round" opacity="0.8" />
+                                }
+                                @foreach (var series in _measSeries)
+                                {
+                                    if (_hiddenMeasSeries.Contains(series.Key)) continue;
+                                    var points = GetMeasPoints(series.Key, 560, 220, mPad);
+                                    @foreach (var pt in points)
+                                    {
+                                        <circle cx="@pt.X" cy="@pt.Y" r="4.5" fill="@series.Color" stroke="#0d1a2e" stroke-width="2" class="chart-point">
+                                            <title>@pt.Label</title>
+                                        </circle>
+                                    }
+                                }
+                                @{ var mXLabels = GetMeasXLabels(560, mPad); }
+                                @foreach (var xl in mXLabels)
+                                {
+                                    @((MarkupString)$"<text x='{xl.X}' y='{220 - 6}' text-anchor='middle' fill='#3a5470' font-size='10' font-family='Inter,sans-serif'>{xl.Label}</text>")
+                                }
+                            </svg>
+                        </div>
+                        <div class="chart-legend">
+                            @foreach (var series in _measSeries)
+                            {
+                                var key = series.Key;
+                                var hidden = _hiddenMeasSeries.Contains(key);
+                                <button type="button" class="legend-btn @(hidden ? "legend-hidden" : "")" @onclick="() => ToggleMeasSeries(key)">
+                                    <span class="legend-swatch" style="background:@(hidden ? "#3a5470" : series.Color)"></span>
+                                    @series.Label
+                                </button>
+                            }
+                        </div>
+                    }
                 </div>
 
                 <div class="panel">
@@ -287,6 +386,13 @@ else
     private List<ConsistencyDay> _consistency = new();
     private List<OverloadSuggestion> _suggestions = new();
 
+    private List<BodyMeasurement> _chartMeasurements = new();
+    private List<PersonalRecord> _allPrs = new();
+    private List<ChartSeries> _measSeries = new();
+    private List<ChartExercise> _prChartExercises = new();
+    private HashSet<string> _hiddenMeasSeries = new();
+    private HashSet<string> _hiddenPrSeries = new();
+
     private bool _showLogModal;
     private decimal? _logWeight;
     private decimal? _logBodyFat;
@@ -325,7 +431,153 @@ else
         _measurements = await ProgressSvc.GetRecentMeasurementsAsync(_userId);
         _consistency = await ProgressSvc.GetConsistencyAsync(_userId);
         _suggestions = await ProgressSvc.GetOverloadSuggestionsAsync(_userId);
+        _chartMeasurements = await ProgressSvc.GetMeasurementsForChartAsync(_userId);
+        _allPrs = await ProgressSvc.GetAllPersonalRecordsAsync(_userId);
+        BuildChartData();
     }
+
+    private void BuildChartData()
+    {
+        _measSeries = new()
+        {
+            new ChartSeries { Key = "weight", Label = "Weight (kg)", Color = "#38bdf8" },
+            new ChartSeries { Key = "bodyfat", Label = "Body Fat (%)", Color = "#2ab8a0" },
+            new ChartSeries { Key = "chest", Label = "Chest (cm)", Color = "#a78bfa" },
+            new ChartSeries { Key = "waist", Label = "Waist (cm)", Color = "#f0c050" },
+        };
+
+        var exerciseColors = new[] { "#38bdf8", "#2ab8a0", "#a78bfa", "#f0c050", "#e05c6a", "#f472b6", "#34d399", "#fb923c" };
+        _prChartExercises = _allPrs
+            .Select(pr => pr.Exercise.Name)
+            .Distinct()
+            .Select((name, i) => new ChartExercise { Name = name, Color = exerciseColors[i % exerciseColors.Length] })
+            .ToList();
+    }
+
+    private decimal? GetMeasValue(BodyMeasurement m, string key) => key switch
+    {
+        "weight" => m.WeightKg,
+        "bodyfat" => m.BodyFatPercent,
+        "chest" => m.ChestCm,
+        "waist" => m.WaistCm,
+        _ => null
+    };
+
+    private string GetMeasUnit(string key) => key switch
+    {
+        "weight" => "kg", "bodyfat" => "%", "chest" => "cm", "waist" => "cm", _ => ""
+    };
+
+    private List<ChartPoint> GetMeasPoints(string key, int w, int h, ChartPad pad)
+    {
+        var data = _chartMeasurements.Where(m => GetMeasValue(m, key).HasValue).ToList();
+        if (data.Count == 0) return new();
+
+        var values = data.Select(m => (double)GetMeasValue(m, key)!.Value).ToList();
+        var minV = values.Min();
+        var maxV = values.Max();
+        var range = maxV - minV;
+        if (range < 0.01) { minV -= 1; maxV += 1; range = maxV - minV; }
+        minV -= range * 0.1;
+        maxV += range * 0.1;
+
+        var allDates = _chartMeasurements.Select(m => m.Date).Distinct().OrderBy(d => d).ToList();
+        var minDate = allDates.First().ToDateTime(TimeOnly.MinValue).Ticks;
+        var maxDate = allDates.Last().ToDateTime(TimeOnly.MinValue).Ticks;
+        if (minDate == maxDate) maxDate += TimeSpan.TicksPerDay;
+
+        var cw = w - pad.Left - pad.Right;
+        var ch = h - pad.Top - pad.Bottom;
+        var unit = GetMeasUnit(key);
+
+        return data.Select(m =>
+        {
+            var val = (double)GetMeasValue(m, key)!.Value;
+            var x = pad.Left + (double)(m.Date.ToDateTime(TimeOnly.MinValue).Ticks - minDate) / (maxDate - minDate) * cw;
+            var y = pad.Top + (1 - (val - minV) / (maxV - minV)) * ch;
+            return new ChartPoint { X = Math.Round(x, 1), Y = Math.Round(y, 1), Label = $"{m.Date:d MMM yyyy}: {val:F1} {unit}" };
+        }).ToList();
+    }
+
+    private List<ChartPoint> GetPrPoints(string exerciseName, int w, int h, ChartPad pad)
+    {
+        var data = _allPrs.Where(pr => pr.Exercise.Name == exerciseName).OrderBy(pr => pr.Date).ToList();
+        if (data.Count == 0) return new();
+
+        var allVisible = _allPrs.Where(pr => !_hiddenPrSeries.Contains(pr.Exercise.Name)).ToList();
+        if (allVisible.Count == 0) return new();
+
+        var minV = (double)allVisible.Min(pr => pr.WeightKg) * 0.9;
+        var maxV = (double)allVisible.Max(pr => pr.WeightKg) * 1.1;
+        if (Math.Abs(maxV - minV) < 0.01) { minV -= 5; maxV += 5; }
+
+        var minDate = allVisible.Min(pr => pr.Date).ToDateTime(TimeOnly.MinValue).Ticks;
+        var maxDate = allVisible.Max(pr => pr.Date).ToDateTime(TimeOnly.MinValue).Ticks;
+        if (minDate == maxDate) maxDate += TimeSpan.TicksPerDay;
+
+        var cw = w - pad.Left - pad.Right;
+        var ch = h - pad.Top - pad.Bottom;
+
+        return data.Select(pr =>
+        {
+            var val = (double)pr.WeightKg;
+            var x = pad.Left + (double)(pr.Date.ToDateTime(TimeOnly.MinValue).Ticks - minDate) / (maxDate - minDate) * cw;
+            var y = pad.Top + (1 - (val - minV) / (maxV - minV)) * ch;
+            return new ChartPoint { X = Math.Round(x, 1), Y = Math.Round(y, 1), Label = $"{pr.Date:d MMM yyyy}: {pr.WeightKg} kg × {pr.Reps} reps" };
+        }).ToList();
+    }
+
+    private List<AxisLabel> GetPrYLabels(int h, ChartPad pad)
+    {
+        var allVals = _allPrs.Where(pr => !_hiddenPrSeries.Contains(pr.Exercise.Name)).Select(pr => (double)pr.WeightKg).ToList();
+        return BuildYLabels(allVals, h, pad);
+    }
+
+    private static List<AxisLabel> BuildYLabels(List<double> values, int h, ChartPad pad)
+    {
+        if (values.Count == 0) return new();
+        var minV = values.Min() * 0.9;
+        var maxV = values.Max() * 1.1;
+        if (Math.Abs(maxV - minV) < 0.01) { minV -= 1; maxV += 1; }
+        var ch = h - pad.Top - pad.Bottom;
+        var result = new List<AxisLabel>();
+        for (int i = 0; i <= 4; i++)
+        {
+            var val = minV + (maxV - minV) * i / 4;
+            var y = pad.Top + (1 - (double)i / 4) * ch;
+            result.Add(new AxisLabel { Y = Math.Round(y, 1), Label = val >= 100 ? $"{(int)val}" : $"{val:F0}" });
+        }
+        return result;
+    }
+
+    private List<AxisLabel> GetMeasXLabels(int w, ChartPad pad)
+    {
+        if (_chartMeasurements.Count == 0) return new();
+        var dates = _chartMeasurements.Select(m => m.Date).Distinct().OrderBy(d => d).ToList();
+        return BuildXLabels(dates, w, pad);
+    }
+
+    private List<AxisLabel> GetPrXLabels(int w, ChartPad pad)
+    {
+        var dates = _allPrs.Where(pr => !_hiddenPrSeries.Contains(pr.Exercise.Name)).Select(pr => pr.Date).Distinct().OrderBy(d => d).ToList();
+        return BuildXLabels(dates, w, pad);
+    }
+
+    private static List<AxisLabel> BuildXLabels(List<DateOnly> dates, int w, ChartPad pad)
+    {
+        if (dates.Count == 0) return new();
+        var cw = w - pad.Left - pad.Right;
+        var minD = dates.First().ToDateTime(TimeOnly.MinValue).Ticks;
+        var maxD = dates.Last().ToDateTime(TimeOnly.MinValue).Ticks;
+        if (minD == maxD) maxD += TimeSpan.TicksPerDay;
+        var step = Math.Max(1, dates.Count / 5);
+        return dates.Where((_, i) => i % step == 0 || i == dates.Count - 1)
+            .Select(d => new AxisLabel { X = Math.Round(pad.Left + (double)(d.ToDateTime(TimeOnly.MinValue).Ticks - minD) / (maxD - minD) * cw, 1), Label = d.ToString("d MMM") })
+            .ToList();
+    }
+
+    private void ToggleMeasSeries(string key) { if (!_hiddenMeasSeries.Remove(key)) _hiddenMeasSeries.Add(key); }
+    private void TogglePrSeries(string name) { if (!_hiddenPrSeries.Remove(name)) _hiddenPrSeries.Add(name); }
 
     private async Task SaveMeasurement()
     {
@@ -385,4 +637,10 @@ else
     {
         return vol >= 1000 ? $"{vol / 1000:F1}k" : $"{(int)vol}";
     }
+
+    private record ChartPad(int Left, int Top, int Right, int Bottom);
+    private class ChartPoint { public double X; public double Y; public string Label = ""; }
+    private class ChartSeries { public string Key = ""; public string Label = ""; public string Color = ""; }
+    private class ChartExercise { public string Name = ""; public string Color = ""; }
+    private class AxisLabel { public double X; public double Y; public string Label = ""; }
 }
