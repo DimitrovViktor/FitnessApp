@@ -32,9 +32,12 @@ Exercise descriptions, videos(through links), weight examples
 
 Program descriptions with workouts, recommended schedules, muscle exercise volume
 
+## Progress page
+
+Statistics about the user and their activities
+
 ## To-do
 
-- Progress section - statistics about user and their activities
 - User profiles - add profile system where users can search for each other and add each other as friends
 - Cardio section - add running section with run estimations and cardio types (timers, calories, programs with recommended times and distances to build habit etc.)
 - Foods section - add ingredients to use/avoid
