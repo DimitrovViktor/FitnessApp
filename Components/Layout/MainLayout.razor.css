@@ -14,8 +14,8 @@ main {
 }
 
 .sidebar {
-    background: #040d1a;
-    border-right: 1px solid rgba(255,255,255,0.05);
+    background: var(--sidebar-bg);
+    border-right: 1px solid var(--border-subtle);
 }
 
 .content {
@@ -48,7 +48,7 @@ main {
     background: var(--surface);
     color: var(--danger);
     bottom: 0;
-    box-shadow: 0 -1px 4px rgba(0, 0, 0, 0.4);
+    box-shadow: 0 -1px 4px var(--shadow-soft);
     box-sizing: border-box;
     display: none;
     left: 0;

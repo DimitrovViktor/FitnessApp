@@ -1,6 +1,28 @@
 <div class="top-row ps-3 navbar navbar-dark">
     <div class="container-fluid">
         <a class="navbar-brand" href="dashboard">Fitness App</a>
+        <div class="theme-menu" @onclick:stopPropagation>
+            <button type="button" class="theme-toggle" title="Theme" aria-label="Theme" aria-expanded="@_themesOpen" @onclick="ToggleThemes">
+                <span class="icon @ThemeIconClass" aria-hidden="true"></span>
+            </button>
+            @if (_themesOpen)
+            {
+                <div class="theme-dropdown" role="menu">
+                    @foreach (var theme in SettingsService.Themes)
+                    {
+                        var isActive = theme.Key == _currentTheme;
+                        <button type="button" class="theme-option @(isActive ? "active" : "")" role="menuitem" @onclick="() => SelectTheme(theme.Key)">
+                            <span class="icon @(theme.IsLight ? "icon-sun" : "icon-moon")" aria-hidden="true"></span>
+                            <span>@theme.Label</span>
+                            @if (isActive)
+                            {
+                                <span class="icon icon-check theme-option-check" aria-hidden="true"></span>
+                            }
+                        </button>
+                    }
+                </div>
+            }
+        </div>
     </div>
 </div>
 
@@ -50,6 +72,12 @@
             </NavLink>
         </div>
 
+        <div class="nav-item px-3">
+            <NavLink class="nav-link" href="settings">
+                <span class="bi bi-settings-nav-menu" aria-hidden="true"></span> Settings
+            </NavLink>
+        </div>
+
         @if (_isAdmin)
         {
             <div class="nav-item px-3">
@@ -70,13 +98,48 @@
 @code {
     [Inject] private CustomAuthStateProvider AuthState { get; set; } = default!;
     [Inject] private NavigationManager Navigation { get; set; } = default!;
+    [Inject] private SettingsService SettingsSvc { get; set; } = default!;
+    [Parameter] public EventCallback<string> OnThemeChanged { get; set; }
 
     private bool _isAdmin;
+    private bool _themesOpen;
+    private int _userId;
+    private string _currentTheme = "night";
+
+    private ThemeOption CurrentTheme => SettingsService.Themes.FirstOrDefault(t => t.Key == _currentTheme) ?? SettingsService.Themes[0];
+    private string ThemeIconClass => CurrentTheme.IsLight ? "icon-sun" : "icon-moon";
 
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
         if (!firstRender) return;
-        try { var state = await AuthState.GetAuthenticationStateAsync(); _isAdmin = state.User.IsInRole("Admin"); StateHasChanged(); } catch { }
+
+        try
+        {
+            var state = await AuthState.GetAuthenticationStateAsync();
+            _isAdmin = state.User.IsInRole("Admin");
+            if (state.User.Identity is { IsAuthenticated: true })
+            {
+                _userId = int.Parse(state.User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)!.Value);
+                _currentTheme = await SettingsSvc.GetThemeAsync(_userId);
+                await OnThemeChanged.InvokeAsync(_currentTheme);
+            }
+            StateHasChanged();
+        }
+        catch { }
+    }
+
+    private void ToggleThemes()
+    {
+        _themesOpen = !_themesOpen;
+    }
+
+    private async Task SelectTheme(string theme)
+    {
+        _currentTheme = SettingsService.NormalizeTheme(theme);
+        _themesOpen = false;
+        if (_userId > 0)
+            await SettingsSvc.SetThemeAsync(_userId, _currentTheme);
+        await OnThemeChanged.InvokeAsync(_currentTheme);
     }
 
     private async Task HandleLogout()

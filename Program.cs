@@ -18,6 +18,7 @@ builder.Services.AddScoped<AdminService>();
 builder.Services.AddScoped<WorkoutService>();
 builder.Services.AddScoped<DashboardService>();
 builder.Services.AddScoped<LoggingService>();
+builder.Services.AddScoped<SettingsService>();
 builder.Services.AddScoped<CustomAuthStateProvider>();
 builder.Services.AddScoped<AuthenticationStateProvider>(sp =>
     sp.GetRequiredService<CustomAuthStateProvider>());
@@ -51,6 +52,28 @@ using (var scope = app.Services.CreateScope())
     try
     {
         db.Database.ExecuteSqlRaw("ALTER TABLE Programs ADD COLUMN Tags TEXT NULL");
+    }
+    catch { }
+
+
+    try
+    {
+        db.Database.ExecuteSqlRaw(@"CREATE TABLE IF NOT EXISTS UserSettings (
+            Id INTEGER PRIMARY KEY AUTOINCREMENT,
+            UserId INTEGER NOT NULL UNIQUE,
+            Theme TEXT NOT NULL DEFAULT 'night',
+            WeightUnit TEXT NOT NULL DEFAULT 'kg',
+            DistanceUnit TEXT NOT NULL DEFAULT 'km',
+            EnergyUnit TEXT NOT NULL DEFAULT 'kcal',
+            CalendarStart TEXT NOT NULL DEFAULT 'monday',
+            RestTimerDefault INTEGER NOT NULL DEFAULT 60,
+            RestTimerSound INTEGER NOT NULL DEFAULT 1,
+            AutoStartRestTimer INTEGER NOT NULL DEFAULT 1,
+            ShowWeightInSets INTEGER NOT NULL DEFAULT 1,
+            ConfirmBeforeSkip INTEGER NOT NULL DEFAULT 1,
+            WorkoutReminders INTEGER NOT NULL DEFAULT 1,
+            SocialVisibility TEXT NOT NULL DEFAULT 'public',
+            FOREIGN KEY (UserId) REFERENCES Users(Id))");
     }
     catch { }
 

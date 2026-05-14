@@ -3,6 +3,7 @@
 @inject ProfileService ProfileService
 @inject DashboardService DashService
 @inject LoggingService LogService
+@inject SettingsService SettingsSvc
 @inject NavigationManager Navigation
 @using FitnessApp.Models.Enums
 
@@ -99,7 +100,7 @@ else
                     <span class="day-stat"><strong>@_dayLogs.Count</strong> workout@(_dayLogs.Count != 1 ? "s" : "")</span>
                     <span class="day-stat"><strong>@_dayLogs.Sum(l => l.ExerciseLogs.Count(el => el.Status != LogStatus.Skipped))</strong> exercises</span>
                     <span class="day-stat"><strong>@_dayLogs.Sum(l => l.ExerciseLogs.Sum(el => el.SetLogs.Count(s => s.IsCompleted)))</strong> sets</span>
-                    <span class="day-stat day-stat-cal"><strong>@Math.Round(_dayLogs.Sum(l => l.TotalCaloriesBurned))</strong> kcal</span>
+                    <span class="day-stat day-stat-cal"><strong>@FormatEnergyValue(_dayLogs.Sum(l => l.TotalCaloriesBurned))</strong></span>
                 </div>
             }
 
@@ -124,7 +125,7 @@ else
                                     @if (s.Status == ScheduleStatus.Scheduled || s.Status == ScheduleStatus.Postponed)
                                     {
                                         <button type="button" class="btn-glow btn-xs" @onclick="() => QuickStart(s.Id)">Start</button>
-                                        <button type="button" class="btn-danger-xs" @onclick="() => DeleteSchedule(s.Id)">✕</button>
+                                        <button type="button" class="btn-danger-xs" @onclick="() => DeleteSchedule(s.Id)" aria-label="Delete schedule"><span class="icon icon-x" aria-hidden="true"></span></button>
                                     }
                                     @if (s.Status == ScheduleStatus.InProgress)
                                     {
@@ -182,7 +183,7 @@ else
                                 </div>
                                 <div class="log-header-right">
                                     <span class="log-status-tag log-st-tag-@wl.Status.ToString().ToLower()">@FormatLogStatus(wl.Status)</span>
-                                    <span class="log-cal">@Math.Round(wl.TotalCaloriesBurned) kcal</span>
+                                    <span class="log-cal">@FormatEnergyValue(wl.TotalCaloriesBurned)</span>
                                     <span class="log-toggle">@(isExpanded ? "−" : "+")</span>
                                 </div>
                             </div>
@@ -215,7 +216,7 @@ else
                                                 </div>
                                                 <div class="el-right">
                                                     <span class="el-tag">@el.Status</span>
-                                                    <span class="el-cal">@Math.Round(el.CaloriesBurned) kcal</span>
+                                                    <span class="el-cal">@FormatEnergyValue(el.CaloriesBurned)</span>
                                                 </div>
                                             </div>
 
@@ -230,8 +231,8 @@ else
                                                         <div class="set-data @(sl.IsCompleted ? "" : "set-inc")">
                                                             <span>@sl.SetNumber</span>
                                                             <span>@(sl.RepsCompleted?.ToString() ?? "—")</span>
-                                                            <span>@(sl.WeightKg.HasValue ? $"{sl.WeightKg}kg" : "—")</span>
-                                                            <span>@(sl.IsCompleted ? "✓" : "✕")</span>
+                                                            <span>@FormatWeightValue(sl.WeightKg)</span>
+                                                            <span>@((MarkupString)CompletionIcon(sl.IsCompleted))</span>
                                                         </div>
                                                     }
                                                 </div>
@@ -336,6 +337,8 @@ else
     private string _userName = "";
     private bool _isLoading = true;
     private int _userId;
+    private string _weightUnit = "kg";
+    private string _energyUnit = "kcal";
 
     private int _weeklyCount;
     private int _streak;
@@ -369,6 +372,9 @@ else
         var state = await AuthState.GetAuthenticationStateAsync();
         if (state.User.Identity is not { IsAuthenticated: true }) { try { Navigation.NavigateTo("/login", forceLoad: true); } catch { } return; }
         _userId = int.Parse(state.User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)!.Value);
+        var settings = await SettingsSvc.GetSettingsAsync(_userId);
+        _weightUnit = settings.WeightUnit;
+        _energyUnit = settings.EnergyUnit;
         var user = await ProfileService.GetUserWithProfileAsync(_userId);
         if (user is { OnboardingCompleted: false }) { try { Navigation.NavigateTo("/onboarding"); } catch { } return; }
         _userName = state.User.Identity.Name ?? "User";
@@ -483,6 +489,15 @@ else
         _notesMsg = "Notes saved.";
         _savingNotes = false;
     }
+
+
+    private string FormatWeightValue(decimal? weightKg) => SettingsService.FormatWeight(weightKg, _weightUnit);
+
+    private string FormatEnergyValue(decimal calories) => SettingsService.FormatEnergy(calories, _energyUnit);
+
+    private static string CompletionIcon(bool completed) => completed
+        ? "<span class=\"icon icon-check\" aria-label=\"Completed\"></span>"
+        : "<span class=\"icon icon-x\" aria-label=\"Incomplete\"></span>";
 
     private string FormatSelectedDate()
     {

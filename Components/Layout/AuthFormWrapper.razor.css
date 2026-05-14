@@ -13,7 +13,7 @@
     content: "";
     position: absolute;
     inset: 0;
-    background: rgba(15, 23, 42, 0.75);
+    background: var(--overlay);
     pointer-events: none;
 }
 
@@ -21,18 +21,18 @@
     position: relative;
     width: 100%;
     max-width: 420px;
-    background: rgba(30, 41, 59, 0.85);
+    background: var(--surface);
     backdrop-filter: blur(24px);
-    border: 1px solid rgba(148, 163, 184, 0.1);
+    border: 1px solid var(--border-modal);
     border-radius: 16px;
     padding: 2.5rem 2rem;
-    box-shadow: 0 25px 60px rgba(0,0,0,0.6);
+    box-shadow: 0 25px 60px var(--shadow-modal);
 }
 
 .brand-name {
     font-size: 1.125rem;
     font-weight: 700;
-    color: #dde8f5;
+    color: var(--t1);
     letter-spacing: 0.06em;
     text-transform: uppercase;
     margin: 0 0 2rem 0;
@@ -42,14 +42,14 @@
 .auth-title {
     font-size: 1.5rem;
     font-weight: 700;
-    color: #f8fafc;
+    color: var(--t1);
     margin: 0 0 0.25rem 0;
     text-align: center;
 }
 
 .auth-subtitle {
     font-size: 0.875rem;
-    color: #6b87a4;
+    color: var(--t2);
     text-align: center;
     margin: 0 0 1.75rem 0;
 }
@@ -58,11 +58,11 @@
     text-align: center;
     margin-top: 1.5rem;
     font-size: 0.875rem;
-    color: #6b87a4;
+    color: var(--t2);
 }
 
 .auth-footer a {
-    color: #38bdf8;
+    color: var(--accent);
     text-decoration: none;
     font-weight: 500;
     margin-left: 0.25rem;
@@ -70,17 +70,17 @@
 }
 
 .auth-footer a:hover {
-    color: #7dd3fc;
+    color: var(--accent);
 }
 
 .auth-card ::deep .form-error {
-    background: rgba(248, 113, 113, 0.1);
-    border: 1px solid rgba(248, 113, 113, 0.25);
+    background: var(--danger-dim);
+    border: 1px solid var(--danger-border);
     border-radius: 8px;
     padding: 0.625rem 0.875rem;
     margin-bottom: 1.25rem;
     font-size: 0.8125rem;
-    color: #e88e98;
+    color: var(--danger);
 }
 
 .auth-card ::deep .form-group {
@@ -91,7 +91,7 @@
     display: block;
     font-size: 0.8125rem;
     font-weight: 500;
-    color: #b0c8e0;
+    color: var(--t1-soft);
     margin-bottom: 0.375rem;
 }
 
@@ -99,9 +99,9 @@
     width: 100%;
     padding: 0.625rem 0.875rem;
     font-size: 0.9375rem;
-    color: #dde8f5;
-    background: rgba(15, 23, 42, 0.5);
-    border: 1px solid rgba(255,255,255,0.09);
+    color: var(--t1);
+    background: var(--s3);
+    border: 1px solid var(--border-modal);
     border-radius: 8px;
     outline: none;
     transition: border-color 0.2s, box-shadow 0.2s;
@@ -109,21 +109,21 @@
 }
 
 .auth-card ::deep .form-input::placeholder {
-    color: #3a5470;
+    color: var(--t3);
 }
 
 .auth-card ::deep .form-input:focus {
-    border-color: #38bdf8;
-    box-shadow: 0 0 0 3px rgba(56, 189, 248, 0.12);
+    border-color: var(--accent);
+    box-shadow: 0 0 0 3px var(--accent-border);
 }
 
 .auth-card ::deep .form-input.invalid {
-    border-color: #e05c6a;
+    border-color: var(--danger);
 }
 
 .auth-card ::deep .validation-message {
     font-size: 0.75rem;
-    color: #e05c6a;
+    color: var(--danger);
     margin-top: 0.25rem;
 }
 
@@ -132,8 +132,8 @@
     padding: 0.7rem 1rem;
     font-size: 0.9375rem;
     font-weight: 700;
-    color: #b0c8e0;
-    background: rgba(51, 65, 85, 0.7);
+    color: var(--t1-soft);
+    background: var(--s3);
     border: 2px solid transparent;
     border-radius: 8px;
     cursor: pointer;
@@ -142,9 +142,9 @@
 }
 
 .auth-card ::deep .btn-submit:hover {
-    border-color: #38bdf8;
-    box-shadow: 0 0 12px rgba(56, 189, 248, 0.2), 0 0 4px rgba(129, 140, 248, 0.15);
-    color: #dde8f5;
+    border-color: var(--accent);
+    box-shadow: 0 0 12px var(--accent-border), 0 0 4px var(--accent-hover);
+    color: var(--t1);
 }
 
 .auth-card ::deep .btn-submit:active {
@@ -168,16 +168,16 @@
     display: flex;
     align-items: center;
     gap: 0.375rem;
-    color: #6b87a4;
+    color: var(--t2);
     cursor: pointer;
 }
 
 .auth-card ::deep .form-options a {
-    color: #38bdf8;
+    color: var(--accent);
     text-decoration: none;
     transition: color 0.2s;
 }
 
 .auth-card ::deep .form-options a:hover {
-    color: #7dd3fc;
+    color: var(--accent);
 }

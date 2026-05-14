@@ -4,7 +4,7 @@
         <div class="modal-container modal-@Size" @onclick:stopPropagation>
             @if (ShowClose)
             {
-                <button type="button" class="modal-close-btn" @onclick="Close">✕</button>
+                <button type="button" class="modal-close-btn" @onclick="Close" aria-label="Close"><span class="icon icon-x" aria-hidden="true"></span></button>
             }
             @if (ChildContent is not null)
             {

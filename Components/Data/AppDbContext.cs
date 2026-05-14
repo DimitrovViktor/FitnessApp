@@ -28,6 +28,7 @@ public class AppDbContext : DbContext
     public DbSet<Food> Foods => Set<Food>();
     public DbSet<FoodPreparation> FoodPreparations => Set<FoodPreparation>();
     public DbSet<FoodLog> FoodLogs => Set<FoodLog>();
+    public DbSet<UserSettings> UserSettings => Set<UserSettings>();
     public DbSet<BodyMeasurement> BodyMeasurements => Set<BodyMeasurement>();
     public DbSet<PersonalRecord> PersonalRecords => Set<PersonalRecord>();
     public DbSet<DailyLog> DailyLogs => Set<DailyLog>();
@@ -256,6 +257,18 @@ public class AppDbContext : DbContext
             e.HasOne(ws => ws.User).WithMany().HasForeignKey(ws => ws.UserId);
             e.HasOne(ws => ws.Workout).WithMany().HasForeignKey(ws => ws.WorkoutId);
             e.Property(ws => ws.LiveSessionJson).HasMaxLength(10000);
+        });
+
+        mb.Entity<UserSettings>(e =>
+        {
+            e.HasIndex(us => us.UserId).IsUnique();
+            e.Property(us => us.Theme).HasMaxLength(32).IsRequired();
+            e.Property(us => us.WeightUnit).HasMaxLength(8).IsRequired();
+            e.Property(us => us.DistanceUnit).HasMaxLength(8).IsRequired();
+            e.Property(us => us.EnergyUnit).HasMaxLength(8).IsRequired();
+            e.Property(us => us.CalendarStart).HasMaxLength(16).IsRequired();
+            e.Property(us => us.SocialVisibility).HasMaxLength(16).IsRequired();
+            e.HasOne(us => us.User).WithMany().HasForeignKey(us => us.UserId);
         });
     }
 }

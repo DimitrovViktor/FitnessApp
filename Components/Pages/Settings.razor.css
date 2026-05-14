@@ -1,0 +1,28 @@
+.loading-state { display:flex; align-items:center; justify-content:center; min-height:60vh; color:var(--t2); }
+.settings-page { max-width:760px; margin:0 auto; }
+.page-header { margin-bottom:28px; }
+.page-header h1 { font-size:26px; font-weight:800; color:var(--t1); margin:0 0 4px; }
+.page-sub { font-size:14px; color:var(--t2); margin:0; }
+.settings-section { background:var(--s2); border:1px solid var(--border); border-radius:14px; padding:6px 22px; margin-bottom:16px; }
+.section-label { display:block; font-size:11px; font-weight:700; color:var(--t3); text-transform:uppercase; letter-spacing:.1em; padding:16px 0 4px; }
+.setting-row { display:flex; justify-content:space-between; align-items:center; padding:16px 0; border-bottom:1px solid var(--border-subtle); gap:20px; }
+.setting-row-last { border-bottom:none; }
+.setting-info { flex:1; min-width:0; }
+.setting-name { display:block; font-size:14px; font-weight:600; color:var(--t1); }
+.setting-desc { display:block; font-size:12.5px; color:var(--t3); margin-top:3px; line-height:1.5; }
+.seg-control { display:flex; gap:2px; background:var(--border-faint); border-radius:9px; padding:3px; flex-shrink:0; }
+.seg-btn { padding:6px 14px; border-radius:7px; border:none; background:transparent; color:var(--t2); font-size:13px; font-weight:400; cursor:pointer; transition:all .15s; white-space:nowrap; font-family:inherit; }
+.seg-btn.seg-active { background:var(--accent); color:var(--on-accent); font-weight:700; }
+.setting-select { padding:7px 12px; background:var(--s2); border:1px solid var(--border-input); border-radius:8px; color:var(--t1); font-size:13px; font-weight:600; outline:none; font-family:inherit; cursor:pointer; flex-shrink:0; }
+.setting-select:focus { border-color:var(--accent); }
+.setting-select option { color:var(--t1); background:var(--surface); }
+.toggle { width:44px; height:24px; border-radius:12px; border:none; background:var(--border-strong); cursor:pointer; position:relative; transition:background .2s; flex-shrink:0; }
+.toggle.toggle-on { background:var(--accent); }
+.toggle-knob { width:18px; height:18px; border-radius:50%; background:var(--t2); position:absolute; top:3px; left:3px; transition:left .2s, background .2s; }
+.toggle.toggle-on .toggle-knob { left:23px; background:var(--on-accent); }
+.btn-export { padding:7px 16px; border-radius:8px; border:1px solid var(--accent-border); background:var(--accent-dim); color:var(--accent); font-size:13px; font-weight:600; cursor:pointer; transition:all .15s; font-family:inherit; flex-shrink:0; }
+.btn-clear-data { padding:7px 16px; border-radius:8px; border:1px solid var(--danger-border); background:var(--danger-tint); color:var(--danger); font-size:13px; font-weight:600; cursor:pointer; transition:all .15s; font-family:inherit; flex-shrink:0; }
+.btn-export:disabled,.btn-clear-data:disabled { opacity:.55; cursor:not-allowed; }
+.save-toast { position:fixed; bottom:24px; right:24px; background:var(--success-dim); border:1px solid var(--success-border); border-radius:10px; padding:10px 20px; font-size:13px; font-weight:600; color:var(--success); z-index:500; animation:toastIn .25s ease-out; }
+@keyframes toastIn { from { opacity:0; transform:translateY(10px); } to { opacity:1; transform:translateY(0); } }
+@media (max-width:640px) { .setting-row { flex-direction:column; align-items:flex-start; gap:10px; } .seg-control { flex-wrap:wrap; } }

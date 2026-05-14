@@ -233,6 +233,8 @@ public class ProgressService
             .Take(50)
             .ToListAsync();
 
+        var settings = await _db.UserSettings.AsNoTracking().FirstOrDefaultAsync(s => s.UserId == userId);
+        var weightUnit = settings?.WeightUnit ?? "kg";
         var grouped = recent.GroupBy(el => el.ExerciseId).Take(5);
         var suggestions = new List<OverloadSuggestion>();
 
@@ -243,6 +245,7 @@ public class ProgressService
             if (completedSets.Count == 0) continue;
 
             var maxWeight = completedSets.Max(s => s.WeightKg!.Value);
+            var nextWeight = SettingsService.ToKg((SettingsService.FromKg(maxWeight, weightUnit) ?? maxWeight) + (weightUnit == "lbs" ? 5m : 2.5m), weightUnit) ?? maxWeight;
             var allRepsHit = completedSets.All(s => s.RepsCompleted >= latest.SetLogs.Max(x => x.RepsCompleted ?? 0));
 
             if (allRepsHit && maxWeight > 0)
@@ -250,9 +253,9 @@ public class ProgressService
                 suggestions.Add(new OverloadSuggestion
                 {
                     ExerciseName = latest.Exercise.Name,
-                    Suggestion = $"Add 2.5 kg — {maxWeight + 2.5m} kg",
+                    Suggestion = $"Add {(weightUnit == "lbs" ? "5 lbs" : "2.5 kg")} — {SettingsService.FormatWeight(nextWeight, weightUnit)}",
                     Type = "weight",
-                    Reason = $"Completed all {completedSets.Count} sets at {maxWeight} kg"
+                    Reason = $"Completed all {completedSets.Count} sets at {SettingsService.FormatWeight(maxWeight, weightUnit)}"
                 });
             }
             else if (completedSets.Count >= 3)
@@ -263,7 +266,7 @@ public class ProgressService
                     ExerciseName = latest.Exercise.Name,
                     Suggestion = $"Add 1 rep — {completedSets.Count}×{avgReps + 1}",
                     Type = "reps",
-                    Reason = $"Maintained all sets at {maxWeight} kg"
+                    Reason = $"Maintained all sets at {SettingsService.FormatWeight(maxWeight, weightUnit)}"
                 });
             }
         }

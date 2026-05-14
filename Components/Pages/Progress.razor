@@ -1,5 +1,6 @@
 @page "/progress"
 @inject ProgressService ProgressSvc
+@inject SettingsService SettingsSvc
 @inject CustomAuthStateProvider AuthState
 @inject NavigationManager Navigation
 @using FitnessApp.Models.Enums
@@ -22,7 +23,7 @@ else
             @foreach (var (label, value, sub) in new[] {
                 ("Total Workouts", $"{_totalWorkouts}", "All time"),
                 ("Current Streak", $"{_streak}", "Days"),
-                ("Weekly Volume", FormatVolume(_weeklyVolume), "kg lifted"),
+                ("Weekly Volume", FormatVolume(_weeklyVolume), $"{WeightUnitLabel} lifted"),
                 ("Avg Session", $"{_avgSession}m", "This month")
             })
             {
@@ -72,7 +73,7 @@ else
 
             <div class="panel">
                 <div class="panel-header">
-                    <span class="panel-title">Weekly Calorie Burn</span>
+                    <span class="panel-title">Weekly Energy Burn</span>
                     <span class="panel-hint">Last @_weeklyCalories.Count weeks</span>
                 </div>
                 <div class="cal-chart">
@@ -83,7 +84,7 @@ else
                         var h = maxKcal > 0 ? (int)((double)w.Kcal / maxKcal * 140) : 0;
                         var isLatest = i == _weeklyCalories.Count - 1;
                         <div class="cal-bar-col">
-                            <span class="cal-bar-val @(isLatest ? "cal-bar-latest" : "")">@w.Kcal</span>
+                            <span class="cal-bar-val @(isLatest ? "cal-bar-latest" : "")">@FormatEnergyValue(w.Kcal)</span>
                             <div class="cal-bar-track">
                                 <div class="cal-bar @(isLatest ? "cal-bar-active" : "")" style="height:@(h)px"></div>
                             </div>
@@ -107,7 +108,7 @@ else
                                 <span class="pr-date">@pr.Date.ToString("MMM d")</span>
                             </div>
                             <div class="pr-right">
-                                <span class="pr-weight">@pr.WeightKg kg</span>
+                                <span class="pr-weight">@FormatWeightValue(pr.WeightKg)</span>
                                 <span class="pr-reps">@pr.Reps reps</span>
                             </div>
                         </div>
@@ -137,7 +138,7 @@ else
                                 var points = GetPrPoints(ex.Name, 560, 220, prPad);
                                 @foreach (var pt in points)
                                 {
-                                    <circle cx="@pt.X" cy="@pt.Y" r="4.5" fill="@ex.Color" stroke="#0d1a2e" stroke-width="2" class="chart-point">
+                                    <circle cx="@pt.X" cy="@pt.Y" r="4.5" fill="@ex.Color" stroke="var(--bg)" stroke-width="2" class="chart-point">
                                         <title>@pt.Label</title>
                                     </circle>
                                 }
@@ -145,13 +146,13 @@ else
                             @{ var prYLabels = GetPrYLabels(220, prPad); }
                             @foreach (var yl in prYLabels)
                             {
-                                @((MarkupString)$"<text x='{prPad.Left - 6}' y='{yl.Y + 4}' text-anchor='end' fill='#3a5470' font-size='10' font-family='Inter,sans-serif'>{yl.Label}</text>")
-                                <line x1="@prPad.Left" y1="@yl.Y" x2="@(560 - prPad.Right)" y2="@yl.Y" stroke="rgba(255,255,255,0.04)" stroke-width="1" />
+                                @((MarkupString)$"<text x='{prPad.Left - 6}' y='{yl.Y + 4}' text-anchor='end' fill='var(--t3)' font-size='10' font-family='Inter,sans-serif'>{yl.Label}</text>")
+                                <line x1="@prPad.Left" y1="@yl.Y" x2="@(560 - prPad.Right)" y2="@yl.Y" stroke="var(--border-faint)" stroke-width="1" />
                             }
                             @{ var prXLabels = GetPrXLabels(560, prPad); }
                             @foreach (var xl in prXLabels)
                             {
-                                @((MarkupString)$"<text x='{xl.X}' y='{220 - 6}' text-anchor='middle' fill='#3a5470' font-size='10' font-family='Inter,sans-serif'>{xl.Label}</text>")
+                                @((MarkupString)$"<text x='{xl.X}' y='{220 - 6}' text-anchor='middle' fill='var(--t3)' font-size='10' font-family='Inter,sans-serif'>{xl.Label}</text>")
                             }
                         </svg>
                     </div>
@@ -161,7 +162,7 @@ else
                             var name = ex.Name;
                             var hidden = _hiddenPrSeries.Contains(name);
                             <button type="button" class="legend-btn @(hidden ? "legend-hidden" : "")" @onclick="() => TogglePrSeries(name)">
-                                <span class="legend-swatch" style="background:@(hidden ? "#3a5470" : ex.Color)"></span>
+                                <span class="legend-swatch" style="background:@(hidden ? "var(--t3)" : ex.Color)"></span>
                                 @name
                             </button>
                         }
@@ -184,7 +185,7 @@ else
                             <div class="meas-card">
                                 <span class="meas-label">@label</span>
                                 <span class="meas-value">@value</span>
-                                <span class="meas-change @(trend == "down" ? "meas-down" : "meas-up")">@(trend == "down" ? "↓" : "↑") @change</span>
+                                <span class="meas-change @(trend == "down" ? "meas-down" : "meas-up")">@(trend == "down" ? "Down" : "Up") @change</span>
                             </div>
                         }
                     </div>
@@ -198,7 +199,7 @@ else
                                 @for (int gi = 0; gi <= 4; gi++)
                                 {
                                     var gy = mPad.Top + (double)gi / 4 * (220 - mPad.Top - mPad.Bottom);
-                                    <line x1="@mPad.Left" y1="@Math.Round(gy,1)" x2="@(560 - mPad.Right)" y2="@Math.Round(gy,1)" stroke="rgba(255,255,255,0.04)" stroke-width="1" />
+                                    <line x1="@mPad.Left" y1="@Math.Round(gy,1)" x2="@(560 - mPad.Right)" y2="@Math.Round(gy,1)" stroke="var(--border-faint)" stroke-width="1" />
                                 }
                                 @foreach (var series in _measSeries)
                                 {
@@ -213,7 +214,7 @@ else
                                     var points = GetMeasPoints(series.Key, 560, 220, mPad);
                                     @foreach (var pt in points)
                                     {
-                                        <circle cx="@pt.X" cy="@pt.Y" r="4.5" fill="@series.Color" stroke="#0d1a2e" stroke-width="2" class="chart-point">
+                                        <circle cx="@pt.X" cy="@pt.Y" r="4.5" fill="@series.Color" stroke="var(--bg)" stroke-width="2" class="chart-point">
                                             <title>@pt.Label</title>
                                         </circle>
                                     }
@@ -221,7 +222,7 @@ else
                                 @{ var mXLabels = GetMeasXLabels(560, mPad); }
                                 @foreach (var xl in mXLabels)
                                 {
-                                    @((MarkupString)$"<text x='{xl.X}' y='{220 - 6}' text-anchor='middle' fill='#3a5470' font-size='10' font-family='Inter,sans-serif'>{xl.Label}</text>")
+                                    @((MarkupString)$"<text x='{xl.X}' y='{220 - 6}' text-anchor='middle' fill='var(--t3)' font-size='10' font-family='Inter,sans-serif'>{xl.Label}</text>")
                                 }
                             </svg>
                         </div>
@@ -231,7 +232,7 @@ else
                                 var key = series.Key;
                                 var hidden = _hiddenMeasSeries.Contains(key);
                                 <button type="button" class="legend-btn @(hidden ? "legend-hidden" : "")" @onclick="() => ToggleMeasSeries(key)">
-                                    <span class="legend-swatch" style="background:@(hidden ? "#3a5470" : series.Color)"></span>
+                                    <span class="legend-swatch" style="background:@(hidden ? "var(--t3)" : series.Color)"></span>
                                     @series.Label
                                 </button>
                             }
@@ -280,7 +281,7 @@ else
                         <div class="sug-card">
                             <span class="sug-type">@s.Type</span>
                             <span class="sug-name">@s.ExerciseName</span>
-                            <span class="sug-action">→ @s.Suggestion</span>
+                            <span class="sug-action">Suggestion: @s.Suggestion</span>
                             <span class="sug-reason">@s.Reason</span>
                         </div>
                     }
@@ -295,8 +296,8 @@ else
         <h2>Log Measurements</h2>
         <div class="log-fields">
             <div class="log-field">
-                <label>Weight (kg)</label>
-                <input type="number" step="0.1" @bind="_logWeight" />
+                <label>Weight (@WeightUnitLabel)</label>
+                <input type="number" step="0.1" @bind="LogWeightDisplay" />
             </div>
             <div class="log-field">
                 <label>Body Fat (%)</label>
@@ -330,7 +331,7 @@ else
             <div class="history-table">
                 <div class="history-header">
                     <span class="history-col-date">Date</span>
-                    <span class="history-col">Weight</span>
+                    <span class="history-col">Weight (@WeightUnitLabel)</span>
                     <span class="history-col">Body Fat</span>
                     <span class="history-col">Chest</span>
                     <span class="history-col">Waist</span>
@@ -344,18 +345,18 @@ else
                         <span class="history-col-date">@m.Date.ToString("d MMM yyyy")</span>
                         @if (isEditing)
                         {
-                            <span class="history-col"><input type="number" step="0.1" class="history-input" @bind="_editWeight" /></span>
+                            <span class="history-col"><input type="number" step="0.1" class="history-input" @bind="EditWeightDisplay" /></span>
                             <span class="history-col"><input type="number" step="0.1" class="history-input" @bind="_editBodyFat" /></span>
                             <span class="history-col"><input type="number" step="0.1" class="history-input" @bind="_editChest" /></span>
                             <span class="history-col"><input type="number" step="0.1" class="history-input" @bind="_editWaist" /></span>
                             <span class="history-col-action">
-                                <button type="button" class="history-btn history-save" @onclick="SaveEdit">✓</button>
-                                <button type="button" class="history-btn history-cancel" @onclick="() => _editingMeasId = -1">✕</button>
+                                <button type="button" class="history-btn history-save" @onclick="SaveEdit" aria-label="Save"><span class="icon icon-check" aria-hidden="true"></span></button>
+                                <button type="button" class="history-btn history-cancel" @onclick="() => _editingMeasId = -1" aria-label="Cancel"><span class="icon icon-x" aria-hidden="true"></span></button>
                             </span>
                         }
                         else
                         {
-                            <span class="history-col">@(m.WeightKg.HasValue ? $"{m.WeightKg:F1}" : "—")</span>
+                            <span class="history-col">@FormatWeightValue(m.WeightKg)</span>
                             <span class="history-col">@(m.BodyFatPercent.HasValue ? $"{m.BodyFatPercent:F1}%" : "—")</span>
                             <span class="history-col">@(m.ChestCm.HasValue ? $"{m.ChestCm:F0}" : "—")</span>
                             <span class="history-col">@(m.WaistCm.HasValue ? $"{m.WaistCm:F0}" : "—")</span>
@@ -373,6 +374,8 @@ else
 @code {
     private bool _isLoading = true;
     private int _userId;
+    private string _weightUnit = "kg";
+    private string _energyUnit = "kcal";
 
     private int _totalWorkouts;
     private int _streak;
@@ -413,6 +416,9 @@ else
         var state = await AuthState.GetAuthenticationStateAsync();
         if (state.User.Identity is not { IsAuthenticated: true }) { try { Navigation.NavigateTo("/login", forceLoad: true); } catch { } return; }
         _userId = int.Parse(state.User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)!.Value);
+        var settings = await SettingsSvc.GetSettingsAsync(_userId);
+        _weightUnit = settings.WeightUnit;
+        _energyUnit = settings.EnergyUnit;
         await LoadData();
         _isLoading = false;
         StateHasChanged();
@@ -440,7 +446,7 @@ else
     {
         _measSeries = new()
         {
-            new ChartSeries { Key = "weight", Label = "Weight (kg)", Color = "#38bdf8" },
+            new ChartSeries { Key = "weight", Label = $"Weight ({WeightUnitLabel})", Color = "#38bdf8" },
             new ChartSeries { Key = "bodyfat", Label = "Body Fat (%)", Color = "#2ab8a0" },
             new ChartSeries { Key = "chest", Label = "Chest (cm)", Color = "#a78bfa" },
             new ChartSeries { Key = "waist", Label = "Waist (cm)", Color = "#f0c050" },
@@ -456,7 +462,7 @@ else
 
     private decimal? GetMeasValue(BodyMeasurement m, string key) => key switch
     {
-        "weight" => m.WeightKg,
+        "weight" => SettingsService.FromKg(m.WeightKg, _weightUnit),
         "bodyfat" => m.BodyFatPercent,
         "chest" => m.ChestCm,
         "waist" => m.WaistCm,
@@ -465,7 +471,7 @@ else
 
     private string GetMeasUnit(string key) => key switch
     {
-        "weight" => "kg", "bodyfat" => "%", "chest" => "cm", "waist" => "cm", _ => ""
+        "weight" => WeightUnitLabel, "bodyfat" => "%", "chest" => "cm", "waist" => "cm", _ => ""
     };
 
     private List<ChartPoint> GetMeasPoints(string key, int w, int h, ChartPad pad)
@@ -507,8 +513,9 @@ else
         var allVisible = _allPrs.Where(pr => !_hiddenPrSeries.Contains(pr.Exercise.Name)).ToList();
         if (allVisible.Count == 0) return new();
 
-        var minV = (double)allVisible.Min(pr => pr.WeightKg) * 0.9;
-        var maxV = (double)allVisible.Max(pr => pr.WeightKg) * 1.1;
+        var visibleValues = allVisible.Select(pr => (double)(SettingsService.FromKg(pr.WeightKg, _weightUnit) ?? pr.WeightKg)).ToList();
+        var minV = visibleValues.Min() * 0.9;
+        var maxV = visibleValues.Max() * 1.1;
         if (Math.Abs(maxV - minV) < 0.01) { minV -= 5; maxV += 5; }
 
         var minDate = allVisible.Min(pr => pr.Date).ToDateTime(TimeOnly.MinValue).Ticks;
@@ -520,16 +527,16 @@ else
 
         return data.Select(pr =>
         {
-            var val = (double)pr.WeightKg;
+            var val = (double)(SettingsService.FromKg(pr.WeightKg, _weightUnit) ?? pr.WeightKg);
             var x = pad.Left + (double)(pr.Date.ToDateTime(TimeOnly.MinValue).Ticks - minDate) / (maxDate - minDate) * cw;
             var y = pad.Top + (1 - (val - minV) / (maxV - minV)) * ch;
-            return new ChartPoint { X = Math.Round(x, 1), Y = Math.Round(y, 1), Label = $"{pr.Date:d MMM yyyy}: {pr.WeightKg} kg × {pr.Reps} reps" };
+            return new ChartPoint { X = Math.Round(x, 1), Y = Math.Round(y, 1), Label = $"{pr.Date:d MMM yyyy}: {FormatWeightValue(pr.WeightKg)} × {pr.Reps} reps" };
         }).ToList();
     }
 
     private List<AxisLabel> GetPrYLabels(int h, ChartPad pad)
     {
-        var allVals = _allPrs.Where(pr => !_hiddenPrSeries.Contains(pr.Exercise.Name)).Select(pr => (double)pr.WeightKg).ToList();
+        var allVals = _allPrs.Where(pr => !_hiddenPrSeries.Contains(pr.Exercise.Name)).Select(pr => (double)(SettingsService.FromKg(pr.WeightKg, _weightUnit) ?? pr.WeightKg)).ToList();
         return BuildYLabels(allVals, h, pad);
     }
 
@@ -619,7 +626,7 @@ else
 
         return new()
         {
-            ("Weight", latest.WeightKg.HasValue ? $"{latest.WeightKg:F1} kg" : "—", FormatChange(latest.WeightKg, prev?.WeightKg, "kg"), latest.WeightKg < prev?.WeightKg ? "down" : "up"),
+            ("Weight", FormatWeightValue(latest.WeightKg), FormatWeightChange(latest.WeightKg, prev?.WeightKg), latest.WeightKg < prev?.WeightKg ? "down" : "up"),
             ("Body Fat", latest.BodyFatPercent.HasValue ? $"{latest.BodyFatPercent:F1}%" : "—", FormatChange(latest.BodyFatPercent, prev?.BodyFatPercent, "%"), latest.BodyFatPercent < prev?.BodyFatPercent ? "down" : "up"),
             ("Chest", latest.ChestCm.HasValue ? $"{latest.ChestCm:F0} cm" : "—", FormatChange(latest.ChestCm, prev?.ChestCm, "cm"), latest.ChestCm > prev?.ChestCm ? "up" : "down"),
             ("Waist", latest.WaistCm.HasValue ? $"{latest.WaistCm:F0} cm" : "—", FormatChange(latest.WaistCm, prev?.WaistCm, "cm"), latest.WaistCm < prev?.WaistCm ? "down" : "up"),
@@ -633,9 +640,40 @@ else
         return $"{(diff >= 0 ? "+" : "")}{diff:F1} {unit}";
     }
 
-    private static string FormatVolume(decimal vol)
+    private string FormatWeightChange(decimal? currentKg, decimal? previousKg)
     {
-        return vol >= 1000 ? $"{vol / 1000:F1}k" : $"{(int)vol}";
+        if (!currentKg.HasValue || !previousKg.HasValue) return "";
+        var current = SettingsService.FromKg(currentKg, _weightUnit);
+        var previous = SettingsService.FromKg(previousKg, _weightUnit);
+        if (!current.HasValue || !previous.HasValue) return "";
+        var diff = current.Value - previous.Value;
+        return $"{(diff >= 0 ? "+" : "")}{diff:F1} {WeightUnitLabel}";
+    }
+
+    private string FormatWeightValue(decimal? weightKg) => SettingsService.FormatWeight(weightKg, _weightUnit);
+
+    private string FormatWeightValue(decimal weightKg) => SettingsService.FormatWeight(weightKg, _weightUnit);
+
+    private string FormatEnergyValue(decimal calories) => SettingsService.FormatEnergy(calories, _energyUnit);
+
+    private string WeightUnitLabel => SettingsService.WeightLabel(_weightUnit);
+
+    private decimal? LogWeightDisplay
+    {
+        get => SettingsService.FromKg(_logWeight, _weightUnit);
+        set => _logWeight = SettingsService.ToKg(value, _weightUnit);
+    }
+
+    private decimal? EditWeightDisplay
+    {
+        get => SettingsService.FromKg(_editWeight, _weightUnit);
+        set => _editWeight = SettingsService.ToKg(value, _weightUnit);
+    }
+
+    private string FormatVolume(decimal vol)
+    {
+        var converted = SettingsService.FromKg(vol, _weightUnit) ?? vol;
+        return converted >= 1000 ? $"{converted / 1000:F1}k" : $"{converted:F0}";
     }
 
     private record ChartPad(int Left, int Top, int Right, int Bottom);

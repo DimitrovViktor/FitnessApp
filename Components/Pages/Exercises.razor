@@ -1,5 +1,6 @@
 @page "/exercises"
 @inject WorkoutService WorkoutService
+@inject SettingsService SettingsSvc
 @inject CustomAuthStateProvider AuthState
 @inject NavigationManager Navigation
 @using FitnessApp.Models.Enums
@@ -151,7 +152,7 @@ else
                                         var altEx = alt.AlternativeExercise;
                                         <div class="alt-row" @onclick="() => OpenDetail(FindExercise(altEx.Id))" @onclick:stopPropagation>
                                             <span class="alt-name">@altEx.Name</span>
-                                            <span class="alt-arrow">→</span>
+                                            <span class="alt-arrow">to</span>
                                         </div>
                                     }
                                 </div>
@@ -212,6 +213,8 @@ else
 @code {
     private bool _isLoading = true;
     private int _userId;
+    private string _weightUnit = "kg";
+    private string _energyUnit = "kcal";
     private List<Exercise> _allExercises = new();
     private List<MuscleGroup> _allMuscleGroups = new();
     private List<Equipment> _allEquipment = new();
@@ -230,6 +233,9 @@ else
         var state = await AuthState.GetAuthenticationStateAsync();
         if (state.User.Identity is not { IsAuthenticated: true }) { try { Navigation.NavigateTo("/login", forceLoad: true); } catch { } return; }
         _userId = int.Parse(state.User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)!.Value);
+        var settings = await SettingsSvc.GetSettingsAsync(_userId);
+        _weightUnit = settings.WeightUnit;
+        _energyUnit = settings.EnergyUnit;
         _allExercises = await WorkoutService.GetExerciseLibraryAsync();
         _allMuscleGroups = await WorkoutService.GetAllMuscleGroupsAsync();
         _allEquipment = await WorkoutService.GetAllEquipmentAsync();
@@ -265,11 +271,18 @@ else
     private static string EquipFirst(Exercise ex) =>
         ex.ExerciseEquipment.Select(e => e.Equipment.Name).FirstOrDefault() ?? "Bodyweight";
 
-    private int CalBurn(int weightKg, int minutes) =>
-        _detailEx is null ? 0 : (int)Math.Round(_detailEx.MetValue * weightKg * (minutes / 60m));
+    private string CalBurn(int weightKg, int minutes) =>
+        _detailEx is null ? "—" : SettingsService.FormatEnergy(_detailEx.MetValue * weightKg * (minutes / 60m), _energyUnit);
 
-    private static (string Label, int Kg)[] CalRanges() => new[]
+    private IEnumerable<(string Label, int Kg)> CalRanges()
     {
-        ("50–60 kg", 55), ("60–70 kg", 65), ("70–80 kg", 75), ("80–90 kg", 85), ("90+ kg", 95)
-    };
+        foreach (var kg in new[] { 55, 65, 75, 85, 95 })
+        {
+            var lower = kg == 95 ? SettingsService.FromKg(90, _weightUnit) : SettingsService.FromKg(kg - 5, _weightUnit);
+            var upper = SettingsService.FromKg(kg + 5, _weightUnit);
+            var unit = SettingsService.WeightLabel(_weightUnit);
+            var label = kg == 95 ? $"{Math.Round(lower ?? 90, 0)}+ {unit}" : $"{Math.Round(lower ?? kg - 5, 0)}–{Math.Round(upper ?? kg + 5, 0)} {unit}";
+            yield return (label, kg);
+        }
+    }
 }

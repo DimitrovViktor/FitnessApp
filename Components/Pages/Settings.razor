@@ -1,0 +1,298 @@
+@page "/settings"
+@inject SettingsService SettingsSvc
+@inject CustomAuthStateProvider AuthState
+@inject NavigationManager Navigation
+
+<PageTitle>Settings - Fitness App</PageTitle>
+
+@if (_isLoading)
+{
+    <div class="loading-state"><p>Loading...</p></div>
+}
+else
+{
+    <div class="settings-page">
+        <div class="page-header">
+            <h1>Settings</h1>
+            <p class="page-sub">Customise units, themes, and workout preferences</p>
+        </div>
+
+        <div class="settings-section">
+            <span class="section-label">Appearance</span>
+
+            <div class="setting-row setting-row-last">
+                <div class="setting-info">
+                    <span class="setting-name">Theme</span>
+                    <span class="setting-desc">Changes the app colour palette immediately</span>
+                </div>
+                <select class="setting-select" @bind="_settings.Theme" @bind:after="Save">
+                    @foreach (var theme in SettingsService.Themes)
+                    {
+                        <option value="@theme.Key">@theme.Label</option>
+                    }
+                </select>
+            </div>
+        </div>
+
+        <div class="settings-section">
+            <span class="section-label">Units</span>
+
+            <div class="setting-row">
+                <div class="setting-info">
+                    <span class="setting-name">Weight</span>
+                    <span class="setting-desc">Used for body weight and lifting weight</span>
+                </div>
+                <div class="seg-control">
+                    @foreach (var (val, label) in new[] { ("kg", "kg"), ("lbs", "lbs") })
+                    {
+                        var v = val;
+                        <button type="button" class="seg-btn @(_settings.WeightUnit == v ? "seg-active" : "")" @onclick="() => SetWeightUnit(v)">@label</button>
+                    }
+                </div>
+            </div>
+
+            <div class="setting-row">
+                <div class="setting-info">
+                    <span class="setting-name">Distance (placeholder)</span>
+                    <span class="setting-desc">Stored for future cardio distance displays</span>
+                </div>
+                <div class="seg-control">
+                    @foreach (var (val, label) in new[] { ("km", "km"), ("mi", "miles") })
+                    {
+                        var v = val;
+                        <button type="button" class="seg-btn @(_settings.DistanceUnit == v ? "seg-active" : "")" @onclick="() => SetDistanceUnit(v)">@label</button>
+                    }
+                </div>
+            </div>
+
+            <div class="setting-row setting-row-last">
+                <div class="setting-info">
+                    <span class="setting-name">Energy</span>
+                    <span class="setting-desc">Used where workout calories are displayed</span>
+                </div>
+                <div class="seg-control">
+                    @foreach (var (val, label) in new[] { ("kcal", "kcal"), ("cal", "Cal"), ("kj", "kJ") })
+                    {
+                        var v = val;
+                        <button type="button" class="seg-btn @(_settings.EnergyUnit == v ? "seg-active" : "")" @onclick="() => SetEnergyUnit(v)">@label</button>
+                    }
+                </div>
+            </div>
+        </div>
+
+        <div class="settings-section">
+            <span class="section-label">Workout</span>
+
+            <div class="setting-row">
+                <div class="setting-info">
+                    <span class="setting-name">Default Rest Timer (placeholder)</span>
+                    <span class="setting-desc">Stored in settings but not yet used by all workout flows</span>
+                </div>
+                <select class="setting-select" @bind="_settings.RestTimerDefault" @bind:after="Save">
+                    <option value="30">30s</option>
+                    <option value="45">45s</option>
+                    <option value="60">60s</option>
+                    <option value="90">90s</option>
+                    <option value="120">120s</option>
+                </select>
+            </div>
+
+            <div class="setting-row">
+                <div class="setting-info">
+                    <span class="setting-name">Auto-start Rest Timer (placeholder)</span>
+                    <span class="setting-desc">Stored for future live workout behaviour</span>
+                </div>
+                <button type="button" class="toggle @(_settings.AutoStartRestTimer ? "toggle-on" : "")" @onclick="ToggleAutoStartRestTimer" aria-label="Toggle auto-start rest timer">
+                    <span class="toggle-knob"></span>
+                </button>
+            </div>
+
+            <div class="setting-row">
+                <div class="setting-info">
+                    <span class="setting-name">Rest Timer Sound (placeholder)</span>
+                    <span class="setting-desc">Stored for future sound notification behaviour</span>
+                </div>
+                <button type="button" class="toggle @(_settings.RestTimerSound ? "toggle-on" : "")" @onclick="ToggleRestTimerSound" aria-label="Toggle rest timer sound">
+                    <span class="toggle-knob"></span>
+                </button>
+            </div>
+
+            <div class="setting-row">
+                <div class="setting-info">
+                    <span class="setting-name">Show Weight Input on Sets (placeholder)</span>
+                    <span class="setting-desc">Stored for future live workout layout behaviour</span>
+                </div>
+                <button type="button" class="toggle @(_settings.ShowWeightInSets ? "toggle-on" : "")" @onclick="ToggleShowWeightInSets" aria-label="Toggle set weight input">
+                    <span class="toggle-knob"></span>
+                </button>
+            </div>
+
+            <div class="setting-row setting-row-last">
+                <div class="setting-info">
+                    <span class="setting-name">Confirm Before Skipping (placeholder)</span>
+                    <span class="setting-desc">Stored for future skip confirmation behaviour</span>
+                </div>
+                <button type="button" class="toggle @(_settings.ConfirmBeforeSkip ? "toggle-on" : "")" @onclick="ToggleConfirmBeforeSkip" aria-label="Toggle skip confirmation">
+                    <span class="toggle-knob"></span>
+                </button>
+            </div>
+        </div>
+
+        <div class="settings-section">
+            <span class="section-label">Calendar</span>
+
+            <div class="setting-row">
+                <div class="setting-info">
+                    <span class="setting-name">Week Starts On (placeholder)</span>
+                    <span class="setting-desc">Stored for future calendar layout behaviour</span>
+                </div>
+                <div class="seg-control">
+                    @foreach (var (val, label) in new[] { ("monday", "Monday"), ("sunday", "Sunday") })
+                    {
+                        var v = val;
+                        <button type="button" class="seg-btn @(_settings.CalendarStart == v ? "seg-active" : "")" @onclick="() => SetCalendarStart(v)">@label</button>
+                    }
+                </div>
+            </div>
+
+            <div class="setting-row setting-row-last">
+                <div class="setting-info">
+                    <span class="setting-name">Workout Reminders (placeholder)</span>
+                    <span class="setting-desc">Stored for future reminder notifications</span>
+                </div>
+                <button type="button" class="toggle @(_settings.WorkoutReminders ? "toggle-on" : "")" @onclick="ToggleWorkoutReminders" aria-label="Toggle workout reminders">
+                    <span class="toggle-knob"></span>
+                </button>
+            </div>
+        </div>
+
+        <div class="settings-section">
+            <span class="section-label">Privacy</span>
+
+            <div class="setting-row setting-row-last">
+                <div class="setting-info">
+                    <span class="setting-name">Profile Visibility (placeholder)</span>
+                    <span class="setting-desc">Stored for future profile sharing controls</span>
+                </div>
+                <select class="setting-select" @bind="_settings.SocialVisibility" @bind:after="Save">
+                    <option value="public">Public</option>
+                    <option value="friends">Friends Only</option>
+                    <option value="private">Private</option>
+                </select>
+            </div>
+        </div>
+
+        <div class="settings-section">
+            <span class="section-label">Data</span>
+
+            <div class="setting-row">
+                <div class="setting-info">
+                    <span class="setting-name">Export Workout Data (placeholder)</span>
+                    <span class="setting-desc">Visible for future data export support</span>
+                </div>
+                <button type="button" class="btn-export" disabled>Export</button>
+            </div>
+
+            <div class="setting-row setting-row-last">
+                <div class="setting-info">
+                    <span class="setting-name">Clear Workout History (placeholder)</span>
+                    <span class="setting-desc">Visible for future account data controls</span>
+                </div>
+                <button type="button" class="btn-clear-data" disabled>Clear Data</button>
+            </div>
+        </div>
+
+        @if (!string.IsNullOrEmpty(_saveMsg))
+        {
+            <div class="save-toast">@_saveMsg</div>
+        }
+    </div>
+}
+
+@code {
+    private bool _isLoading = true;
+    private int _userId;
+    private UserSettings _settings = new();
+    private string? _saveMsg;
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!firstRender) return;
+
+        var state = await AuthState.GetAuthenticationStateAsync();
+        if (state.User.Identity is not { IsAuthenticated: true })
+        {
+            try { Navigation.NavigateTo("/login", forceLoad: true); } catch { }
+            return;
+        }
+
+        _userId = int.Parse(state.User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)!.Value);
+        _settings = await SettingsSvc.GetSettingsAsync(_userId);
+        _isLoading = false;
+        StateHasChanged();
+    }
+
+    private Task SetWeightUnit(string value)
+    {
+        _settings.WeightUnit = SettingsService.NormalizeWeightUnit(value);
+        return Save();
+    }
+
+    private Task SetDistanceUnit(string value)
+    {
+        _settings.DistanceUnit = SettingsService.NormalizeDistanceUnit(value);
+        return Save();
+    }
+
+    private Task SetEnergyUnit(string value)
+    {
+        _settings.EnergyUnit = SettingsService.NormalizeEnergyUnit(value);
+        return Save();
+    }
+
+    private Task SetCalendarStart(string value)
+    {
+        _settings.CalendarStart = value == "sunday" ? "sunday" : "monday";
+        return Save();
+    }
+
+    private Task ToggleAutoStartRestTimer()
+    {
+        _settings.AutoStartRestTimer = !_settings.AutoStartRestTimer;
+        return Save();
+    }
+
+    private Task ToggleRestTimerSound()
+    {
+        _settings.RestTimerSound = !_settings.RestTimerSound;
+        return Save();
+    }
+
+    private Task ToggleShowWeightInSets()
+    {
+        _settings.ShowWeightInSets = !_settings.ShowWeightInSets;
+        return Save();
+    }
+
+    private Task ToggleConfirmBeforeSkip()
+    {
+        _settings.ConfirmBeforeSkip = !_settings.ConfirmBeforeSkip;
+        return Save();
+    }
+
+    private Task ToggleWorkoutReminders()
+    {
+        _settings.WorkoutReminders = !_settings.WorkoutReminders;
+        return Save();
+    }
+
+    private async Task Save()
+    {
+        await SettingsSvc.SaveSettingsAsync(_settings);
+        _saveMsg = "Settings saved";
+        StateHasChanged();
+        await Task.Delay(1200);
+        _saveMsg = null;
+        StateHasChanged();
+    }
+}

@@ -1,7 +1,7 @@
 .modal-backdrop {
     position: fixed;
     inset: 0;
-    background: rgba(0, 0, 0, 0.75);
+    background: var(--overlay);
     display: flex;
     align-items: center;
     justify-content: center;
@@ -19,13 +19,13 @@
 }
 
 .modal-container {
-    background: #0b1627;
-    border: 1px solid rgba(255,255,255,0.09);
+    background: var(--surface);
+    border: 1px solid var(--border-modal);
     border-radius: 18px;
     position: relative;
     max-height: 90vh;
     overflow-y: auto;
-    box-shadow: 0 32px 80px rgba(0,0,0,0.6);
+    box-shadow: 0 32px 80px var(--shadow-modal);
     animation: modalSlideIn 0.25s ease-out;
 }
 
@@ -45,8 +45,8 @@
     top: 1rem;
     right: 1rem;
     font-size: 1rem;
-    color: #3a5470;
-    background: rgba(255,255,255,0.05);
+    color: var(--t3);
+    background: var(--border-subtle);
     border: none;
     border-radius: 8px;
     width: 2rem;
@@ -60,6 +60,6 @@
 }
 
 .modal-close-btn:hover {
-    background: rgba(255,255,255,0.08);
-    color: #dde8f5;
+    background: var(--border-strong);
+    color: var(--t1);
 }

@@ -1,8 +1,11 @@
 @inherits LayoutComponentBase
+@implements IDisposable
+@inject CustomAuthStateProvider AuthState
+@inject SettingsService SettingsSvc
 
-<div class="page">
+<div class="page" data-theme="@_theme">
     <div class="sidebar">
-        <NavMenu />
+        <NavMenu OnThemeChanged="HandleThemeChanged" />
     </div>
 
     <main>
@@ -15,5 +18,42 @@
 <div id="blazor-error-ui" data-nosnippet>
     An unhandled error has occurred.
     <a href="." class="reload">Reload</a>
-    <span class="dismiss">🗙</span>
+    <span class="dismiss"><span class="icon icon-x" aria-hidden="true"></span></span>
 </div>
+
+@code {
+    private string _theme = "night";
+
+    protected override void OnInitialized()
+    {
+        SettingsSvc.ThemeChanged += HandleThemeChanged;
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!firstRender) return;
+
+        try
+        {
+            var state = await AuthState.GetAuthenticationStateAsync();
+            if (state.User.Identity is { IsAuthenticated: true })
+            {
+                var userId = int.Parse(state.User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)!.Value);
+                _theme = await SettingsSvc.GetThemeAsync(userId);
+                StateHasChanged();
+            }
+        }
+        catch { }
+    }
+
+    private void HandleThemeChanged(string theme)
+    {
+        _theme = SettingsService.NormalizeTheme(theme);
+        _ = InvokeAsync(StateHasChanged);
+    }
+
+    public void Dispose()
+    {
+        SettingsSvc.ThemeChanged -= HandleThemeChanged;
+    }
+}

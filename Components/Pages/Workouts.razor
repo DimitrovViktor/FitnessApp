@@ -1,5 +1,6 @@
 @page "/workouts"
 @inject WorkoutService WorkoutService
+@inject SettingsService SettingsSvc
 @inject CustomAuthStateProvider AuthState
 @inject NavigationManager Navigation
 @using FitnessApp.Models.Enums
@@ -155,7 +156,7 @@ else
         <div class="bld-top">
             <input class="bld-name" @bind="_form.Name" placeholder="Workout name..." />
             <div class="bld-badges">
-                <span class="bdg bdg-cal">@_estCal kcal</span>
+                <span class="bdg bdg-cal">@FormatEnergyValue(_estCal)</span>
                 <span class="bdg bdg-sets">@_form.Exercises.Sum(e => e.Sets) sets</span>
                 <span class="bdg bdg-ex">@_form.Exercises.Count exercises</span>
                 <span class="bdg bdg-time">~@_estMin min</span>
@@ -224,21 +225,21 @@ else
                         <div class="sel-card @(_activeExIdx == idx ? "active" : "")" @onclick="() => ActivateSelected(idx)">
                             <div class="sel-top">
                                 <div class="sel-ord">
-                                    <button type="button" class="ord-btn" disabled="@(idx == 0)" @onclick:stopPropagation @onclick="() => Move(idx, -1)">&#9650;</button>
+                                    <button type="button" class="ord-btn" disabled="@(idx == 0)" @onclick:stopPropagation @onclick="() => Move(idx, -1)" aria-label="Move up"><span class="icon icon-up" aria-hidden="true"></span></button>
                                     <span>@(idx + 1)</span>
-                                    <button type="button" class="ord-btn" disabled="@(idx == _form.Exercises.Count - 1)" @onclick:stopPropagation @onclick="() => Move(idx, 1)">&#9660;</button>
+                                    <button type="button" class="ord-btn" disabled="@(idx == _form.Exercises.Count - 1)" @onclick:stopPropagation @onclick="() => Move(idx, 1)" aria-label="Move down"><span class="icon icon-down" aria-hidden="true"></span></button>
                                 </div>
                                 <div class="sel-info">
                                     <span class="sel-name">@entry.Exercise?.Name</span>
                                     <span class="sel-meta">@(entry.Exercise is not null ? MuscleStr(entry.Exercise) : "")</span>
                                 </div>
-                                <button type="button" class="sel-rm" @onclick:stopPropagation @onclick="() => RemoveEntry(idx)">&#10005;</button>
+                                <button type="button" class="sel-rm" @onclick:stopPropagation @onclick="() => RemoveEntry(idx)" aria-label="Remove exercise"><span class="icon icon-x" aria-hidden="true"></span></button>
                             </div>
                             <div class="sel-fields">
                                 <div class="sf"><label>Sets</label><input type="number" @bind="entry.Sets" @bind:after="Recalc" min="1" @onclick:stopPropagation /></div>
                                 <div class="sf"><label>Reps</label><input type="number" @bind="entry.Reps" @bind:after="Recalc" min="1" @onclick:stopPropagation /></div>
                                 <div class="sf"><label>Rest(s)</label><input type="number" @bind="entry.RestTimeSec" @bind:after="Recalc" min="0" @onclick:stopPropagation /></div>
-                                <span class="sel-kcal">~@EstSingle(entry) kcal</span>
+                                <span class="sel-kcal">~@FormatEnergyValue(EstSingle(entry))</span>
                             </div>
                         </div>
                     }
@@ -357,7 +358,7 @@ else
                                         {
                                             <div class="ex-alt-row" @onclick="() => OpenExPreview(altEx)">
                                                 <span class="ex-alt-name">@altEx.Name</span>
-                                                <span class="ex-alt-arrow">→</span>
+                                                <span class="ex-alt-arrow">to</span>
                                             </div>
                                         }
                                     }
@@ -386,13 +387,13 @@ else
                             <span class="ex-detail-heading">Calorie Estimates</span>
                             <div class="ex-cal-table">
                                 <div class="ex-cal-hdr"><span>Weight</span><span>10 min</span><span>20 min</span><span>30 min</span></div>
-                                @foreach (var (label, kg) in new (string,int)[] { ("50–60 kg",55), ("60–70 kg",65), ("70–80 kg",75), ("80–90 kg",85), ("90+ kg",95) })
+                                @foreach (var (label, kg) in CalRanges())
                                 {
                                     <div class="ex-cal-row">
                                         <span class="ex-cal-range">@label</span>
-                                        <span class="ex-cal-val">@((int)Math.Round(_previewEx.MetValue * kg * (10m/60m)))</span>
-                                        <span class="ex-cal-val">@((int)Math.Round(_previewEx.MetValue * kg * (20m/60m)))</span>
-                                        <span class="ex-cal-val">@((int)Math.Round(_previewEx.MetValue * kg * (30m/60m)))</span>
+                                        <span class="ex-cal-val">@FormatEnergyValue(_previewEx.MetValue * kg * (10m/60m))</span>
+                                        <span class="ex-cal-val">@FormatEnergyValue(_previewEx.MetValue * kg * (20m/60m))</span>
+                                        <span class="ex-cal-val">@FormatEnergyValue(_previewEx.MetValue * kg * (30m/60m))</span>
                                     </div>
                                 }
                             </div>
@@ -426,7 +427,7 @@ else
             <div class="wk-prev-stats">
                 <span class="bdg bdg-ex">@_previewWorkout.WorkoutExercises.Count exercises</span>
                 <span class="bdg bdg-sets">@_previewWorkout.WorkoutExercises.Sum(x => x.Sets) sets</span>
-                <span class="bdg bdg-cal">@EstWorkout(_previewWorkout) kcal</span>
+                <span class="bdg bdg-cal">@FormatEnergyValue(EstWorkout(_previewWorkout))</span>
                 <span class="bdg bdg-time">~@WorkoutService.EstimateWorkoutMinutesFromWE(_previewWorkout.WorkoutExercises) min</span>
             </div>
             <div class="wk-prev-list">
@@ -533,6 +534,8 @@ else
     private bool _isLoading = true;
     private int _userId;
     private User? _user;
+    private string _weightUnit = "kg";
+    private string _energyUnit = "kcal";
     private int _tab;
     private int _browseSubTab;
     private string? _msg;
@@ -598,6 +601,9 @@ else
     private async Task LoadData()
     {
         _user = await WorkoutService.GetUserAsync(_userId);
+        var settings = await SettingsSvc.GetSettingsAsync(_userId);
+        _weightUnit = settings.WeightUnit;
+        _energyUnit = settings.EnergyUnit;
         _allExercises = await WorkoutService.GetExerciseLibraryAsync();
         _allMuscleGroups = await WorkoutService.GetAllMuscleGroupsAsync();
         _allEquipment = await WorkoutService.GetAllEquipmentAsync();
@@ -813,6 +819,20 @@ else
 
     private static string MuscleStr(Exercise ex) => string.Join(", ", ex.ExerciseMuscleGroups.Where(m => m.IsPrimary).Select(m => m.MuscleGroup.Name));
     private static string EquipStr(Exercise ex) => string.Join(", ", ex.ExerciseEquipment.Select(e => e.Equipment.Name));
+
+    private string FormatEnergyValue(decimal calories) => SettingsService.FormatEnergy(calories, _energyUnit);
+
+    private IEnumerable<(string Label, int Kg)> CalRanges()
+    {
+        foreach (var kg in new[] { 55, 65, 75, 85, 95 })
+        {
+            var lower = kg == 95 ? SettingsService.FromKg(90, _weightUnit) : SettingsService.FromKg(kg - 5, _weightUnit);
+            var upper = SettingsService.FromKg(kg + 5, _weightUnit);
+            var unit = SettingsService.WeightLabel(_weightUnit);
+            var label = kg == 95 ? $"{Math.Round(lower ?? 90, 0)}+ {unit}" : $"{Math.Round(lower ?? kg - 5, 0)}–{Math.Round(upper ?? kg + 5, 0)} {unit}";
+            yield return (label, kg);
+        }
+    }
     private decimal EstSingle(BuilderExerciseEntry e) => e.Exercise is not null ? WorkoutService.EstimateExerciseCalories(e.Exercise, e.Sets, e.Reps, e.RestTimeSec ?? 60, _user?.WeightKg ?? 70m) : 0;
     private decimal EstWorkout(Workout w) => WorkoutService.EstimateWorkoutCalories(w.WorkoutExercises.Select(x => new BuilderExerciseEntry { Exercise = x.Exercise, Sets = x.Sets, Reps = x.Reps, RestTimeSec = x.RestTimeSec }).ToList(), _user?.WeightKg ?? 70m);
 }

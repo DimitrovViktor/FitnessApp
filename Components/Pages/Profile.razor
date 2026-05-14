@@ -1,5 +1,6 @@
 @page "/profile"
 @inject ProfileService ProfileService
+@inject SettingsService SettingsSvc
 @inject CustomAuthStateProvider AuthState
 @inject NavigationManager Navigation
 
@@ -37,8 +38,8 @@ else
                     <input type="date" class="form-input" value="@_dobString" @onchange="OnDobChanged" max="@_maxDob" min="@_minDob" disabled="@(!_isEditing)" />
                 </div>
                 <div class="form-group">
-                    <label class="form-label">Weight (kg)</label>
-                    <input type="number" class="form-input" @bind="_data.WeightKg" min="20" max="350" step="0.1" disabled="@(!_isEditing)" />
+                    <label class="form-label">Weight (@_weightUnit)</label>
+                    <input type="number" class="form-input" @bind="DisplayWeight" min="@MinWeight" max="@MaxWeight" step="0.1" disabled="@(!_isEditing)" />
                 </div>
                 <div class="form-group">
                     <label class="form-label">Height (cm)</label>
@@ -182,10 +183,22 @@ else
     private string? _message;
     private bool _isError;
     private int _userId;
+    private string _weightUnit = "kg";
     private string _dobString = "";
     private string _dobBackup = "";
     private readonly string _maxDob = DateOnly.FromDateTime(DateTime.Today.AddYears(-13)).ToString("yyyy-MM-dd");
     private readonly string _minDob = DateOnly.FromDateTime(DateTime.Today.AddYears(-100)).ToString("yyyy-MM-dd");
+
+
+    private decimal? DisplayWeight
+    {
+        get => SettingsService.FromKg(_data.WeightKg, _weightUnit);
+        set => _data.WeightKg = SettingsService.ToKg(value, _weightUnit);
+    }
+
+    private decimal MinWeight => _weightUnit == "lbs" ? 44 : 20;
+
+    private decimal MaxWeight => _weightUnit == "lbs" ? 772 : 350;
 
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
@@ -199,6 +212,8 @@ else
         }
 
         _userId = int.Parse(state.User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)!.Value);
+        var settings = await SettingsSvc.GetSettingsAsync(_userId);
+        _weightUnit = settings.WeightUnit;
         _equipment = await ProfileService.GetAllEquipmentAsync();
         await LoadProfile();
         _isLoading = false;

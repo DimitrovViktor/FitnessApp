@@ -1,6 +1,7 @@
 @page "/live-workout"
 @inject DashboardService DashService
 @inject WorkoutService WorkoutService
+@inject SettingsService SettingsSvc
 @inject LoggingService LogService
 @inject CustomAuthStateProvider AuthState
 @inject NavigationManager Navigation
@@ -33,7 +34,7 @@ else
                 <div class="live-badges">
                     <span class="lbdg lbdg-prog">@_completedSets / @_totalSets sets</span>
                     <span class="lbdg lbdg-time">@FormatElapsed()</span>
-                    <span class="lbdg lbdg-cal">@_estCalBurned kcal</span>
+                    <span class="lbdg lbdg-cal">@FormatEnergyValue(_estCalBurned)</span>
                 </div>
             </div>
             <button type="button" class="btn-action btn-finish-style" @onclick="FinishWorkout">Finish Workout</button>
@@ -76,12 +77,12 @@ else
                             <span class="ex-num">@(exIdx + 1)</span>
                             <div>
                                 <span class="ex-hdr-name @(les.IsSkipped ? "text-skipped" : "")">@we.Exercise.Name</span>
-                                <span class="ex-hdr-meta">@les.Sets.Count(s => !s.IsSkipped) x @(les.Sets.FirstOrDefault()?.Reps ?? we.Reps) · @(we.RestTimeSec ?? 60)s rest · @MuscleStr(we.Exercise)</span>
+                                <span class="ex-hdr-meta">@les.Sets.Count(s => !s.IsSkipped) x @(les.Sets.FirstOrDefault()?.Reps ?? we.Reps) · @(we.RestTimeSec ?? _restTimerDefault)s rest · @MuscleStr(we.Exercise)</span>
                             </div>
                         </div>
                         <span class="ex-hdr-status">
                             @if (les.IsSkipped) { <span class="skip-label">Skipped</span> }
-                            else if (allDone) { <span class="check-icon">&#10003;</span> }
+                            else if (allDone) { <span class="check-icon"><span class="icon icon-check" aria-label="Completed"></span></span> }
                             else { <span>@activeSets.Count(s => s.IsCompleted)/@activeSets.Count</span> }
                         </span>
                     </div>
@@ -105,9 +106,9 @@ else
                                             <button type="button" class="reps-btn" disabled="@(setS.IsCompleted || setS.IsSkipped)" @onclick="() => AdjustReps(exIdx, setIdx, 1)">+</button>
                                         </div>
                                         <div class="set-weight-control">
-                                            <input type="number" class="weight-input" placeholder="kg" step="0.5" min="0"
+                                            <input type="number" class="weight-input" placeholder="@WeightUnitLabel" step="0.5" min="0"
                                                    disabled="@(setS.IsCompleted || setS.IsSkipped)"
-                                                   value="@setS.WeightKg"
+                                                   value="@DisplayWeight(setS.WeightKg)"
                                                    @onchange="(e) => SetWeight(exIdx, setIdx, e)" />
                                         </div>
                                         @if (setS.IsSkipped)
@@ -117,13 +118,13 @@ else
                                         else if (!setS.IsCompleted)
                                         {
                                             <div class="set-actions">
-                                                <button type="button" class="btn-action btn-set-size" @onclick="() => CompleteSet(exIdx, setIdx, we.RestTimeSec ?? 60)">Complete</button>
+                                                <button type="button" class="btn-action btn-set-size" @onclick="() => CompleteSet(exIdx, setIdx, we.RestTimeSec ?? _restTimerDefault)">Complete</button>
                                                 <button type="button" class="btn-skip-set" @onclick="() => SkipSet(exIdx, setIdx)">Skip</button>
                                             </div>
                                         }
                                         else
                                         {
-                                            <span class="set-check">&#10003;</span>
+                                            <span class="set-check"><span class="icon icon-check" aria-label="Completed"></span></span>
                                         }
                                     </div>
                                 }
@@ -159,7 +160,7 @@ else
         <div class="finish-stats">
             <div class="fs-item"><span class="fs-val">@_completedSets</span><span class="fs-label">Sets</span></div>
             <div class="fs-item"><span class="fs-val">@FormatElapsed()</span><span class="fs-label">Duration</span></div>
-            <div class="fs-item"><span class="fs-val">@_estCalBurned</span><span class="fs-label">Calories</span></div>
+            <div class="fs-item"><span class="fs-val">@FormatEnergyValue(_estCalBurned)</span><span class="fs-label">Energy</span></div>
         </div>
         <div class="mf-actions">
             <button type="button" class="btn-ghost" @onclick="() => _showFinish = false">Back</button>
@@ -183,6 +184,9 @@ else
     private bool _isLoading = true;
     private int _userId;
     private User? _user;
+    private string _weightUnit = "kg";
+    private string _energyUnit = "kcal";
+    private int _restTimerDefault = 60;
     private WorkoutSchedule? _session;
     private List<WorkoutExercise> _orderedExercises = new();
 
@@ -210,6 +214,10 @@ else
         if (state.User.Identity is not { IsAuthenticated: true }) { try { Navigation.NavigateTo("/login", forceLoad: true); } catch { } return; }
         _userId = int.Parse(state.User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)!.Value);
         _user = await WorkoutService.GetUserAsync(_userId);
+        var settings = await SettingsSvc.GetSettingsAsync(_userId);
+        _weightUnit = settings.WeightUnit;
+        _energyUnit = settings.EnergyUnit;
+        _restTimerDefault = settings.RestTimerDefault;
         _session = await DashService.GetActiveSessionAsync(_userId);
 
         if (_session is not null)
@@ -282,7 +290,7 @@ else
             if (doneSets.Count > 0)
             {
                 int avgReps = (int)Math.Round(doneSets.Average(s => s.Reps));
-                total += WorkoutService.EstimateExerciseCalories(_orderedExercises[i].Exercise, doneSets.Count, avgReps, _orderedExercises[i].RestTimeSec ?? 60, weight);
+                total += WorkoutService.EstimateExerciseCalories(_orderedExercises[i].Exercise, doneSets.Count, avgReps, _orderedExercises[i].RestTimeSec ?? _restTimerDefault, weight);
             }
         }
         _estCalBurned = Math.Round(total, 0);
@@ -379,7 +387,7 @@ else
     private async void SetWeight(int exIdx, int setIdx, ChangeEventArgs e)
     {
         if (decimal.TryParse(e.Value?.ToString(), out var val) && val >= 0)
-            _liveState.Exercises[exIdx].Sets[setIdx].WeightKg = val;
+            _liveState.Exercises[exIdx].Sets[setIdx].WeightKg = SettingsService.ToKg(val, _weightUnit);
         else
             _liveState.Exercises[exIdx].Sets[setIdx].WeightKg = null;
         await PersistState();
@@ -529,7 +537,7 @@ else
                 if (doneSets.Count > 0)
                 {
                     int avgReps = (int)Math.Round(doneSets.Average(s => s.Reps));
-                    cal = WorkoutService.EstimateExerciseCalories(we.Exercise, doneSets.Count, avgReps, we.RestTimeSec ?? 60, weight);
+                    cal = WorkoutService.EstimateExerciseCalories(we.Exercise, doneSets.Count, avgReps, we.RestTimeSec ?? _restTimerDefault, weight);
                 }
             }
 
@@ -570,6 +578,16 @@ else
     }
 
     private double RestPercent() => _restTotal > 0 ? (double)_restRemaining / _restTotal * 100 : 0;
+
+    private string WeightUnitLabel => SettingsService.WeightLabel(_weightUnit);
+
+    private string DisplayWeight(decimal? weightKg)
+    {
+        var converted = SettingsService.FromKg(weightKg, _weightUnit);
+        return converted.HasValue ? converted.Value.ToString("0.##") : string.Empty;
+    }
+
+    private string FormatEnergyValue(decimal calories) => SettingsService.FormatEnergy(calories, _energyUnit);
 
     private static string MuscleStr(Exercise ex) =>
         string.Join(", ", ex.ExerciseMuscleGroups.Where(m => m.IsPrimary).Select(m => m.MuscleGroup.Name));
