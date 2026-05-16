@@ -46,9 +46,10 @@ public class ProgressService
     {
         var weekStart = DateOnly.FromDateTime(DateTime.Now).AddDays(-(int)DateTime.Now.DayOfWeek);
         return await _db.ExerciseSetLogs
-            .Where(s => s.ExerciseLog.WorkoutLog.UserId == userId
-                && s.ExerciseLog.WorkoutLog.Date >= weekStart
-                && s.IsCompleted && s.WeightKg.HasValue && s.RepsCompleted.HasValue)
+            .Where(s => s.IsCompleted && s.WeightKg.HasValue && s.RepsCompleted.HasValue
+                && s.ExerciseLog != null && s.ExerciseLog.WorkoutLog != null
+                && s.ExerciseLog.WorkoutLog.UserId == userId
+                && s.ExerciseLog.WorkoutLog.Date >= weekStart)
             .SumAsync(s => s.WeightKg!.Value * s.RepsCompleted!.Value);
     }
 
@@ -68,25 +69,37 @@ public class ProgressService
     {
         var weekStart = DateOnly.FromDateTime(DateTime.Now).AddDays(-(int)DateTime.Now.DayOfWeek);
         var data = await _db.ExerciseSetLogs
-            .Where(s => s.ExerciseLog.WorkoutLog.UserId == userId
-                && s.ExerciseLog.WorkoutLog.Date >= weekStart
-                && s.IsCompleted)
-            .Select(s => new { s.ExerciseLog.Exercise.ExerciseMuscleGroups })
+            .Where(s => s.IsCompleted
+                && s.ExerciseLog != null && s.ExerciseLog.Exercise != null && s.ExerciseLog.WorkoutLog != null
+                && s.ExerciseLog.WorkoutLog.UserId == userId
+                && s.ExerciseLog.WorkoutLog.Date >= weekStart)
+            .Select(s => new { Groups = s.ExerciseLog.Exercise.ExerciseMuscleGroups })
             .ToListAsync();
 
         var targets = new Dictionary<string, int>
         {
-            ["Chest"] = 12, ["Back"] = 12, ["Shoulders"] = 9, ["Biceps"] = 9,
-            ["Triceps"] = 9, ["Abs"] = 9, ["Quadriceps"] = 12, ["Hamstrings"] = 9,
-            ["Glutes"] = 9, ["Calves"] = 6, ["Traps"] = 6, ["Forearms"] = 6
+            ["Chest"] = 12,
+            ["Back"] = 12,
+            ["Shoulders"] = 9,
+            ["Biceps"] = 9,
+            ["Triceps"] = 9,
+            ["Abs"] = 9,
+            ["Quadriceps"] = 12,
+            ["Hamstrings"] = 9,
+            ["Glutes"] = 9,
+            ["Calves"] = 6,
+            ["Traps"] = 6,
+            ["Forearms"] = 6
         };
 
         var sets = new Dictionary<string, int>();
         foreach (var d in data)
-            foreach (var mg in d.ExerciseMuscleGroups.Where(m => m.IsPrimary))
+            foreach (var mg in (d.Groups ?? Enumerable.Empty<ExerciseMuscleGroup>()).Where(m => m != null && m.IsPrimary))
             {
-                sets.TryGetValue(mg.MuscleGroup.Name, out int cur);
-                sets[mg.MuscleGroup.Name] = cur + 1;
+                var name = mg.MuscleGroup?.Name ?? "";
+                if (string.IsNullOrEmpty(name)) continue;
+                sets.TryGetValue(name, out int cur);
+                sets[name] = cur + 1;
             }
 
         return targets.Select(t =>
@@ -228,7 +241,8 @@ public class ProgressService
         var recent = await _db.ExerciseLogs
             .Include(el => el.Exercise)
             .Include(el => el.SetLogs)
-            .Where(el => el.WorkoutLog.UserId == userId && el.Status != LogStatus.Skipped)
+            .Include(el => el.WorkoutLog)
+            .Where(el => el.WorkoutLog != null && el.WorkoutLog.UserId == userId && el.Status != LogStatus.Skipped)
             .OrderByDescending(el => el.WorkoutLog.Date)
             .Take(50)
             .ToListAsync();
@@ -240,13 +254,14 @@ public class ProgressService
 
         foreach (var group in grouped)
         {
-            var latest = group.First();
-            var completedSets = latest.SetLogs.Where(s => s.IsCompleted && s.WeightKg.HasValue).ToList();
+            var latest = group.FirstOrDefault();
+            if (latest == null || latest.Exercise == null) continue;
+            var completedSets = (latest.SetLogs ?? Enumerable.Empty<ExerciseSetLog>()).Where(s => s.IsCompleted && s.WeightKg.HasValue).ToList();
             if (completedSets.Count == 0) continue;
 
             var maxWeight = completedSets.Max(s => s.WeightKg!.Value);
             var nextWeight = SettingsService.ToKg((SettingsService.FromKg(maxWeight, weightUnit) ?? maxWeight) + (weightUnit == "lbs" ? 5m : 2.5m), weightUnit) ?? maxWeight;
-            var allRepsHit = completedSets.All(s => s.RepsCompleted >= latest.SetLogs.Max(x => x.RepsCompleted ?? 0));
+            var allRepsHit = completedSets.All(s => s.RepsCompleted >= (latest.SetLogs?.Max(x => x.RepsCompleted ?? 0) ?? 0));
 
             if (allRepsHit && maxWeight > 0)
             {
