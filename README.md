@@ -41,3 +41,4 @@ Statistics about the user and their activities
 - User profiles - add profile system where users can search for each other and add each other as friends
 - Cardio section - add running section with run estimations and cardio types (timers, calories, programs with recommended times and distances to build habit etc.)
 - Foods section - add ingredients to use/avoid
+- Social page - users can make posts to share custom workouts and make posts
