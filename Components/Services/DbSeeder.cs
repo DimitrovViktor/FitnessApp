@@ -10,6 +10,7 @@ public static class DbSeeder
 {
     public static async Task SeedAsync(AppDbContext db)
     {
+        await SeedEquipmentAsync(db);
         await SeedMuscleGroupsAsync(db);
         await SeedExercisesAsync(db);
         await SeedAlternativesAsync(db);
@@ -18,74 +19,168 @@ public static class DbSeeder
         await SeedPremadeWorkoutsAsync(db);
     }
 
+    private static async Task SeedEquipmentAsync(AppDbContext db)
+    {
+        var equipment = new[]
+        {
+            "Bodyweight Only",
+            "Dumbbells",
+            "Barbell & Plates",
+            "Kettlebells",
+            "Resistance Bands",
+            "Pull-Up Bar",
+            "Bench",
+            "Cable Machine",
+            "Smith Machine",
+            "Leg Press",
+            "Treadmill",
+            "Stationary Bike",
+            "Rowing Machine",
+            "Medicine Ball",
+            "TRX / Suspension Trainer",
+            "Full Gym Access"
+        };
+
+        var existingNames = (await db.Equipment.Select(e => e.Name).ToListAsync()).ToHashSet(StringComparer.OrdinalIgnoreCase);
+
+        foreach (var name in equipment)
+        {
+            if (existingNames.Contains(name)) continue;
+            db.Equipment.Add(new Equipment { Name = name });
+            existingNames.Add(name);
+        }
+
+        if (db.ChangeTracker.HasChanges())
+            await db.SaveChangesAsync();
+    }
+
     private static async Task SeedMuscleGroupsAsync(AppDbContext db)
     {
-        if (await db.MuscleGroups.AnyAsync()) return;
+        var muscleGroups = new (string Name, string BodyRegion)[]
+        {
+            ("Chest", "Upper Body"),
+            ("Upper Chest", "Upper Body"),
+            ("Lats", "Upper Body"),
+            ("Upper Back", "Upper Body"),
+            ("Traps", "Upper Body"),
+            ("Front Delts", "Shoulders"),
+            ("Side Delts", "Shoulders"),
+            ("Rear Delts", "Shoulders"),
+            ("Biceps", "Arms"),
+            ("Triceps", "Arms"),
+            ("Forearms", "Arms"),
+            ("Quadriceps", "Legs"),
+            ("Hamstrings", "Legs"),
+            ("Glutes", "Legs"),
+            ("Calves", "Legs"),
+            ("Hip Flexors", "Legs"),
+            ("Abs", "Core"),
+            ("Obliques", "Core"),
+            ("Lower Back", "Core")
+        };
 
-        db.MuscleGroups.AddRange(
-            new MuscleGroup { Name = "Chest", BodyRegion = "Upper Body" },
-            new MuscleGroup { Name = "Upper Chest", BodyRegion = "Upper Body" },
-            new MuscleGroup { Name = "Lats", BodyRegion = "Upper Body" },
-            new MuscleGroup { Name = "Upper Back", BodyRegion = "Upper Body" },
-            new MuscleGroup { Name = "Traps", BodyRegion = "Upper Body" },
-            new MuscleGroup { Name = "Front Delts", BodyRegion = "Shoulders" },
-            new MuscleGroup { Name = "Side Delts", BodyRegion = "Shoulders" },
-            new MuscleGroup { Name = "Rear Delts", BodyRegion = "Shoulders" },
-            new MuscleGroup { Name = "Biceps", BodyRegion = "Arms" },
-            new MuscleGroup { Name = "Triceps", BodyRegion = "Arms" },
-            new MuscleGroup { Name = "Forearms", BodyRegion = "Arms" },
-            new MuscleGroup { Name = "Quadriceps", BodyRegion = "Legs" },
-            new MuscleGroup { Name = "Hamstrings", BodyRegion = "Legs" },
-            new MuscleGroup { Name = "Glutes", BodyRegion = "Legs" },
-            new MuscleGroup { Name = "Calves", BodyRegion = "Legs" },
-            new MuscleGroup { Name = "Hip Flexors", BodyRegion = "Legs" },
-            new MuscleGroup { Name = "Abs", BodyRegion = "Core" },
-            new MuscleGroup { Name = "Obliques", BodyRegion = "Core" },
-            new MuscleGroup { Name = "Lower Back", BodyRegion = "Core" }
-        );
+        var existingNames = (await db.MuscleGroups.Select(m => m.Name).ToListAsync()).ToHashSet(StringComparer.OrdinalIgnoreCase);
 
-        await db.SaveChangesAsync();
+        foreach (var (name, bodyRegion) in muscleGroups)
+        {
+            if (existingNames.Contains(name)) continue;
+            db.MuscleGroups.Add(new MuscleGroup { Name = name, BodyRegion = bodyRegion });
+            existingNames.Add(name);
+        }
+
+        if (db.ChangeTracker.HasChanges())
+            await db.SaveChangesAsync();
     }
 
     private static async Task SeedExercisesAsync(AppDbContext db)
     {
-        if (await db.Exercises.AnyAsync()) return;
+        var exerciseDefs = BuildExerciseList();
+        var existingNames = (await db.Exercises.Select(e => e.Name).ToListAsync()).ToHashSet(StringComparer.OrdinalIgnoreCase);
 
-        var muscles = await db.MuscleGroups.ToDictionaryAsync(m => m.Name, m => m.Id);
-        var equipment = await db.Equipment.ToDictionaryAsync(e => e.Name, e => e.Id);
-
-        foreach (var def in BuildExerciseList())
+        foreach (var def in exerciseDefs)
         {
-            var exercise = new Exercise
-            {
-                Name = def.Name, Description = def.Description, ExerciseType = def.ExerciseType,
-                DifficultyRating = def.Difficulty, Level = def.Level, MovementType = def.Movement,
-                MetValue = def.Met, RepTimeSec = def.RepTime
-            };
+            if (existingNames.Contains(def.Name)) continue;
 
-            db.Exercises.Add(exercise);
+            db.Exercises.Add(new Exercise
+            {
+                Name = def.Name,
+                Description = def.Description,
+                ExerciseType = def.ExerciseType,
+                DifficultyRating = def.Difficulty,
+                Level = def.Level,
+                MovementType = def.Movement,
+                MetValue = def.Met,
+                RepTimeSec = def.RepTime
+            });
+
+            existingNames.Add(def.Name);
+        }
+
+        if (db.ChangeTracker.HasChanges())
             await db.SaveChangesAsync();
+
+        var muscleList = await db.MuscleGroups.Select(m => new { m.Id, m.Name }).ToListAsync();
+        var equipmentList = await db.Equipment.Select(e => new { e.Id, e.Name }).ToListAsync();
+        var exerciseList = await db.Exercises.Select(e => new { e.Id, e.Name }).ToListAsync();
+
+        var muscles = muscleList.ToDictionary(m => m.Name, m => m.Id, StringComparer.OrdinalIgnoreCase);
+        var equipment = equipmentList.ToDictionary(e => e.Name, e => e.Id, StringComparer.OrdinalIgnoreCase);
+        var exercises = exerciseList.ToDictionary(e => e.Name, e => e.Id, StringComparer.OrdinalIgnoreCase);
+
+        foreach (var def in exerciseDefs)
+        {
+            if (!exercises.TryGetValue(def.Name, out var exerciseId)) continue;
 
             foreach (var (muscleName, isPrimary) in def.Muscles)
-                if (muscles.TryGetValue(muscleName, out var mgId))
-                    db.ExerciseMuscleGroups.Add(new ExerciseMuscleGroup { ExerciseId = exercise.Id, MuscleGroupId = mgId, IsPrimary = isPrimary });
+            {
+                if (!muscles.TryGetValue(muscleName, out var muscleId)) continue;
+                var exists = await db.ExerciseMuscleGroups.AnyAsync(em => em.ExerciseId == exerciseId && em.MuscleGroupId == muscleId);
+                if (exists) continue;
 
-            foreach (var equipName in def.Equipment)
-                if (equipment.TryGetValue(equipName, out var eqId))
-                    db.ExerciseEquipment.Add(new ExerciseEquipment { ExerciseId = exercise.Id, EquipmentId = eqId });
+                db.ExerciseMuscleGroups.Add(new ExerciseMuscleGroup
+                {
+                    ExerciseId = exerciseId,
+                    MuscleGroupId = muscleId,
+                    IsPrimary = isPrimary
+                });
+            }
 
-            if (def.VideoUrl is not null)
-                db.ExerciseMedia.Add(new ExerciseMedia { ExerciseId = exercise.Id, MediaType = MediaType.Video, Url = def.VideoUrl, Title = def.Name, SortOrder = 0 });
+            foreach (var equipmentName in def.Equipment)
+            {
+                if (!equipment.TryGetValue(equipmentName, out var equipmentId)) continue;
+                var exists = await db.ExerciseEquipment.AnyAsync(ee => ee.ExerciseId == exerciseId && ee.EquipmentId == equipmentId);
+                if (exists) continue;
 
-            await db.SaveChangesAsync();
+                db.ExerciseEquipment.Add(new ExerciseEquipment
+                {
+                    ExerciseId = exerciseId,
+                    EquipmentId = equipmentId
+                });
+            }
+
+            if (def.VideoUrl is null) continue;
+
+            var mediaExists = await db.ExerciseMedia.AnyAsync(m => m.ExerciseId == exerciseId && m.Url == def.VideoUrl);
+            if (mediaExists) continue;
+
+            db.ExerciseMedia.Add(new ExerciseMedia
+            {
+                ExerciseId = exerciseId,
+                MediaType = MediaType.Video,
+                Url = def.VideoUrl,
+                Title = def.Name,
+                SortOrder = 0
+            });
         }
+
+        if (db.ChangeTracker.HasChanges())
+            await db.SaveChangesAsync();
     }
 
     private static async Task SeedAlternativesAsync(AppDbContext db)
     {
-        if (await db.ExerciseAlternatives.AnyAsync()) return;
-
-        var exercises = await db.Exercises.ToDictionaryAsync(e => e.Name, e => e.Id);
+        var exerciseList = await db.Exercises.Select(e => new { e.Id, e.Name }).ToListAsync();
+        var exercises = exerciseList.ToDictionary(e => e.Name, e => e.Id, StringComparer.OrdinalIgnoreCase);
 
         var alternatives = new (string Exercise, string[] Alts)[]
         {
@@ -107,56 +202,84 @@ public static class DbSeeder
             ("Dips", new[] { "Close Grip Bench Press", "Tricep Pushdown", "Push-Up" }),
         };
 
-        foreach (var (exName, alts) in alternatives)
+        foreach (var (exerciseName, alternativeNames) in alternatives)
         {
-            if (!exercises.ContainsKey(exName)) continue;
-            foreach (var altName in alts)
+            if (!exercises.TryGetValue(exerciseName, out var exerciseId)) continue;
+
+            foreach (var alternativeName in alternativeNames)
             {
-                if (!exercises.ContainsKey(altName)) continue;
+                if (!exercises.TryGetValue(alternativeName, out var alternativeExerciseId)) continue;
+                var exists = await db.ExerciseAlternatives.AnyAsync(ea => ea.ExerciseId == exerciseId && ea.AlternativeExerciseId == alternativeExerciseId);
+                if (exists) continue;
+
                 db.ExerciseAlternatives.Add(new ExerciseAlternative
                 {
-                    ExerciseId = exercises[exName],
-                    AlternativeExerciseId = exercises[altName]
+                    ExerciseId = exerciseId,
+                    AlternativeExerciseId = alternativeExerciseId
                 });
             }
         }
 
-        await db.SaveChangesAsync();
+        if (db.ChangeTracker.HasChanges())
+            await db.SaveChangesAsync();
     }
 
     private static async Task SeedFoodsAsync(AppDbContext db)
     {
-        if (await db.Foods.AnyAsync()) return;
-        db.Foods.AddRange(BuildFoodList());
-        await db.SaveChangesAsync();
+        var existingNames = (await db.Foods.Select(f => f.Name).ToListAsync()).ToHashSet(StringComparer.OrdinalIgnoreCase);
+
+        foreach (var food in BuildFoodList())
+        {
+            if (existingNames.Contains(food.Name)) continue;
+            db.Foods.Add(food);
+            existingNames.Add(food.Name);
+        }
+
+        if (db.ChangeTracker.HasChanges())
+            await db.SaveChangesAsync();
     }
 
     private static async Task SeedProgramsAsync(AppDbContext db)
     {
-        if (await db.Programs.AnyAsync()) return;
+        var programs = new List<ProgramEntity>
+        {
+            new ProgramEntity { Name = "Beginner Fundamentals", Description = "A science-backed full-body program for trainees new to structured resistance training. Every session hits all major muscle groups with compound movements and progressive overload built in.", DurationWeeks = 8, DaysPerWeek = 3, TargetLevel = FitnessLevel.Beginner.ToString(), TargetGoal = PrimaryGoal.GeneralHealth.ToString(), IsPreBuilt = true, Tags = JsonList("Workout", "Beginner", "Full Body", "Strength"), Notes = JsonList("Increase weight by the smallest available increment whenever you complete all sets and reps with good form.", "Rest 90-120 seconds between sets for compound lifts, 60 seconds for isolation work.", "Deload on week 5 by reducing all weights by 10% and focusing on technique.") },
+            new ProgramEntity { Name = "Push Pull Legs", Description = "The classic PPL split. Push days train chest, shoulders, and triceps. Pull days train back and biceps. Leg days cover quads, hamstrings, and glutes. Each muscle group is trained twice per week with optimal volume.", DurationWeeks = 12, DaysPerWeek = 6, TargetLevel = FitnessLevel.Intermediate.ToString(), TargetGoal = PrimaryGoal.Hypertrophy.ToString(), IsPreBuilt = true, Tags = JsonList("Workout", "Intermediate", "Hypertrophy", "Split"), Notes = JsonList("Run the full 6-day split: PPL rest PPL rest or PPL PPL rest.", "Target rep ranges: 8-12 for hypertrophy, 4-6 for compound strength work.", "Progressive overload: add weight or reps each week. Track everything.") },
+            new ProgramEntity { Name = "Upper Lower Split", Description = "Alternating upper and lower body days, four sessions per week. Optimal frequency for strength development with adequate recovery between sessions.", DurationWeeks = 8, DaysPerWeek = 4, TargetLevel = FitnessLevel.Intermediate.ToString(), TargetGoal = PrimaryGoal.Strength.ToString(), IsPreBuilt = true, Tags = JsonList("Workout", "Intermediate", "Strength", "Split"), Notes = JsonList("Alternate Upper A / Lower A / Upper B / Lower B each week.", "Upper A focuses on horizontal push/pull. Upper B focuses on vertical push/pull.", "Lower A prioritises squat pattern. Lower B prioritises hip hinge.") },
+            new ProgramEntity { Name = "Full Body 3-Day", Description = "Three full-body sessions per week hitting every major muscle group each session with compound movements.", DurationWeeks = 10, DaysPerWeek = 3, TargetLevel = FitnessLevel.Beginner.ToString(), TargetGoal = PrimaryGoal.GeneralHealth.ToString(), IsPreBuilt = true, Tags = JsonList("Workout", "Beginner", "Full Body"), Notes = JsonList("Ideal for time-pressed trainees. Each session covers all major movement patterns.", "Rest at least one day between sessions for recovery.") },
+            new ProgramEntity { Name = "Bro Split", Description = "A 5-day body-part split dedicating one session to each major muscle group with maximum per-session volume.", DurationWeeks = 12, DaysPerWeek = 5, TargetLevel = FitnessLevel.Advanced.ToString(), TargetGoal = PrimaryGoal.Hypertrophy.ToString(), IsPreBuilt = true, Tags = JsonList("Workout", "Advanced", "Hypertrophy", "Split"), Notes = JsonList("One muscle group per day for high per-session volume and full weekly recovery.", "Best suited for advanced lifters who can generate sufficient intensity per session.") },
+            new ProgramEntity { Name = "Strength Builder", Description = "A 12-week strength program built around squat, bench, deadlift, and overhead press with linear periodisation.", DurationWeeks = 12, DaysPerWeek = 4, TargetLevel = FitnessLevel.Intermediate.ToString(), TargetGoal = PrimaryGoal.Strength.ToString(), IsPreBuilt = true, Tags = JsonList("Workout", "Intermediate", "Strength", "Powerlifting"), Notes = JsonList("Focus on the big four lifts with accessory work to address weak points.", "Follow the prescribed periodisation: weeks 1-4 volume, weeks 5-8 intensity, weeks 9-12 peak.") },
+            new ProgramEntity { Name = "Fat Loss Circuit", Description = "A 6-week high-intensity program combining resistance training with cardiovascular conditioning for maximum calorie burn.", DurationWeeks = 6, DaysPerWeek = 4, TargetLevel = FitnessLevel.Intermediate.ToString(), TargetGoal = PrimaryGoal.FatLoss.ToString(), IsPreBuilt = true, Tags = JsonList("Hybrid", "Intermediate", "Fat Loss", "HIIT", "Circuit"), Notes = JsonList("Combine with a moderate calorie deficit for best results.", "Rest periods are deliberately short (30-45s) to keep heart rate elevated.", "Include 2-3 additional cardio sessions per week.") },
+            new ProgramEntity { Name = "Zone 2 Base", Description = "A steady cardio program for building aerobic capacity with low to moderate intensity sessions using treadmill, bike, and rowing modalities.", DurationWeeks = 8, DaysPerWeek = 3, TargetLevel = FitnessLevel.Beginner.ToString(), TargetGoal = PrimaryGoal.Endurance.ToString(), IsPreBuilt = true, Tags = JsonList("Cardio", "Beginner", "Endurance", "Zone 2", "General Health"), Notes = JsonList("Keep intensity conversational for most sessions.", "Increase total weekly time gradually.", "Use bike or rower if running impact is too high.") },
+            new ProgramEntity { Name = "Running Base Builder", Description = "A beginner-friendly running plan that combines treadmill running, steady aerobic work, and short jump-rope conditioning blocks.", DurationWeeks = 10, DaysPerWeek = 3, TargetLevel = FitnessLevel.Beginner.ToString(), TargetGoal = PrimaryGoal.Endurance.ToString(), IsPreBuilt = true, Tags = JsonList("Cardio", "Beginner", "Running", "Endurance"), Notes = JsonList("Keep easy days easy.", "Use walking breaks when needed.", "Progress duration before speed.") },
+            new ProgramEntity { Name = "Bike and Row Conditioning", Description = "A low-impact cardio plan focused on stationary cycling, rowing intervals, and repeatable conditioning sessions.", DurationWeeks = 6, DaysPerWeek = 4, TargetLevel = FitnessLevel.Intermediate.ToString(), TargetGoal = PrimaryGoal.Endurance.ToString(), IsPreBuilt = true, Tags = JsonList("Cardio", "Intermediate", "Cycling", "Rowing", "Conditioning"), Notes = JsonList("Alternate bike and rower sessions to manage fatigue.", "Use moderate resistance and repeatable paces.", "Do not turn every session into a maximal test.") },
+            new ProgramEntity { Name = "Hybrid Foundation", Description = "A balanced plan for users who want strength training and cardio in the same week without overcomplicating scheduling.", DurationWeeks = 8, DaysPerWeek = 4, TargetLevel = FitnessLevel.Beginner.ToString(), TargetGoal = PrimaryGoal.GeneralHealth.ToString(), IsPreBuilt = true, Tags = JsonList("Hybrid", "Beginner", "Strength", "Cardio", "General Health"), Notes = JsonList("Alternate lifting and cardio days.", "Avoid taking cardio intervals to failure before lower-body training.", "Use the final week to reassess workload.") },
+            new ProgramEntity { Name = "Strength and Conditioning", Description = "An intermediate hybrid program combining compound lifting sessions with rowing, cycling, and short conditioning finishers.", DurationWeeks = 8, DaysPerWeek = 5, TargetLevel = FitnessLevel.Intermediate.ToString(), TargetGoal = PrimaryGoal.FatLoss.ToString(), IsPreBuilt = true, Tags = JsonList("Hybrid", "Intermediate", "Strength", "Conditioning", "Fat Loss"), Notes = JsonList("Prioritise lifting performance first.", "Use conditioning as support work, not as a replacement for recovery.", "Reduce interval volume if leg recovery drops.") },
+            new ProgramEntity { Name = "Athletic Base", Description = "A hybrid plan with strength, unilateral leg work, intervals, and aerobic conditioning for general athletic development.", DurationWeeks = 10, DaysPerWeek = 5, TargetLevel = FitnessLevel.Advanced.ToString(), TargetGoal = PrimaryGoal.GeneralHealth.ToString(), IsPreBuilt = true, Tags = JsonList("Hybrid", "Advanced", "Strength", "Endurance", "Athletic"), Notes = JsonList("Keep the weekly structure consistent.", "Progress strength and conditioning separately.", "Use recovery sessions when soreness affects movement quality.") }
+        };
 
-        db.Programs.AddRange(
-            new ProgramEntity { Name = "Beginner Fundamentals", Description = "A science-backed full-body program for trainees new to structured resistance training. Every session hits all major muscle groups with compound movements and progressive overload built in.", DurationWeeks = 8, DaysPerWeek = 3, TargetLevel = FitnessLevel.Beginner.ToString(), TargetGoal = PrimaryGoal.GeneralHealth.ToString(), IsPreBuilt = true, Tags = "[\"Beginner\",\"Full Body\",\"Strength\"]", Notes = "[\"Increase weight by the smallest available increment whenever you complete all sets and reps with good form.\",\"Rest 90-120 seconds between sets for compound lifts, 60 seconds for isolation work.\",\"Deload on week 5 by reducing all weights by 10% and focusing on technique.\"]" },
-            new ProgramEntity { Name = "Push Pull Legs", Description = "The classic PPL split. Push days train chest, shoulders, and triceps. Pull days train back and biceps. Leg days cover quads, hamstrings, and glutes. Each muscle group is trained twice per week with optimal volume.", DurationWeeks = 12, DaysPerWeek = 6, TargetLevel = FitnessLevel.Intermediate.ToString(), TargetGoal = PrimaryGoal.Hypertrophy.ToString(), IsPreBuilt = true, Tags = "[\"Intermediate\",\"Hypertrophy\",\"Split\"]", Notes = "[\"Run the full 6-day split: PPL rest PPL rest or PPL PPL rest.\",\"Target rep ranges: 8-12 for hypertrophy, 4-6 for compound strength work.\",\"Progressive overload: add weight or reps each week. Track everything.\"]" },
-            new ProgramEntity { Name = "Upper Lower Split", Description = "Alternating upper and lower body days, four sessions per week. Optimal frequency for strength development with adequate recovery between sessions.", DurationWeeks = 8, DaysPerWeek = 4, TargetLevel = FitnessLevel.Intermediate.ToString(), TargetGoal = PrimaryGoal.Strength.ToString(), IsPreBuilt = true, Tags = "[\"Intermediate\",\"Strength\",\"Split\"]", Notes = "[\"Alternate Upper A / Lower A / Upper B / Lower B each week.\",\"Upper A focuses on horizontal push/pull. Upper B focuses on vertical push/pull.\",\"Lower A prioritises squat pattern. Lower B prioritises hip hinge.\"]" },
-            new ProgramEntity { Name = "Full Body 3-Day", Description = "Three full-body sessions per week hitting every major muscle group each session with compound movements.", DurationWeeks = 10, DaysPerWeek = 3, TargetLevel = FitnessLevel.Beginner.ToString(), TargetGoal = PrimaryGoal.GeneralHealth.ToString(), IsPreBuilt = true, Tags = "[\"Beginner\",\"Full Body\"]", Notes = "[\"Ideal for time-pressed trainees. Each session covers all major movement patterns.\",\"Rest at least one day between sessions for recovery.\"]" },
-            new ProgramEntity { Name = "Bro Split", Description = "A 5-day body-part split dedicating one session to each major muscle group with maximum per-session volume.", DurationWeeks = 12, DaysPerWeek = 5, TargetLevel = FitnessLevel.Advanced.ToString(), TargetGoal = PrimaryGoal.Hypertrophy.ToString(), IsPreBuilt = true, Tags = "[\"Advanced\",\"Hypertrophy\",\"Split\"]", Notes = "[\"One muscle group per day for high per-session volume and full weekly recovery.\",\"Best suited for advanced lifters who can generate sufficient intensity per session.\"]" },
-            new ProgramEntity { Name = "Strength Builder", Description = "A 12-week strength program built around squat, bench, deadlift, and overhead press with linear periodisation.", DurationWeeks = 12, DaysPerWeek = 4, TargetLevel = FitnessLevel.Intermediate.ToString(), TargetGoal = PrimaryGoal.Strength.ToString(), IsPreBuilt = true, Tags = "[\"Intermediate\",\"Strength\",\"Powerlifting\"]", Notes = "[\"Focus on the big four lifts with accessory work to address weak points.\",\"Follow the prescribed periodisation: weeks 1-4 volume, weeks 5-8 intensity, weeks 9-12 peak.\"]" },
-            new ProgramEntity { Name = "Fat Loss Circuit", Description = "A 6-week high-intensity program combining resistance training with cardiovascular conditioning for maximum calorie burn.", DurationWeeks = 6, DaysPerWeek = 4, TargetLevel = FitnessLevel.Intermediate.ToString(), TargetGoal = PrimaryGoal.FatLoss.ToString(), IsPreBuilt = true, Tags = "[\"Intermediate\",\"Fat Loss\",\"HIIT\"]", Notes = "[\"Combine with a moderate calorie deficit for best results.\",\"Rest periods are deliberately short (30-45s) to keep heart rate elevated.\",\"Include 2-3 additional cardio sessions per week.\"]" }
-        );
+        var existingNames = (await db.Programs.Select(p => p.Name).ToListAsync()).ToHashSet(StringComparer.OrdinalIgnoreCase);
+        foreach (var program in programs)
+        {
+            if (existingNames.Contains(program.Name)) continue;
+            db.Programs.Add(program);
+            existingNames.Add(program.Name);
+        }
 
-        await db.SaveChangesAsync();
+        if (db.ChangeTracker.HasChanges())
+            await db.SaveChangesAsync();
     }
 
     private static async Task SeedPremadeWorkoutsAsync(AppDbContext db)
     {
-        if (await db.Workouts.AnyAsync()) return;
-
         var admin = await db.Users.FirstOrDefaultAsync(u => u.IsAdmin);
         if (admin is null) return;
 
-        var exercises = await db.Exercises.ToDictionaryAsync(e => e.Name, e => e.Id);
-        var programs = await db.Programs.ToDictionaryAsync(p => p.Name, p => p.Id);
+        var exerciseList = await db.Exercises.Select(e => new { e.Id, e.Name }).ToListAsync();
+        var programList = await db.Programs.Select(p => new { p.Id, p.Name }).ToListAsync();
+
+        var exercises = exerciseList.ToDictionary(e => e.Name, e => e.Id, StringComparer.OrdinalIgnoreCase);
+        var programs = programList.ToDictionary(p => p.Name, p => p.Id, StringComparer.OrdinalIgnoreCase);
 
         var workouts = new List<(string Program, string Name, int Sort, (string Ex, int Sets, int Reps, int RestSec)[] Items)>
         {
@@ -281,6 +404,81 @@ public static class DbSeeder
             ("Fat Loss Circuit", "Circuit D", 3, new[] {
                 ("Conventional Deadlift", 4, 8, 60), ("Incline Dumbbell Press", 3, 12, 30), ("Face Pull", 3, 15, 30),
                 ("Leg Press", 3, 12, 30), ("Crunches", 3, 20, 30)
+            }),
+
+            ("Zone 2 Base", "Zone 2 Treadmill", 0, new[] {
+                ("Treadmill Running", 1, 1800, 0)
+            }),
+            ("Zone 2 Base", "Zone 2 Bike", 1, new[] {
+                ("Stationary Cycling", 1, 2100, 0)
+            }),
+            ("Zone 2 Base", "Zone 2 Row", 2, new[] {
+                ("Rowing Machine", 1, 1500, 0)
+            }),
+
+            ("Running Base Builder", "Easy Run", 0, new[] {
+                ("Treadmill Running", 1, 1500, 0)
+            }),
+            ("Running Base Builder", "Run and Rope", 1, new[] {
+                ("Treadmill Running", 1, 1200, 0), ("Jump Rope", 4, 60, 45)
+            }),
+            ("Running Base Builder", "Long Easy Run", 2, new[] {
+                ("Treadmill Running", 1, 2400, 0)
+            }),
+
+            ("Bike and Row Conditioning", "Bike Tempo", 0, new[] {
+                ("Stationary Cycling", 1, 1800, 0)
+            }),
+            ("Bike and Row Conditioning", "Row Intervals", 1, new[] {
+                ("Rowing Machine", 6, 180, 60)
+            }),
+            ("Bike and Row Conditioning", "Mixed Conditioning", 2, new[] {
+                ("Stationary Cycling", 1, 1200, 0), ("Rowing Machine", 4, 120, 60), ("Jump Rope", 4, 45, 45)
+            }),
+
+            ("Hybrid Foundation", "Hybrid Strength A", 0, new[] {
+                ("Goblet Squat", 3, 10, 90), ("Push-Up", 3, 10, 60), ("Dumbbell Row", 3, 10, 60)
+            }),
+            ("Hybrid Foundation", "Hybrid Cardio A", 1, new[] {
+                ("Stationary Cycling", 1, 1500, 0)
+            }),
+            ("Hybrid Foundation", "Hybrid Strength B", 2, new[] {
+                ("Leg Press", 3, 10, 90), ("Lat Pulldown", 3, 10, 90), ("Plank", 3, 1, 45)
+            }),
+            ("Hybrid Foundation", "Hybrid Cardio B", 3, new[] {
+                ("Rowing Machine", 1, 1200, 0), ("Jump Rope", 3, 45, 45)
+            }),
+
+            ("Strength and Conditioning", "Strength Lower", 0, new[] {
+                ("Barbell Back Squat", 4, 6, 180), ("Romanian Deadlift", 3, 8, 120), ("Standing Calf Raise", 3, 12, 45)
+            }),
+            ("Strength and Conditioning", "Conditioning Row", 1, new[] {
+                ("Rowing Machine", 8, 120, 60)
+            }),
+            ("Strength and Conditioning", "Strength Upper", 2, new[] {
+                ("Barbell Bench Press", 4, 6, 150), ("Barbell Row", 4, 8, 120), ("Overhead Press", 3, 8, 120)
+            }),
+            ("Strength and Conditioning", "Conditioning Bike", 3, new[] {
+                ("Stationary Cycling", 10, 90, 45)
+            }),
+            ("Strength and Conditioning", "Circuit Finish", 4, new[] {
+                ("Kettlebell Swing", 4, 15, 45), ("Push-Up", 4, 12, 30), ("Jump Rope", 4, 45, 45)
+            }),
+
+            ("Athletic Base", "Athletic Lower", 0, new[] {
+                ("Front Squat", 4, 6, 150), ("Bulgarian Split Squat", 3, 8, 90), ("Hanging Leg Raise", 3, 10, 45)
+            }),
+            ("Athletic Base", "Aerobic Base", 1, new[] {
+                ("Treadmill Running", 1, 2100, 0)
+            }),
+            ("Athletic Base", "Athletic Upper", 2, new[] {
+                ("Incline Dumbbell Press", 4, 8, 90), ("Pull-Up", 4, 8, 120), ("Face Pull", 3, 15, 45)
+            }),
+            ("Athletic Base", "Interval Conditioning", 3, new[] {
+                ("Rowing Machine", 6, 150, 60), ("Jump Rope", 5, 60, 45)
+            }),
+            ("Athletic Base", "Full Body Power", 4, new[] {
+                ("Conventional Deadlift", 4, 5, 180), ("Dips", 3, 8, 90), ("Stationary Cycling", 1, 900, 0)
             })
         };
 
@@ -288,26 +486,36 @@ public static class DbSeeder
         {
             if (!programs.TryGetValue(programName, out var programId)) continue;
 
-            var workout = new Workout
+            var workout = await db.Workouts.FirstOrDefaultAsync(w => w.ProgramId == programId && w.Name == workoutName);
+            if (workout is null)
             {
-                Name = workoutName,
-                UserId = admin.Id,
-                ProgramId = programId,
-                SortOrder = sort
-            };
+                workout = new Workout
+                {
+                    Name = workoutName,
+                    UserId = admin.Id,
+                    ProgramId = programId,
+                    SortOrder = sort
+                };
 
-            db.Workouts.Add(workout);
-            await db.SaveChangesAsync();
+                db.Workouts.Add(workout);
+                await db.SaveChangesAsync();
+            }
+
+            var existingItems = await db.WorkoutExercises
+                .Where(we => we.WorkoutId == workout.Id)
+                .Select(we => new { we.ExerciseId, we.SortOrder })
+                .ToListAsync();
 
             for (int i = 0; i < items.Length; i++)
             {
-                var (exName, sets, reps, rest) = items[i];
-                if (!exercises.TryGetValue(exName, out var exId)) continue;
+                var (exerciseName, sets, reps, rest) = items[i];
+                if (!exercises.TryGetValue(exerciseName, out var exerciseId)) continue;
+                if (existingItems.Any(we => we.ExerciseId == exerciseId && we.SortOrder == i)) continue;
 
                 db.WorkoutExercises.Add(new WorkoutExercise
                 {
                     WorkoutId = workout.Id,
-                    ExerciseId = exId,
+                    ExerciseId = exerciseId,
                     Sets = sets,
                     Reps = reps,
                     RestTimeSec = rest,
@@ -315,9 +523,12 @@ public static class DbSeeder
                 });
             }
 
-            await db.SaveChangesAsync();
+            if (db.ChangeTracker.HasChanges())
+                await db.SaveChangesAsync();
         }
     }
+
+    private static string JsonList(params string[] items) => System.Text.Json.JsonSerializer.Serialize(items);
 
     private static List<ExerciseSeed> BuildExerciseList()
     {

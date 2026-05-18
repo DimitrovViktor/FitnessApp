@@ -22,27 +22,23 @@ else
             <p class="admin-subtitle">Manage application data</p>
         </div>
 
-        <div class="counts-grid">
-            <div class="count-card"><span class="count-value">@_counts.Users</span><span class="count-label">Users</span></div>
-            <div class="count-card"><span class="count-value">@_counts.Exercises</span><span class="count-label">Exercises</span></div>
-            <div class="count-card"><span class="count-value">@_counts.Workouts</span><span class="count-label">Workouts</span></div>
-            <div class="count-card"><span class="count-value">@_counts.Equipment</span><span class="count-label">Equipment</span></div>
-            <div class="count-card"><span class="count-value">@_counts.MuscleGroups</span><span class="count-label">Muscle Groups</span></div>
-            <div class="count-card"><span class="count-value">@_counts.Foods</span><span class="count-label">Foods</span></div>
-            <div class="count-card"><span class="count-value">@_counts.Programs</span><span class="count-label">Programs</span></div>
-            <div class="count-card"><span class="count-value">@_counts.WorkoutLogs</span><span class="count-label">Workout Logs</span></div>
-        </div>
-
-        <div class="tab-bar">
-            @foreach (var tab in _tabs) { <button type="button" class="tab-btn @(_activeTab == tab ? "active" : "")" @onclick="() => SwitchTab(tab)">@tab</button> }
+        <div class="counts-grid" role="tablist" aria-label="Admin sections">
+            @foreach (var sec in _sections)
+            {
+                var sectionKey = sec.Key;
+                <button type="button" class="count-card @(_activeTab == sectionKey ? "active" : "")" role="tab" aria-selected="@(_activeTab == sectionKey)" @onclick="() => SwitchTab(sectionKey)">
+                    <span class="count-value">@GetSectionCount(sectionKey)</span>
+                    <span class="count-label">@(sec.Label)</span>
+                </button>
+            }
         </div>
 
         @if (!string.IsNullOrEmpty(_message)) { <div class="@(_isError ? "msg-error" : "msg-success")">@_message</div> }
 
         <div class="section-actions">
-            @if (_activeTab != "Users")
+            @if (_activeTab != "Users" && _activeTab != "Workout Logs")
             {
-                <button type="button" class="btn-add" @onclick="OpenAddModal">+ Add @_activeTab.TrimEnd('s')</button>
+                <button type="button" class="btn-add" @onclick="OpenAddModal">+ Add @GetSectionEntityName(_activeTab)</button>
             }
         </div>
 
@@ -75,8 +71,12 @@ else
                         <tbody>@foreach (var f in _foods) { <tr><td>@f.Id</td><td>@f.Name</td><td>@f.CaloriesPer100g</td><td>@(f.ProteinPer100g?.ToString() ?? "—")</td><td>@(f.CarbsPer100g?.ToString() ?? "—")</td><td>@(f.FatPer100g?.ToString() ?? "—")</td><td class="actions-cell"><button type="button" class="btn-action btn-edit-action" @onclick="() => OpenEditFood(f)">Edit</button><button type="button" class="btn-action btn-delete-action" @onclick="() => ConfirmDel(f.Id, f.Name, _tFood)">Delete</button></td></tr> }</tbody>
                         break;
                     case "Programs":
-                        <thead><tr><th>ID</th><th>Name</th><th>Weeks</th><th>Days</th><th>Level</th><th>Goal</th><th>Actions</th></tr></thead>
-                        <tbody>@foreach (var p in _programs) { <tr><td>@p.Id</td><td>@p.Name</td><td>@p.DurationWeeks</td><td>@p.DaysPerWeek</td><td>@(p.TargetLevel ?? "—")</td><td>@(p.TargetGoal ?? "—")</td><td class="actions-cell"><button type="button" class="btn-action btn-edit-action" @onclick="() => OpenEditProgram(p)">Edit</button><button type="button" class="btn-action btn-delete-action" @onclick="() => ConfirmDel(p.Id, p.Name, _tProgram)">Delete</button></td></tr> }</tbody>
+                        <thead><tr><th>ID</th><th>Name</th><th>Type</th><th>Weeks</th><th>Days</th><th>Level</th><th>Goal</th><th>Workouts</th><th>Actions</th></tr></thead>
+                        <tbody>@foreach (var p in _programs) { <tr><td>@p.Id</td><td>@p.Name</td><td>@GetProgramCategoryLabel(p)</td><td>@p.DurationWeeks</td><td>@p.DaysPerWeek</td><td>@(p.TargetLevel ?? "—")</td><td>@FormatProgramGoal(p.TargetGoal)</td><td>@p.Workouts.Count</td><td class="actions-cell"><button type="button" class="btn-action btn-edit-action" @onclick="() => OpenEditProgram(p)">Edit</button><button type="button" class="btn-action btn-delete-action" @onclick="() => ConfirmDel(p.Id, p.Name, _tProgram)">Delete</button></td></tr> }</tbody>
+                        break;
+                    case "Workout Logs":
+                        <thead><tr><th>ID</th><th>User</th><th>Workout</th><th>Date</th><th>Status</th><th>Calories</th><th>Exercises</th></tr></thead>
+                        <tbody>@foreach (var log in _workoutLogs) { <tr><td>@log.Id</td><td>@log.User.Username</td><td>@(log.Workout?.Name ?? "—")</td><td>@log.Date.ToString("yyyy-MM-dd")</td><td>@log.Status</td><td>@log.TotalCaloriesBurned</td><td>@log.ExerciseLogs.Count</td></tr> }</tbody>
                         break;
                 }
             </table>
@@ -120,7 +120,7 @@ else
     </div>
 </Modal>
 
-<Modal IsOpen="_showSimpleModal" OnClose="() => _showSimpleModal = false" Size="sm">
+<Modal IsOpen="_showSimpleModal" OnClose="() => _showSimpleModal = false" Size="@SimpleModalSize">
     <div class="modal-form">
         <h2>@_simpleTitle</h2>
         @switch (_simpleType)
@@ -143,12 +143,26 @@ else
                 break;
             case _tProgram:
                 <div class="mf-group"><label>Name *</label><input class="mf-input" @bind="_progForm.Name" /></div>
+                <div class="mf-grid">
+                    <div class="mf-group"><label>Type</label><select class="mf-input" @bind="_progForm.ProgramCategory"><option value="Workout">Workout Program</option><option value="Cardio">Cardio Program</option><option value="Hybrid">Hybrid Program</option></select></div>
+                    <div class="mf-group"><label>Tags</label><input class="mf-input" @bind="_progForm.Tags" placeholder="Strength, Hypertrophy, Beginner" /></div>
+                </div>
                 <div class="mf-group"><label>Description</label><textarea class="mf-input mf-textarea" @bind="_progForm.Description" rows="2"></textarea></div>
                 <div class="mf-grid mf-grid-4">
                     <div class="mf-group"><label>Weeks</label><input type="number" class="mf-input" @bind="_progForm.DurationWeeks" min="1" /></div>
                     <div class="mf-group"><label>Days/wk</label><input type="number" class="mf-input" @bind="_progForm.DaysPerWeek" min="1" max="7" /></div>
                     <div class="mf-group"><label>Level</label><select class="mf-input" @bind="_progForm.TargetLevel"><option value="">Any</option>@foreach (var l in Enum.GetValues<FitnessLevel>()) { <option value="@l.ToString()">@l</option> }</select></div>
                     <div class="mf-group"><label>Goal</label><select class="mf-input" @bind="_progForm.TargetGoal"><option value="">Any</option>@foreach (var g in Enum.GetValues<PrimaryGoal>()) { <option value="@g.ToString()">@g</option> }</select></div>
+                </div>
+                <div class="mf-group"><label>Notes</label><textarea class="mf-input mf-textarea" @bind="_progForm.Notes" rows="2" placeholder="One note per line"></textarea></div>
+                <div class="mf-group"><label>Assigned Workouts</label>
+                    <div class="chip-grid program-workout-grid">
+                        @foreach (var workout in _workouts)
+                        {
+                            var selected = _progForm.WorkoutIds.Contains(workout.Id);
+                            <button type="button" class="chip @(selected ? "chip-selected" : "")" @onclick="() => ToggleProgramWorkout(workout.Id)">@workout.Name</button>
+                        }
+                    </div>
                 </div>
                 <div class="mf-group"><label><input type="checkbox" @bind="_progForm.IsPreBuilt" /> Pre-built</label></div>
                 break;
@@ -192,6 +206,7 @@ else
     private const string _tExercise = "exercise", _tWorkout = "workout", _tEquipment = "equipment", _tMuscle = "musclegroup", _tFood = "food", _tProgram = "program";
 
     private AdminCounts _counts = new();
+    private string SimpleModalSize => _simpleType == _tProgram ? "lg" : "sm";
     private List<User> _users = new();
     private List<Exercise> _exercises = new();
     private List<Workout> _workouts = new();
@@ -199,8 +214,19 @@ else
     private List<MuscleGroup> _muscleGroups = new();
     private List<Food> _foods = new();
     private List<Models.Program> _programs = new();
+    private List<WorkoutLog> _workoutLogs = new();
 
-    private readonly string[] _tabs = { "Users", "Exercises", "Workouts", "Equipment", "Muscle Groups", "Foods", "Programs" };
+    private readonly (string Key, string Label)[] _sections =
+    {
+        ("Users", "Users"),
+        ("Exercises", "Exercises"),
+        ("Workouts", "Workouts"),
+        ("Equipment", "Equipment"),
+        ("Muscle Groups", "Muscle Groups"),
+        ("Foods", "Foods"),
+        ("Programs", "Programs"),
+        ("Workout Logs", "Workout Logs")
+    };
     private string _activeTab = "Users";
     private string? _message;
     private bool _isError;
@@ -252,10 +278,35 @@ else
         _muscleGroups = await AdminService.GetAllMuscleGroupsAsync();
         _foods = await AdminService.GetAllFoodsAsync();
         _programs = await AdminService.GetAllProgramsAsync();
+        _workoutLogs = await AdminService.GetAllWorkoutLogsAsync();
     }
 
     private void SwitchTab(string tab) { _activeTab = tab; _message = null; }
     private void Msg(string text, bool err) { _message = text; _isError = err; }
+
+    private int GetSectionCount(string section) => section switch
+    {
+        "Users" => _counts.Users,
+        "Exercises" => _counts.Exercises,
+        "Workouts" => _counts.Workouts,
+        "Equipment" => _counts.Equipment,
+        "Muscle Groups" => _counts.MuscleGroups,
+        "Foods" => _counts.Foods,
+        "Programs" => _counts.Programs,
+        "Workout Logs" => _counts.WorkoutLogs,
+        _ => 0
+    };
+
+    private static string GetSectionEntityName(string section) => section switch
+    {
+        "Muscle Groups" => "Muscle Group",
+        "Equipment" => "Equipment",
+        "Programs" => "Program",
+        "Exercises" => "Exercise",
+        "Workouts" => "Workout",
+        "Foods" => "Food",
+        _ => section.TrimEnd('s')
+    };
 
     private void OpenAddModal()
     {
@@ -267,7 +318,7 @@ else
             case "Equipment": _editingSimpleId = null; _eqName = ""; _simpleType = _tEquipment; _simpleTitle = "Add Equipment"; _showSimpleModal = true; break;
             case "Muscle Groups": _editingSimpleId = null; _mgForm = new(); _simpleType = _tMuscle; _simpleTitle = "Add Muscle Group"; _showSimpleModal = true; break;
             case "Foods": _editingSimpleId = null; _foodForm = new(); _simpleType = _tFood; _simpleTitle = "Add Food"; _showSimpleModal = true; break;
-            case "Programs": _editingSimpleId = null; _progForm = new(); _simpleType = _tProgram; _simpleTitle = "Add Program"; _showSimpleModal = true; break;
+            case "Programs": _editingSimpleId = null; _progForm = new ProgramFormData { IsPreBuilt = true }; _simpleType = _tProgram; _simpleTitle = "Add Program"; _showSimpleModal = true; break;
         }
     }
 
@@ -312,7 +363,7 @@ else
     private void OpenEditEquipment(Equipment eq) { _editingSimpleId = eq.Id; _eqName = eq.Name; _simpleType = _tEquipment; _simpleTitle = "Edit Equipment"; _showSimpleModal = true; }
     private void OpenEditMuscleGroup(MuscleGroup mg) { _editingSimpleId = mg.Id; _mgForm = new MuscleGroupFormData { Name = mg.Name, BodyRegion = mg.BodyRegion }; _simpleType = _tMuscle; _simpleTitle = "Edit Muscle Group"; _showSimpleModal = true; }
     private void OpenEditFood(Food f) { _editingSimpleId = f.Id; _foodForm = new FoodFormData { Name = f.Name, CaloriesPer100g = f.CaloriesPer100g, ProteinPer100g = f.ProteinPer100g, CarbsPer100g = f.CarbsPer100g, FatPer100g = f.FatPer100g }; _simpleType = _tFood; _simpleTitle = "Edit Food"; _showSimpleModal = true; }
-    private void OpenEditProgram(Models.Program p) { _editingSimpleId = p.Id; _progForm = new ProgramFormData { Name = p.Name, Description = p.Description, DurationWeeks = p.DurationWeeks, DaysPerWeek = p.DaysPerWeek, TargetLevel = p.TargetLevel, TargetGoal = p.TargetGoal, IsPreBuilt = p.IsPreBuilt, CreatedByUserId = p.CreatedByUserId }; _simpleType = _tProgram; _simpleTitle = "Edit Program"; _showSimpleModal = true; }
+    private void OpenEditProgram(Models.Program p) { _editingSimpleId = p.Id; _progForm = new ProgramFormData { Name = p.Name, Description = p.Description, DurationWeeks = p.DurationWeeks, DaysPerWeek = p.DaysPerWeek, TargetLevel = p.TargetLevel, TargetGoal = p.TargetGoal, IsPreBuilt = p.IsPreBuilt, CreatedByUserId = p.CreatedByUserId, ProgramCategory = GetProgramCategoryLabel(p), Tags = string.Join(", ", GetProgramTags(p).Where(t => !IsProgramCategoryTag(t))), Notes = string.Join(Environment.NewLine, GetProgramNotes(p)), WorkoutIds = p.Workouts.OrderBy(w => w.SortOrder).Select(w => w.Id).ToList() }; _simpleType = _tProgram; _simpleTitle = "Edit Program"; _showSimpleModal = true; }
 
     private async Task SaveSimple()
     {
@@ -334,7 +385,9 @@ else
             case _tProgram:
                 if (string.IsNullOrWhiteSpace(_progForm.Name)) { Msg("Name required.", true); _isSaving = false; return; }
                 if (_editingSimpleId.HasValue) await AdminService.UpdateProgramAsync(_editingSimpleId.Value, _progForm); else await AdminService.CreateProgramAsync(_progForm);
-                _programs = await AdminService.GetAllProgramsAsync(); break;
+                _programs = await AdminService.GetAllProgramsAsync();
+                _workouts = await AdminService.GetAllWorkoutsAsync();
+                break;
         }
         _counts = await AdminService.GetCountsAsync();
         Msg($"{_simpleType} saved.", false);
@@ -358,6 +411,34 @@ else
         };
         if (ok) { await LoadAllData(); Msg("Deleted.", false); } else { Msg("Failed to delete.", true); }
         _showDelConfirm = false; _isDeleting = false;
+    }
+
+    private void ToggleProgramWorkout(int id) { if (!_progForm.WorkoutIds.Remove(id)) _progForm.WorkoutIds.Add(id); }
+
+    private static string FormatProgramGoal(string? goal) => goal switch
+    {
+        "FatLoss" => "Fat Loss",
+        "GeneralHealth" => "General Health",
+        null or "" => "—",
+        _ => goal
+    };
+
+    private static string GetProgramCategoryLabel(Models.Program program)
+    {
+        var tags = GetProgramTags(program);
+        if (tags.Any(t => string.Equals(t, "Hybrid", StringComparison.OrdinalIgnoreCase))) return "Hybrid";
+        if (tags.Any(t => string.Equals(t, "Cardio", StringComparison.OrdinalIgnoreCase))) return "Cardio";
+        return "Workout";
+    }
+
+    private static List<string> GetProgramTags(Models.Program program) => ParseStringList(program.Tags);
+    private static List<string> GetProgramNotes(Models.Program program) => ParseStringList(program.Notes);
+    private static bool IsProgramCategoryTag(string tag) => string.Equals(tag, "Workout", StringComparison.OrdinalIgnoreCase) || string.Equals(tag, "Cardio", StringComparison.OrdinalIgnoreCase) || string.Equals(tag, "Hybrid", StringComparison.OrdinalIgnoreCase);
+
+    private static List<string> ParseStringList(string? value)
+    {
+        if (string.IsNullOrWhiteSpace(value)) return new();
+        try { return System.Text.Json.JsonSerializer.Deserialize<List<string>>(value) ?? new(); } catch { return value.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries).ToList(); }
     }
 
     private void ToggleExMg(int id) { if (!_exForm.MuscleGroupIds.Remove(id)) _exForm.MuscleGroupIds.Add(id); else _exForm.PrimaryMuscleGroupIds.Remove(id); }

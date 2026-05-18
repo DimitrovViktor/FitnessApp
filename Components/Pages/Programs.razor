@@ -34,7 +34,7 @@ else if (_detail is not null)
                     <span class="dm-item dm-accent">@_detail.TargetGoal</span>
                 </div>
             </div>
-            <button type="button" class="btn-start" @onclick="() => CopyAndStart()">Start Program</button>
+            <button type="button" class="btn-start" @onclick="() => CopyAndStart()" disabled="@(_detailWorkouts.Count == 0)">Start Program</button>
         </div>
 
         <div class="detail-grid">
@@ -58,76 +58,86 @@ else if (_detail is not null)
                 </div>
 
                 <div class="section-label">Workout Structure</div>
-                <div class="structure-list">
-                    @{ var colors = new[] { "#38bdf8", "#2ab8a0", "#a78bfa", "#f0c050", "#e05c6a" }; }
-                    @for (int i = 0; i < _detailWorkouts.Count; i++)
-                    {
-                        var idx = i;
-                        var w = _detailWorkouts[idx];
-                        var color = colors[idx % colors.Length];
-                        var open = _expandedWorkout == idx;
-
-                        <div class="structure-card" style="border-left-color:@color; border-color:@(color)30;">
-                            <div class="structure-header" @onclick="() => _expandedWorkout = _expandedWorkout == idx ? -1 : idx">
-                                <div>
-                                    <span class="structure-name">@w.Name</span>
-                                    <span class="structure-meta">@w.WorkoutExercises.Count exercises</span>
-                                </div>
-                                <span class="structure-toggle @(open ? "open" : "")">▾</span>
-                            </div>
-                            @if (open)
-                            {
-                                <div class="structure-exercises">
-                                    @foreach (var we in w.WorkoutExercises.OrderBy(x => x.SortOrder))
-                                    {
-                                        <div class="structure-ex-row">
-                                            <div>
-                                                <span class="sex-name">@we.Exercise.Name</span>
-                                                <span class="sex-muscle">@MuscleStr(we.Exercise)</span>
-                                            </div>
-                                            <div class="sex-right">
-                                                <span class="sex-sets" style="color:@color">@we.Sets×@we.Reps</span>
-                                                <span class="sex-rest">rest @(we.RestTimeSec ?? 60)s</span>
-                                            </div>
-                                        </div>
-                                    }
-                                </div>
-                            }
-                        </div>
-                    }
-                </div>
-
-                <div class="detail-card" style="margin-top:20px">
-                    <div class="section-label" style="margin-top:0">Week-by-Week Schedule</div>
-                    <div class="week-day-headers">
-                        <div class="week-label-col"></div>
-                        @foreach (var d in new[] { "Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun" })
-                        {
-                            <div class="week-day-hdr">@d</div>
-                        }
+                @if (_detailWorkouts.Count == 0)
+                {
+                    <div class="detail-card empty-program-card">
+                        <div class="sidebar-title">No workouts assigned</div>
+                        <p class="detail-desc">This program has been created but does not have workouts attached yet. Add workouts from the Admin program editor or assign existing workouts to this program.</p>
                     </div>
-                    @for (int wk = 1; wk <= _detail.DurationWeeks; wk++)
-                    {
-                        var weekNum = wk;
-                        var weekDays = BuildWeekDays(weekNum);
-                        var isOpen = _expandedWeek == weekNum;
+                }
+                else
+                {
+                    <div class="structure-list">
+                        @{ var colors = new[] { "#38bdf8", "#2ab8a0", "#a78bfa", "#f0c050", "#e05c6a" }; }
+                        @for (int i = 0; i < _detailWorkouts.Count; i++)
+                        {
+                            var idx = i;
+                            var w = _detailWorkouts[idx];
+                            var color = colors[idx % colors.Length];
+                            var open = _expandedWorkout == idx;
 
-                        <div class="week-row-wrap">
-                            <div class="week-row" @onclick="() => _expandedWeek = _expandedWeek == weekNum ? -1 : weekNum">
-                                <div class="week-label-col @(isOpen ? "week-label-active" : "")">Wk @weekNum</div>
-                                @foreach (var day in weekDays)
+                            <div class="structure-card" style="border-left-color:@color; border-color:@(color)30;">
+                                <div class="structure-header" @onclick="() => _expandedWorkout = _expandedWorkout == idx ? -1 : idx">
+                                    <div>
+                                        <span class="structure-name">@w.Name</span>
+                                        <span class="structure-meta">@w.WorkoutExercises.Count exercises</span>
+                                    </div>
+                                    <span class="structure-toggle @(open ? "open" : "")">▾</span>
+                                </div>
+                                @if (open)
                                 {
-                                    var isRest = day == "Rest";
-                                    <div class="week-pill @(isRest ? "wp-rest" : "wp-active")" style="@(!isRest ? $"background:{GetDayColor(day)}18;border-color:{GetDayColor(day)}40;color:{GetDayColor(day)}" : "")">@day</div>
+                                    <div class="structure-exercises">
+                                        @foreach (var we in w.WorkoutExercises.OrderBy(x => x.SortOrder))
+                                        {
+                                            <div class="structure-ex-row">
+                                                <div>
+                                                    <span class="sex-name">@we.Exercise.Name</span>
+                                                    <span class="sex-muscle">@MuscleStr(we.Exercise)</span>
+                                                </div>
+                                                <div class="sex-right">
+                                                    <span class="sex-sets" style="color:@color">@we.Sets×@we.Reps</span>
+                                                    <span class="sex-rest">rest @(we.RestTimeSec ?? 60)s</span>
+                                                </div>
+                                            </div>
+                                        }
+                                    </div>
                                 }
                             </div>
-                            @if (isOpen)
+                        }
+                    </div>
+
+                    <div class="detail-card" style="margin-top:20px">
+                        <div class="section-label" style="margin-top:0">Week-by-Week Schedule</div>
+                        <div class="week-day-headers">
+                            <div class="week-label-col"></div>
+                            @foreach (var d in new[] { "Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun" })
                             {
-                                <div class="week-note">@GetWeekNote(weekNum)</div>
+                                <div class="week-day-hdr">@d</div>
                             }
                         </div>
-                    }
-                </div>
+                        @for (int wk = 1; wk <= _detail.DurationWeeks; wk++)
+                        {
+                            var weekNum = wk;
+                            var weekDays = BuildWeekDays(weekNum);
+                            var isOpen = _expandedWeek == weekNum;
+
+                            <div class="week-row-wrap">
+                                <div class="week-row" @onclick="() => _expandedWeek = _expandedWeek == weekNum ? -1 : weekNum">
+                                    <div class="week-label-col @(isOpen ? "week-label-active" : "")">Wk @weekNum</div>
+                                    @foreach (var day in weekDays)
+                                    {
+                                        var isRest = day == "Rest";
+                                        <div class="week-pill @(isRest ? "wp-rest" : "wp-active")" style="@(!isRest ? $"background:{GetDayColor(day)}18;border-color:{GetDayColor(day)}40;color:{GetDayColor(day)}" : "")">@day</div>
+                                    }
+                                </div>
+                                @if (isOpen)
+                                {
+                                    <div class="week-note">@GetWeekNote(weekNum)</div>
+                                }
+                            </div>
+                        }
+                    </div>
+                }
             </div>
 
             <div class="detail-right">
@@ -154,17 +164,24 @@ else if (_detail is not null)
                 <div class="detail-card">
                     <div class="sidebar-title">Muscle Group Coverage</div>
                     @{ var muscleCoverage = GetMuscleCoverage(); var maxSets = muscleCoverage.FirstOrDefault().Value; }
-                    @foreach (var (muscle, sets) in muscleCoverage)
+                    @if (muscleCoverage.Count == 0)
                     {
-                        <div class="coverage-row">
-                            <div class="coverage-labels">
-                                <span class="coverage-name">@muscle</span>
-                                <span class="coverage-val">@sets sets</span>
+                        <p class="detail-desc">Coverage will appear after workouts are assigned to this program.</p>
+                    }
+                    else
+                    {
+                        @foreach (var (muscle, sets) in muscleCoverage)
+                        {
+                            <div class="coverage-row">
+                                <div class="coverage-labels">
+                                    <span class="coverage-name">@muscle</span>
+                                    <span class="coverage-val">@sets sets</span>
+                                </div>
+                                <div class="coverage-bar-bg">
+                                    <div class="coverage-bar-fill" style="width:@(maxSets > 0 ? (int)((double)sets / maxSets * 100) : 0)%"></div>
+                                </div>
                             </div>
-                            <div class="coverage-bar-bg">
-                                <div class="coverage-bar-fill" style="width:@(maxSets > 0 ? (int)((double)sets / maxSets * 100) : 0)%"></div>
-                            </div>
-                        </div>
+                        }
                     }
                 </div>
 
@@ -189,38 +206,95 @@ else
     <div class="programs-page">
         <div class="page-header">
             <h1>Programs</h1>
-            <p class="page-sub">Science-backed structured programs with progressive overload built in</p>
+            <p class="page-sub">Structured workout, cardio, and hybrid plans in one place</p>
         </div>
 
-        <div class="info-banner">
-            <span class="info-icon icon icon-info" aria-hidden="true"></span>
-            <span class="info-text">All programs are designed around <strong>progressive overload</strong>. Track every session and increase weight or reps weekly. Click any program card to see the full schedule, workout structure, and coaching notes.</span>
-        </div>
-
-        <div class="browse-grid">
-            @foreach (var p in _allPrograms)
+        <div class="program-category-grid">
+            @foreach (var category in ProgramCategories)
             {
-                var prog = p;
-                <div class="browse-card" @onclick="() => OpenDetail(prog)">
-                    <div class="browse-card-top">
-                        <div>
-                            <div class="browse-name">@p.Name</div>
-                            <div class="browse-badges">
-                                <span class="browse-level browse-level-@(p.TargetLevel?.ToLower())">@p.TargetLevel</span>
-                                <span class="browse-goal">@p.TargetGoal</span>
-                            </div>
-                        </div>
-                        <span class="browse-arrow">›</span>
-                    </div>
-                    <div class="browse-desc">@TruncateDesc(p.Description)</div>
-                    <div class="browse-stats">
-                        <span>@p.DurationWeeks weeks</span>
-                        <span>@(p.DaysPerWeek)×/week</span>
-                        <span>@p.Workouts.Count workouts</span>
-                    </div>
-                </div>
+                var categoryKey = category.Key;
+                <button type="button" class="program-category-card @(_programCategory == categoryKey ? "active" : "")" @onclick="() => SelectProgramCategory(categoryKey)">
+                    <span class="program-category-title">@category.Label</span>
+                    <span class="program-category-copy">@category.Description</span>
+                    <span class="program-category-count">@GetProgramCategoryCount(categoryKey) programs</span>
+                </button>
             }
         </div>
+
+        <div class="program-filters">
+            <div class="filter-group">
+                <span class="filter-label">Difficulty</span>
+                <div class="pill-row">
+                    <button type="button" class="pill-sub @(_programLevel == "" ? "pill-sub-active" : "")" @onclick='() => _programLevel = ""'>All</button>
+                    @foreach (var level in Enum.GetValues<FitnessLevel>())
+                    {
+                        var levelValue = level.ToString();
+                        <button type="button" class="pill-sub @(_programLevel == levelValue ? "pill-sub-active" : "")" @onclick="() => _programLevel = levelValue">@FormatLevel(levelValue)</button>
+                    }
+                </div>
+            </div>
+            <div class="filter-group">
+                <span class="filter-label">Goal</span>
+                <div class="pill-row">
+                    <button type="button" class="pill-sub @(_programGoal == "" ? "pill-sub-active" : "")" @onclick='() => _programGoal = ""'>All</button>
+                    @foreach (var goal in Enum.GetValues<PrimaryGoal>())
+                    {
+                        var goalValue = goal.ToString();
+                        <button type="button" class="pill-sub @(_programGoal == goalValue ? "pill-sub-active" : "")" @onclick="() => _programGoal = goalValue">@FormatGoal(goalValue)</button>
+                    }
+                </div>
+            </div>
+            <div class="filter-group">
+                <span class="filter-label">Schedule</span>
+                <div class="pill-row">
+                    @foreach (var option in ProgramDayFilters)
+                    {
+                        var dayKey = option.Key;
+                        <button type="button" class="pill-sub @(_programDays == dayKey ? "pill-sub-active" : "")" @onclick="() => _programDays = dayKey">@option.Label</button>
+                    }
+                </div>
+            </div>
+            <div class="filter-count">@FilteredPrograms.Count() programs</div>
+        </div>
+
+        @if (!FilteredPrograms.Any())
+        {
+            <div class="empty-state"><p>No programs match the selected filters.</p></div>
+        }
+        else
+        {
+            <div class="browse-grid">
+                @foreach (var p in FilteredPrograms)
+                {
+                    var prog = p;
+                    <div class="browse-card" @onclick="() => OpenDetail(prog)">
+                        <div class="browse-card-top">
+                            <div>
+                                <div class="browse-name">@p.Name</div>
+                                <div class="browse-badges">
+                                    @if (!string.IsNullOrWhiteSpace(p.TargetLevel))
+                                    {
+                                        <span class="browse-level browse-level-@(p.TargetLevel.ToLower())">@FormatLevel(p.TargetLevel)</span>
+                                    }
+                                    @if (!string.IsNullOrWhiteSpace(p.TargetGoal))
+                                    {
+                                        <span class="browse-goal">@FormatGoal(p.TargetGoal)</span>
+                                    }
+                                    <span class="browse-goal">@GetProgramCategoryLabel(p)</span>
+                                </div>
+                            </div>
+                            <span class="browse-arrow">›</span>
+                        </div>
+                        <div class="browse-desc">@TruncateDesc(p.Description)</div>
+                        <div class="browse-stats">
+                            <span>@p.DurationWeeks weeks</span>
+                            <span>@(p.DaysPerWeek)×/week</span>
+                            <span>@p.Workouts.Count workouts</span>
+                        </div>
+                    </div>
+                }
+            </div>
+        }
     </div>
 }
 
@@ -229,6 +303,25 @@ else
     private int _userId;
     private List<Models.Program> _allPrograms = new();
     private Models.Program? _detail;
+    private string _programCategory = "workout";
+    private string _programLevel = "";
+    private string _programGoal = "";
+    private string _programDays = "all";
+    private static readonly (string Key, string Label, string Description)[] ProgramCategories =
+    {
+        ("workout", "Workout Programs", "Strength, hypertrophy, beginner, and gym-based training plans."),
+        ("cardio", "Cardio Programs", "Endurance, conditioning, running, cycling, and heart-health plans."),
+        ("hybrid", "Hybrid Programs", "Plans that combine strength work with cardio or conditioning blocks.")
+    };
+    private static readonly (string Key, string Label)[] ProgramDayFilters =
+    {
+        ("all", "All"),
+        ("2", "2 days"),
+        ("3", "3 days"),
+        ("4", "4 days"),
+        ("5", "5+ days")
+    };
+    private IEnumerable<Models.Program> FilteredPrograms => _allPrograms.Where(MatchesProgramFilters);
     private List<Workout> _detailWorkouts = new();
     private int _expandedWorkout = -1;
     private int _expandedWeek = 1;
@@ -259,7 +352,7 @@ else
     {
         if (_detail is null) return;
         await WorkoutService.CopyProgramToUserAsync(_detail.Id, _userId);
-        try { Navigation.NavigateTo("/workouts"); } catch { }
+        try { Navigation.NavigateTo("/training"); } catch { }
     }
 
     private static List<string> GetTags(Models.Program p)
@@ -280,6 +373,87 @@ else
     private static string TruncateDesc(string? desc) =>
         string.IsNullOrEmpty(desc) ? "" : (desc.Length > 120 ? desc[..120] + "…" : desc);
 
+    private void SelectProgramCategory(string category)
+    {
+        _programCategory = category;
+        _programLevel = "";
+        _programGoal = "";
+        _programDays = "all";
+    }
+
+    private int GetProgramCategoryCount(string category) => _allPrograms.Count(p => MatchesProgramCategory(p, category));
+
+    private bool MatchesProgramFilters(Models.Program program)
+    {
+        if (!MatchesProgramCategory(program, _programCategory)) return false;
+        if (!string.IsNullOrEmpty(_programLevel) && !string.Equals(program.TargetLevel, _programLevel, StringComparison.OrdinalIgnoreCase)) return false;
+        if (!string.IsNullOrEmpty(_programGoal) && !MatchesGoal(program, _programGoal)) return false;
+        if (!MatchesDayFilter(program, _programDays)) return false;
+        return true;
+    }
+
+    private static bool MatchesGoal(Models.Program program, string goal)
+    {
+        var tags = GetTags(program);
+        var searchable = string.Join(" ", new[] { program.Name, program.Description, program.TargetGoal }.Where(x => !string.IsNullOrWhiteSpace(x)).Concat(tags));
+        return ContainsAny(Normalize(searchable), Normalize(goal));
+    }
+
+    private static bool MatchesDayFilter(Models.Program program, string days)
+    {
+        return days switch
+        {
+            "2" => program.DaysPerWeek == 2,
+            "3" => program.DaysPerWeek == 3,
+            "4" => program.DaysPerWeek == 4,
+            "5" => program.DaysPerWeek >= 5,
+            _ => true
+        };
+    }
+
+    private static string GetProgramCategoryLabel(Models.Program program)
+    {
+        if (MatchesProgramCategory(program, "hybrid")) return "Hybrid";
+        if (MatchesProgramCategory(program, "cardio")) return "Cardio";
+        return "Workout";
+    }
+
+    private static bool MatchesProgramCategory(Models.Program program, string category)
+    {
+        if (category == "all") return true;
+
+        var tags = GetTags(program);
+        var searchable = string.Join(" ", new[] { program.Name, program.Description, program.TargetGoal, program.TargetLevel }.Where(x => !string.IsNullOrWhiteSpace(x)).Concat(tags));
+        var isCardio = ContainsAny(searchable, "cardio", "endurance", "conditioning", "running", "cycling", "hiit", "fatloss", "fat loss");
+        var isStrength = ContainsAny(searchable, "strength", "hypertrophy", "power", "muscle", "resistance", "beginner");
+        var isHybrid = ContainsAny(searchable, "hybrid", "circuit") || isCardio && isStrength;
+
+        return category switch
+        {
+            "cardio" => isCardio && !isHybrid,
+            "hybrid" => isHybrid,
+            "workout" => !isHybrid && (!isCardio || isStrength),
+            _ => true
+        };
+    }
+
+    private static bool ContainsAny(string value, params string[] terms) => terms.Any(term => value.Contains(term, StringComparison.OrdinalIgnoreCase));
+
+    private static string Normalize(string? value) => new((value ?? "").Where(char.IsLetterOrDigit).Select(char.ToLowerInvariant).ToArray());
+
+    private static string FormatGoal(string? goal)
+    {
+        return goal switch
+        {
+            "FatLoss" => "Fat Loss",
+            "GeneralHealth" => "General Health",
+            null or "" => "General",
+            _ => goal
+        };
+    }
+
+    private static string FormatLevel(string? level) => string.IsNullOrWhiteSpace(level) ? "Any" : level;
+
     private string[] BuildWeekDays(int weekNum)
     {
         var workoutNames = _detailWorkouts.Select(w => w.Name.Length > 10 ? w.Name[..10] : w.Name).ToArray();
@@ -287,6 +461,7 @@ else
         int wi = 0;
         int perWeek = _detail?.DaysPerWeek ?? 3;
 
+        if (workoutNames.Length == 0) { for (int i = 0; i < 7; i++) days[i] = "Rest"; return days; }
         if (perWeek == 3) { days[0] = workoutNames.ElementAtOrDefault(wi++ % workoutNames.Length) ?? "Rest"; days[1] = "Rest"; days[2] = workoutNames.ElementAtOrDefault(wi++ % workoutNames.Length) ?? "Rest"; days[3] = "Rest"; days[4] = workoutNames.ElementAtOrDefault(wi++ % workoutNames.Length) ?? "Rest"; days[5] = "Rest"; days[6] = "Rest"; }
         else if (perWeek == 4) { days[0] = workoutNames.ElementAtOrDefault(0) ?? "Rest"; days[1] = workoutNames.ElementAtOrDefault(1) ?? "Rest"; days[2] = "Rest"; days[3] = workoutNames.ElementAtOrDefault(2) ?? "Rest"; days[4] = workoutNames.ElementAtOrDefault(3) ?? "Rest"; days[5] = "Rest"; days[6] = "Rest"; }
         else if (perWeek == 5) { days[0] = workoutNames.ElementAtOrDefault(0) ?? "Rest"; days[1] = workoutNames.ElementAtOrDefault(1) ?? "Rest"; days[2] = workoutNames.ElementAtOrDefault(2) ?? "Rest"; days[3] = "Rest"; days[4] = workoutNames.ElementAtOrDefault(3) ?? "Rest"; days[5] = workoutNames.ElementAtOrDefault(4) ?? "Rest"; days[6] = "Rest"; }
@@ -317,7 +492,7 @@ else
 
     private int EstSessionMin()
     {
-        if (_detailWorkouts.Count == 0) return 30;
+        if (_detailWorkouts.Count == 0) return 0;
         var avg = _detailWorkouts.Average(w => w.WorkoutExercises.Sum(e => e.Sets) * 1.5 + w.WorkoutExercises.Count * 1.5);
         return (int)Math.Round(avg);
     }

@@ -1,3 +1,4 @@
+using System.Text.Json;
 using Microsoft.EntityFrameworkCore;
 using FitnessApp.Data;
 using FitnessApp.Models;
@@ -148,7 +149,20 @@ public class AdminService
 
     public async Task<List<ProgramEntity>> GetAllProgramsAsync()
     {
-        return await _db.Programs.OrderBy(p => p.Name).ToListAsync();
+        return await _db.Programs
+            .Include(p => p.Workouts)
+            .OrderBy(p => p.Name)
+            .ToListAsync();
+    }
+
+    public async Task<List<WorkoutLog>> GetAllWorkoutLogsAsync()
+    {
+        return await _db.WorkoutLogs
+            .Include(l => l.User)
+            .Include(l => l.Workout)
+            .Include(l => l.ExerciseLogs)
+            .OrderByDescending(l => l.StartedAt)
+            .ToListAsync();
     }
 
     public async Task<ProgramEntity> CreateProgramAsync(ProgramFormData data)
@@ -162,9 +176,13 @@ public class AdminService
             TargetLevel = string.IsNullOrWhiteSpace(data.TargetLevel) ? null : data.TargetLevel,
             TargetGoal = string.IsNullOrWhiteSpace(data.TargetGoal) ? null : data.TargetGoal,
             IsPreBuilt = data.IsPreBuilt,
-            CreatedByUserId = data.CreatedByUserId
+            CreatedByUserId = data.CreatedByUserId,
+            Tags = BuildProgramTags(data),
+            Notes = BuildProgramNotes(data)
         };
         _db.Programs.Add(item);
+        await _db.SaveChangesAsync();
+        await AssignWorkoutsToProgramAsync(item.Id, data.WorkoutIds);
         await _db.SaveChangesAsync();
         return item;
     }
@@ -181,18 +199,76 @@ public class AdminService
         item.TargetGoal = string.IsNullOrWhiteSpace(data.TargetGoal) ? null : data.TargetGoal;
         item.IsPreBuilt = data.IsPreBuilt;
         item.CreatedByUserId = data.CreatedByUserId;
+        item.Tags = BuildProgramTags(data);
+        item.Notes = BuildProgramNotes(data);
+        await AssignWorkoutsToProgramAsync(id, data.WorkoutIds);
         await _db.SaveChangesAsync();
         return true;
     }
 
     public async Task<bool> DeleteProgramAsync(int id)
     {
-        var item = await _db.Programs.FindAsync(id);
+        var item = await _db.Programs.Include(p => p.Workouts).FirstOrDefaultAsync(p => p.Id == id);
         if (item is null) return false;
+        foreach (var workout in item.Workouts)
+        {
+            workout.ProgramId = null;
+        }
         _db.Programs.Remove(item);
         await _db.SaveChangesAsync();
         return true;
     }
+
+    private async Task AssignWorkoutsToProgramAsync(int programId, List<int> workoutIds)
+    {
+        var current = await _db.Workouts.Where(w => w.ProgramId == programId).ToListAsync();
+        foreach (var workout in current)
+        {
+            if (!workoutIds.Contains(workout.Id)) workout.ProgramId = null;
+        }
+
+        var selected = await _db.Workouts.Where(w => workoutIds.Contains(w.Id)).ToListAsync();
+        for (int i = 0; i < workoutIds.Count; i++)
+        {
+            var workout = selected.FirstOrDefault(w => w.Id == workoutIds[i]);
+            if (workout is null) continue;
+            workout.ProgramId = programId;
+            workout.SortOrder = i;
+        }
+    }
+
+    private static string? BuildProgramTags(ProgramFormData data)
+    {
+        var tags = ParseLooseList(data.Tags)
+            .Where(t => !IsProgramCategoryTag(t))
+            .ToList();
+
+        var category = string.IsNullOrWhiteSpace(data.ProgramCategory) ? "Workout" : data.ProgramCategory.Trim();
+        tags.Insert(0, category);
+
+        if (!string.IsNullOrWhiteSpace(data.TargetLevel) && !tags.Any(t => string.Equals(t, data.TargetLevel, StringComparison.OrdinalIgnoreCase))) tags.Add(data.TargetLevel);
+        if (!string.IsNullOrWhiteSpace(data.TargetGoal) && !tags.Any(t => string.Equals(t, data.TargetGoal, StringComparison.OrdinalIgnoreCase))) tags.Add(data.TargetGoal);
+
+        return JsonSerializer.Serialize(tags.Distinct(StringComparer.OrdinalIgnoreCase).ToList());
+    }
+
+    private static string? BuildProgramNotes(ProgramFormData data)
+    {
+        var notes = ParseLooseList(data.Notes);
+        return notes.Count == 0 ? null : JsonSerializer.Serialize(notes);
+    }
+
+    private static List<string> ParseLooseList(string? value)
+    {
+        if (string.IsNullOrWhiteSpace(value)) return new();
+        try { return JsonSerializer.Deserialize<List<string>>(value) ?? new(); } catch { }
+        return value.Replace("\r", "")
+            .Split(new[] { '\n', ',' }, StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+            .Where(x => !string.IsNullOrWhiteSpace(x))
+            .ToList();
+    }
+
+    private static bool IsProgramCategoryTag(string tag) => string.Equals(tag, "Workout", StringComparison.OrdinalIgnoreCase) || string.Equals(tag, "Cardio", StringComparison.OrdinalIgnoreCase) || string.Equals(tag, "Hybrid", StringComparison.OrdinalIgnoreCase);
 
     public async Task<List<Exercise>> GetAllExercisesAsync()
     {
@@ -465,6 +541,10 @@ public class ProgramFormData
     public int DaysPerWeek { get; set; } = 3;
     public string? TargetLevel { get; set; }
     public string? TargetGoal { get; set; }
+    public string ProgramCategory { get; set; } = "Workout";
+    public string? Tags { get; set; }
+    public string? Notes { get; set; }
+    public List<int> WorkoutIds { get; set; } = new();
     public bool IsPreBuilt { get; set; }
     public int? CreatedByUserId { get; set; }
 }

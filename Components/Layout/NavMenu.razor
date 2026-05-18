@@ -30,67 +30,78 @@
 
 <div class="nav-scrollable" onclick="document.querySelector('.navbar-toggler').click()">
     <nav class="nav flex-column">
-        <div class="nav-item px-3">
-            <NavLink class="nav-link" href="dashboard" Match="NavLinkMatch.All">
-                <span class="bi bi-house-door-fill-nav-menu" aria-hidden="true"></span> Dashboard
-            </NavLink>
-        </div>
-
-        <div class="nav-item px-3">
-            <NavLink class="nav-link" href="workouts">
-                <span class="bi bi-workouts-nav-menu" aria-hidden="true"></span> Workouts
-            </NavLink>
-        </div>
-
-        <div class="nav-item px-3">
-            <NavLink class="nav-link" href="programs">
-                <span class="bi bi-programs-nav-menu" aria-hidden="true"></span> Programs
-            </NavLink>
-        </div>
-
-        <div class="nav-item px-3">
-            <NavLink class="nav-link" href="exercises">
-                <span class="bi bi-exercises-nav-menu" aria-hidden="true"></span> Exercises
-            </NavLink>
-        </div>
-
-        <div class="nav-item px-3">
-            <NavLink class="nav-link" href="live-workout">
-                <span class="bi bi-live-nav-menu" aria-hidden="true"></span> Live Session
-            </NavLink>
-        </div>
-
-        <div class="nav-item px-3">
-            <NavLink class="nav-link" href="progress">
-                <span class="bi bi-progress-nav-menu" aria-hidden="true"></span> Progress
-            </NavLink>
-        </div>
-
-        <div class="nav-item px-3">
-            <NavLink class="nav-link" href="profile">
-                <span class="bi bi-person-nav-menu" aria-hidden="true"></span> Profile
-            </NavLink>
-        </div>
-
-        <div class="nav-item px-3">
-            <NavLink class="nav-link" href="settings">
-                <span class="bi bi-settings-nav-menu" aria-hidden="true"></span> Settings
-            </NavLink>
-        </div>
-
-        @if (_isAdmin)
-        {
+        <div class="nav-main">
             <div class="nav-item px-3">
-                <NavLink class="nav-link" href="admin">
-                    <span class="bi bi-admin-nav-menu" aria-hidden="true"></span> Admin
+                <NavLink class="nav-link" href="dashboard" Match="NavLinkMatch.All">
+                    <span class="bi bi-house-door-fill-nav-menu" aria-hidden="true"></span> Dashboard
                 </NavLink>
             </div>
-        }
 
-        <div class="nav-item nav-item-logout px-3" @onclick:stopPropagation>
-            <button class="nav-link" @onclick="HandleLogout">
-                <span class="bi bi-logout-nav-menu" aria-hidden="true"></span> Logout
+            <button type="button" class="nav-divider nav-section-toggle @(_trainingOpen ? "expanded" : "")" aria-expanded="@_trainingOpen" @onclick="ToggleTraining" @onclick:stopPropagation="true">
+                <span>Training</span>
+                <span class="bi bi-chevron-nav-menu" aria-hidden="true"></span>
             </button>
+
+            @if (_trainingOpen)
+            {
+                <div class="nav-section-items">
+                    <div class="nav-item px-3">
+                        <NavLink class="nav-link" href="training">
+                            <span class="bi bi-workouts-nav-menu" aria-hidden="true"></span> Training
+                        </NavLink>
+                    </div>
+
+                    <div class="nav-item px-3">
+                        <NavLink class="nav-link" href="programs">
+                            <span class="bi bi-programs-nav-menu" aria-hidden="true"></span> Programs
+                        </NavLink>
+                    </div>
+
+                    <div class="nav-item px-3">
+                        <NavLink class="nav-link" href="exercises">
+                            <span class="bi bi-exercises-nav-menu" aria-hidden="true"></span> Exercises
+                        </NavLink>
+                    </div>
+
+                    <div class="nav-item px-3">
+                        <NavLink class="nav-link" href="live-workout">
+                            <span class="bi bi-live-nav-menu" aria-hidden="true"></span> Live Session
+                        </NavLink>
+                    </div>
+                </div>
+            }
+
+            <div class="nav-item px-3">
+                <NavLink class="nav-link" href="progress">
+                    <span class="bi bi-progress-nav-menu" aria-hidden="true"></span> Progress
+                </NavLink>
+            </div>
+
+            <div class="nav-item px-3">
+                <NavLink class="nav-link" href="profile">
+                    <span class="bi bi-person-nav-menu" aria-hidden="true"></span> Profile
+                </NavLink>
+            </div>
+        </div>
+
+        <div class="nav-footer px-3">
+            <div class="nav-footer-actions">
+                <button type="button" class="nav-footer-button" @onclick="HandleLogout">
+                    <span class="bi bi-logout-nav-menu" aria-hidden="true"></span>
+                    <span>Logout</span>
+                </button>
+
+                @if (_isAdmin)
+                {
+                    <NavLink class="nav-icon-button" href="admin" title="Admin" aria-label="Admin">
+                        <span class="bi bi-crown-nav-menu" aria-hidden="true"></span>
+                    </NavLink>
+                }
+
+                <NavLink class="nav-icon-button" href="settings" title="Settings" aria-label="Settings">
+                    <span class="bi bi-settings-nav-menu" aria-hidden="true"></span>
+                </NavLink>
+            </div>
         </div>
     </nav>
 </div>
@@ -103,6 +114,7 @@
 
     private bool _isAdmin;
     private bool _themesOpen;
+    private bool _trainingOpen = true;
     private int _userId;
     private string _currentTheme = "night";
 
@@ -131,6 +143,11 @@
     private void ToggleThemes()
     {
         _themesOpen = !_themesOpen;
+    }
+
+    private void ToggleTraining()
+    {
+        _trainingOpen = !_trainingOpen;
     }
 
     private async Task SelectTheme(string theme)

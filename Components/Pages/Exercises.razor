@@ -24,72 +24,95 @@ else
             <input class="search-input" placeholder="Search exercises, muscles..." @bind="_search" @bind:event="oninput" />
         </div>
 
-        <div class="filter-section">
-            <div class="filter-group">
-                <span class="filter-label">Muscle Group</span>
-                <div class="pill-row">
-                    <button type="button" class="pill @(_filterMuscles.Count == 0 ? "pill-active" : "")" @onclick="() => _filterMuscles.Clear()">All</button>
-                    @foreach (var mg in _allMuscleGroups)
-                    {
-                        var name = mg.Name;
-                        <button type="button" class="pill @(_filterMuscles.Contains(name) ? "pill-active" : "")" @onclick="() => ToggleMuscle(name)">@name</button>
-                    }
-                </div>
-            </div>
-            <div class="filter-row">
-                <div class="filter-group">
-                    <span class="filter-label">Difficulty</span>
-                    <div class="pill-row">
-                        <button type="button" class="pill-sub @(_filterDiff == "" ? "pill-sub-active" : "")" @onclick='() => _filterDiff = ""'>All</button>
-                        @foreach (var lv in Enum.GetValues<ExerciseLevel>())
-                        {
-                            var lvStr = lv.ToString();
-                            <button type="button" class="pill-sub @(_filterDiff == lvStr ? "pill-sub-active" : "")" @onclick="() => _filterDiff = lvStr">@lvStr</button>
-                        }
-                    </div>
-                </div>
-                <div class="filter-group">
-                    <span class="filter-label">Equipment</span>
-                    <div class="pill-row">
-                        <button type="button" class="pill-sub @(_filterEquip == "" ? "pill-sub-active" : "")" @onclick='() => _filterEquip = ""'>All</button>
-                        @foreach (var eq in _allEquipment)
-                        {
-                            var name = eq.Name;
-                            <button type="button" class="pill-sub @(_filterEquip == name ? "pill-sub-active" : "")" @onclick="() => _filterEquip = name">@name</button>
-                        }
-                    </div>
-                </div>
-                <div class="filter-count">@GetFiltered().Count exercises</div>
-            </div>
-        </div>
-
-        <div class="ex-grid">
-            @foreach (var ex in GetFiltered().Take(60))
+        <div class="library-section-grid">
+            @foreach (var sec in ExerciseSections)
             {
-                var exRef = ex;
-                <div class="ex-card" @onclick="() => OpenDetail(exRef)">
-                    <div class="ex-card-img">
-                        @{ var thumb = ex.Media.FirstOrDefault(m => m.MediaType == MediaType.Image); }
-                        @if (thumb is not null)
-                        {
-                            <img src="@thumb.Url" alt="@ex.Name" />
-                        }
-                        else
-                        {
-                            <span class="ex-card-placeholder">@ex.Name[0]</span>
-                        }
-                    </div>
-                    <div class="ex-card-body">
-                        <span class="ex-card-name">@ex.Name</span>
-                        <span class="ex-card-muscles">@PrimaryStr(ex)@(SecondaryFirst(ex) is not null ? $" · {SecondaryFirst(ex)}" : "")</span>
-                        <div class="ex-card-tags">
-                            <span class="diff-tag diff-@ex.Level.ToString().ToLower()">@ex.Level</span>
-                            <span class="equip-tag">@EquipFirst(ex)</span>
-                        </div>
-                    </div>
-                </div>
+                var sectionKey = sec.Key;
+                <button type="button" class="library-section-card @(_exerciseSection == sectionKey ? "active" : "")" @onclick="() => SelectExerciseSection(sectionKey)">
+                    <span class="library-section-title">@sec.Label</span>
+                    <span class="library-section-copy">@sec.Description</span>
+                    <span class="library-section-count">@GetExerciseSectionCount(sectionKey) exercises</span>
+                </button>
             }
         </div>
+
+        @if (!string.IsNullOrEmpty(_exerciseSection))
+        {
+            <div class="filter-section">
+                <div class="filter-group">
+                    <span class="filter-label">Muscle Group</span>
+                    <div class="pill-row">
+                        <button type="button" class="pill @(_filterMuscles.Count == 0 ? "pill-active" : "")" @onclick="() => _filterMuscles.Clear()">All</button>
+                        @foreach (var mg in GetVisibleMuscleGroups())
+                        {
+                            var name = mg.Name;
+                            <button type="button" class="pill @(_filterMuscles.Contains(name) ? "pill-active" : "")" @onclick="() => ToggleMuscle(name)">@name</button>
+                        }
+                    </div>
+                </div>
+                <div class="filter-row">
+                    <div class="filter-group">
+                        <span class="filter-label">Difficulty</span>
+                        <div class="pill-row">
+                            <button type="button" class="pill-sub @(_filterDiff == "" ? "pill-sub-active" : "")" @onclick='() => _filterDiff = ""'>All</button>
+                            @foreach (var lv in Enum.GetValues<ExerciseLevel>())
+                            {
+                                var lvStr = lv.ToString();
+                                <button type="button" class="pill-sub @(_filterDiff == lvStr ? "pill-sub-active" : "")" @onclick="() => _filterDiff = lvStr">@lvStr</button>
+                            }
+                        </div>
+                    </div>
+                    <div class="filter-group">
+                        <span class="filter-label">Equipment</span>
+                        <div class="pill-row">
+                            <button type="button" class="pill-sub @(_filterEquip == "" ? "pill-sub-active" : "")" @onclick='() => _filterEquip = ""'>All</button>
+                            @foreach (var eq in GetVisibleEquipment())
+                            {
+                                var name = eq.Name;
+                                <button type="button" class="pill-sub @(_filterEquip == name ? "pill-sub-active" : "")" @onclick="() => _filterEquip = name">@name</button>
+                            }
+                        </div>
+                    </div>
+                    <div class="filter-count">@GetFiltered().Count exercises</div>
+                </div>
+            </div>
+        }
+
+        @{ var visibleExercises = GetFiltered().Take(60).ToList(); }
+        @if (visibleExercises.Count == 0)
+        {
+            <div class="empty-state"><p>No exercises match this section and filter combination.</p></div>
+        }
+        else
+        {
+            <div class="ex-grid">
+                @foreach (var ex in visibleExercises)
+                {
+                    var exRef = ex;
+                    <div class="ex-card" @onclick="() => OpenDetail(exRef)">
+                        <div class="ex-card-img">
+                            @{ var thumb = ex.Media.FirstOrDefault(m => m.MediaType == MediaType.Image); }
+                            @if (thumb is not null)
+                            {
+                                <img src="@thumb.Url" alt="@ex.Name" />
+                            }
+                            else
+                            {
+                                <span class="ex-card-placeholder">@ex.Name[0]</span>
+                            }
+                        </div>
+                        <div class="ex-card-body">
+                            <span class="ex-card-name">@ex.Name</span>
+                            <span class="ex-card-muscles">@PrimaryStr(ex)@(SecondaryFirst(ex) is not null ? $" · {SecondaryFirst(ex)}" : "")</span>
+                            <div class="ex-card-tags">
+                                <span class="diff-tag diff-@ex.Level.ToString().ToLower()">@ex.Level</span>
+                                <span class="equip-tag">@EquipFirst(ex)</span>
+                            </div>
+                        </div>
+                    </div>
+                }
+            </div>
+        }
     </div>
 }
 
@@ -220,9 +243,17 @@ else
     private List<Equipment> _allEquipment = new();
 
     private string _search = "";
+    private string _exerciseSection = "strength";
     private HashSet<string> _filterMuscles = new();
     private string _filterDiff = "";
     private string _filterEquip = "";
+
+    private static readonly (string Key, string Label, string Description)[] ExerciseSections =
+    {
+        ("strength", "Strength Library", "Resistance exercises for muscle, strength, and structured workouts."),
+        ("cardio", "Cardio Modalities", "Running, cycling, rowing, conditioning, and heart-rate based training."),
+        ("mobility", "Warmups and Mobility", "Preparation, activation, stretching, and recovery-focused movement.")
+    };
 
     private bool _showDetail;
     private Exercise? _detailEx;
@@ -247,8 +278,11 @@ else
     {
         return _allExercises.Where(e =>
         {
+            if (!MatchesExerciseSection(e, _exerciseSection)) return false;
             if (!string.IsNullOrWhiteSpace(_search) && !e.Name.Contains(_search, StringComparison.OrdinalIgnoreCase)
-                && !e.ExerciseMuscleGroups.Any(m => m.MuscleGroup.Name.Contains(_search, StringComparison.OrdinalIgnoreCase))) return false;
+                && !e.Description.Contains(_search, StringComparison.OrdinalIgnoreCase)
+                && !e.ExerciseMuscleGroups.Any(m => m.MuscleGroup.Name.Contains(_search, StringComparison.OrdinalIgnoreCase))
+                && !e.ExerciseEquipment.Any(eq => eq.Equipment.Name.Contains(_search, StringComparison.OrdinalIgnoreCase))) return false;
             if (_filterMuscles.Count > 0 && !_filterMuscles.All(fm => e.ExerciseMuscleGroups.Any(m => m.MuscleGroup.Name == fm))) return false;
             if (!string.IsNullOrEmpty(_filterDiff) && e.Level.ToString() != _filterDiff) return false;
             if (!string.IsNullOrEmpty(_filterEquip) && !e.ExerciseEquipment.Any(eq => eq.Equipment.Name == _filterEquip)) return false;
@@ -256,9 +290,48 @@ else
         }).ToList();
     }
 
+    private void SelectExerciseSection(string section)
+    {
+        _exerciseSection = section;
+        _filterMuscles.Clear();
+        _filterDiff = "";
+        _filterEquip = "";
+    }
+
     private void OpenDetail(Exercise? ex) { if (ex is null) return; _detailEx = ex; _showDetail = true; }
     private void CloseDetail() { _showDetail = false; _detailEx = null; }
     private void ToggleMuscle(string name) { if (!_filterMuscles.Remove(name)) _filterMuscles.Add(name); }
+
+    private int GetExerciseSectionCount(string section) => _allExercises.Count(e => MatchesExerciseSection(e, section));
+
+    private List<MuscleGroup> GetVisibleMuscleGroups() => _allMuscleGroups
+        .Where(mg => _allExercises.Any(e => MatchesExerciseSection(e, _exerciseSection) && e.ExerciseMuscleGroups.Any(em => em.MuscleGroup.Name == mg.Name)))
+        .ToList();
+
+    private List<Equipment> GetVisibleEquipment() => _allEquipment
+        .Where(eq => _allExercises.Any(e => MatchesExerciseSection(e, _exerciseSection) && e.ExerciseEquipment.Any(ee => ee.Equipment.Name == eq.Name)))
+        .ToList();
+
+    private static bool MatchesExerciseSection(Exercise exercise, string section)
+    {
+        var isCardio = exercise.MovementType == MovementType.Cardio;
+        var isMobility = IsWarmupOrMobility(exercise);
+
+        return section switch
+        {
+            "cardio" => isCardio,
+            "mobility" => isMobility,
+            _ => !isCardio && !isMobility
+        };
+    }
+
+    private static bool IsWarmupOrMobility(Exercise exercise)
+    {
+        var text = $"{exercise.Name} {exercise.Description} {exercise.ExerciseType}";
+        return ContainsAny(text, "warmup", "warm-up", "mobility", "stretch", "activation", "recovery", "cooldown", "cool down", "dynamic", "foam roll", "prehab", "mobility drill");
+    }
+
+    private static bool ContainsAny(string value, params string[] terms) => terms.Any(term => value.Contains(term, StringComparison.OrdinalIgnoreCase));
 
     private Exercise? FindExercise(int id) => _allExercises.FirstOrDefault(e => e.Id == id);
 

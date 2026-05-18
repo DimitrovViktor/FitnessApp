@@ -10,6 +10,14 @@
 .search-input::placeholder { color:var(--t3); }
 .search-input:focus { border-color:var(--accent); }
 
+.library-section-grid { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:12px; margin-bottom:18px; }
+.library-section-card { text-align:left; background:var(--s2); border:1px solid var(--border); border-left:3px solid var(--border-strong); border-radius:13px; padding:15px 17px; cursor:pointer; transition:all .15s; font-family:inherit; }
+.library-section-card:hover { background:var(--s3); transform:translateY(-2px); box-shadow:0 8px 24px var(--shadow-card); }
+.library-section-card.active { border-color:var(--accent-border-strong); border-left-color:var(--accent); background:var(--accent-faint); }
+.library-section-title { display:block; font-size:14px; font-weight:800; color:var(--t1); margin-bottom:5px; }
+.library-section-copy { display:block; font-size:12.5px; color:var(--t2); line-height:1.55; margin-bottom:10px; }
+.library-section-count { display:inline-block; font-size:11.5px; font-weight:700; color:var(--accent); background:var(--accent-dim); padding:2px 8px; border-radius:5px; }
+
 .filter-section { margin-bottom:20px; }
 .filter-group { margin-bottom:9px; }
 .filter-label { font-size:11px; font-weight:700; color:var(--t3); text-transform:uppercase; letter-spacing:.07em; display:block; margin-bottom:6px; }
@@ -22,6 +30,8 @@
 .pill-sub-active { background:var(--border-strong); color:var(--t1); font-weight:600; }
 .filter-row { display:flex; gap:18px; align-items:flex-end; flex-wrap:wrap; }
 .filter-count { font-size:13px; color:var(--t3); margin-left:auto; padding-bottom:4px; }
+.empty-state { text-align:center; padding:40px 20px; color:var(--t3); font-size:13.5px; background:var(--s2); border:1px solid var(--border); border-radius:13px; }
+.empty-state p { margin:0; }
 
 .ex-grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(190px,1fr)); gap:13px; }
 .ex-card { background:var(--s2); border:1px solid var(--border); border-radius:12px; overflow:hidden; cursor:pointer; transition:all .15s; }
@@ -92,6 +102,7 @@
 .btn-ghost:hover { border-color:var(--border-hover); color:var(--t1); }
 
 @media (max-width:768px) {
+    .library-section-grid { grid-template-columns:1fr; }
     .ex-grid { grid-template-columns:repeat(auto-fill,minmax(160px,1fr)); }
     .detail-grid { grid-template-columns:1fr; }
     .filter-row { flex-direction:column; }

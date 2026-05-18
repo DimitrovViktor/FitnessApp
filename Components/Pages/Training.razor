@@ -1,11 +1,11 @@
-@page "/workouts"
+@page "/training"
 @inject WorkoutService WorkoutService
 @inject SettingsService SettingsSvc
 @inject CustomAuthStateProvider AuthState
 @inject NavigationManager Navigation
 @using FitnessApp.Models.Enums
 
-<PageTitle>Workouts - Fitness App</PageTitle>
+<PageTitle>Training - Fitness App</PageTitle>
 
 @if (_isLoading)
 {
@@ -13,18 +13,25 @@
 }
 else
 {
-    <div class="workouts-page">
+    <div class="training-page">
         <div class="page-header">
             <div>
-                <h1>Workouts</h1>
-                <p class="page-sub">Build, browse, and manage your training</p>
+                <h1>Training</h1>
+                <p class="page-sub">Build, browse, and manage strength, cardio, and recovery activities</p>
             </div>
-            <button type="button" class="btn-action" @onclick="OpenBuilder">+ New Workout</button>
+            <button type="button" class="btn-action" @onclick="OpenBuilder">+ New Training</button>
         </div>
 
-        <div class="tab-bar">
-            <button type="button" class="tab @(_tab == 0 ? "active" : "")" @onclick="() => _tab = 0">My Workouts</button>
-            <button type="button" class="tab @(_tab == 1 ? "active" : "")" @onclick="() => _tab = 1">Browse Workouts</button>
+        <div class="training-path-grid">
+            @foreach (var category in TrainingCategories)
+            {
+                var categoryKey = category.Key;
+                <button type="button" class="training-path-card @(_trainingCategory == categoryKey ? "active" : "")" @onclick="() => SelectTrainingCategory(categoryKey)">
+                    <span class="training-path-title">@category.Label</span>
+                    <span class="training-path-copy">@category.Description</span>
+                    <span class="training-path-count">@GetTrainingCategorySummary(categoryKey)</span>
+                </button>
+            }
         </div>
 
         @if (!string.IsNullOrEmpty(_msg))
@@ -32,22 +39,58 @@ else
             <div class="@(_msgErr ? "toast-err" : "toast-ok")">@_msg</div>
         }
 
-        @if (_tab == 0)
-        {
-            <h2 class="section-heading">My Workouts</h2>
-            @if (_myWorkouts.Count == 0)
+        <div class="recent-activity-block">
+            <div class="section-line">
+                <h2 class="section-heading">Recent Activity</h2>
+                <span>@GetTrainingCategoryLabel(_trainingCategory)</span>
+            </div>
+            @{ var recentItems = GetRecentActivity(); }
+            @if (recentItems.Count == 0)
             {
-                <div class="empty"><p>No workouts yet. Create one or browse premade workouts.</p></div>
+                <div class="empty compact"><p>No recent activity in this section yet.</p></div>
+            }
+            else
+            {
+                <div class="activity-list">
+                    @foreach (var item in recentItems)
+                    {
+                        <button type="button" class="activity-row" @onclick="() => OpenRecentActivity(item)">
+                            <span class="activity-main">
+                                <span class="activity-name">@item.Name</span>
+                                <span class="activity-meta">@item.Type · @item.Detail</span>
+                            </span>
+                            <span class="activity-date">@item.When.ToLocalTime().ToString("MMM d")</span>
+                        </button>
+                    }
+                </div>
+            }
+        </div>
+
+        <div class="tab-bar training-tabs">
+            <button type="button" class="tab @(_workoutViewTab == 0 ? "active" : "")" @onclick="() => _workoutViewTab = 0">My Activities</button>
+            <button type="button" class="tab @(_workoutViewTab == 1 ? "active" : "")" @onclick="() => _workoutViewTab = 1">My Programs</button>
+            <button type="button" class="tab @(_workoutViewTab == 2 ? "active" : "")" @onclick="() => _workoutViewTab = 2">Browse Activities</button>
+            <button type="button" class="tab @(_workoutViewTab == 3 ? "active" : "")" @onclick="() => _workoutViewTab = 3">Browse Programs</button>
+        </div>
+
+        @if (_workoutViewTab == 0)
+        {
+            var workouts = FilteredMyWorkouts.ToList();
+            <h2 class="section-heading">My @GetTrainingCategoryLabel(_trainingCategory) Activities</h2>
+            @if (workouts.Count == 0)
+            {
+                <div class="empty"><p>No saved activities in this section yet. Use New Training or browse premade activities.</p></div>
             }
             else
             {
                 <div class="card-grid">
-                    @foreach (var w in _myWorkouts)
+                    @foreach (var w in workouts)
                     {
                         <div class="wk-card" @onclick="() => OpenWorkoutPreview(w.Id, true)">
                             <h3>@w.Name</h3>
                             @if (w.Program is not null) { <span class="badge-purple">@w.Program.Name</span> }
                             <div class="wk-meta">
+                                <span>@GetWorkoutTypeLabel(w)</span>
                                 <span>@w.WorkoutExercises.Count exercises</span>
                                 <span>@w.WorkoutExercises.Sum(x => x.Sets) sets</span>
                                 <span>~@WorkoutService.EstimateWorkoutMinutesFromWE(w.WorkoutExercises) min</span>
@@ -62,27 +105,57 @@ else
                     }
                 </div>
             }
-
-            <h2 class="section-heading" style="margin-top:2rem">My Programs</h2>
-            @if (_myPrograms.Count == 0)
+        }
+        else if (_workoutViewTab == 1)
+        {
+            var programs = FilteredMyPrograms.ToList();
+            <h2 class="section-heading">My @GetTrainingCategoryLabel(_trainingCategory) Programs</h2>
+            @if (programs.Count == 0)
             {
-                <div class="empty"><p>No saved programs. Browse and save one to get started.</p></div>
+                <div class="empty"><p>No saved programs in this section yet. Browse programs to save one.</p></div>
             }
             else
             {
                 <div class="card-grid">
-                    @foreach (var p in _myPrograms)
+                    @foreach (var p in programs)
                     {
                         <div class="wk-card" @onclick="() => OpenProgramPreview(p, true)">
                             <h3>@p.Name</h3>
                             <div class="wk-meta">
+                                <span>@GetProgramTypeLabel(p)</span>
                                 <span>@p.DurationWeeks weeks</span>
                                 <span>@p.DaysPerWeek d/wk</span>
                                 <span>@p.Workouts.Count workouts</span>
                             </div>
                             <div class="chip-row">
                                 @if (p.TargetLevel is not null) { <span class="chip-sm">@p.TargetLevel</span> }
-                                @if (p.TargetGoal is not null) { <span class="chip-sm">@p.TargetGoal</span> }
+                                @if (p.TargetGoal is not null) { <span class="chip-sm">@FormatGoal(p.TargetGoal)</span> }
+                            </div>
+                        </div>
+                    }
+                </div>
+            }
+        }
+        else if (_workoutViewTab == 2)
+        {
+            var workouts = FilteredPremadeWorkouts.ToList();
+            <h2 class="section-heading">Browse @GetTrainingCategoryLabel(_trainingCategory) Activities</h2>
+            @if (workouts.Count == 0)
+            {
+                <div class="empty"><p>No premade activities are available for this section yet.</p></div>
+            }
+            else
+            {
+                <div class="card-grid">
+                    @foreach (var w in workouts)
+                    {
+                        <div class="wk-card" @onclick="() => OpenWorkoutPreview(w.Id, false)">
+                            <h3>@w.Name</h3>
+                            @if (w.Program is not null) { <span class="badge-purple">@w.Program.Name</span> }
+                            <div class="wk-meta">
+                                <span>@GetWorkoutTypeLabel(w)</span>
+                                <span>@w.WorkoutExercises.Count exercises</span>
+                                <span>@w.WorkoutExercises.Sum(x => x.Sets) sets</span>
                             </div>
                         </div>
                     }
@@ -91,63 +164,36 @@ else
         }
         else
         {
-            <div class="sub-tab-bar">
-                <button type="button" class="sub-tab @(_browseSubTab == 0 ? "active" : "")" @onclick="() => _browseSubTab = 0">Workouts</button>
-                <button type="button" class="sub-tab @(_browseSubTab == 1 ? "active" : "")" @onclick="() => _browseSubTab = 1">Programs</button>
-            </div>
-
-            @if (_browseSubTab == 0)
+            var programs = FilteredPrebuiltPrograms.ToList();
+            <h2 class="section-heading">Browse @GetTrainingCategoryLabel(_trainingCategory) Programs</h2>
+            @if (programs.Count == 0)
             {
-                @if (_premadeWorkouts.Count == 0)
-                {
-                    <div class="empty"><p>No premade workouts available yet.</p></div>
-                }
-                else
-                {
-                    <div class="card-grid">
-                        @foreach (var w in _premadeWorkouts)
-                        {
-                            <div class="wk-card" @onclick="() => OpenWorkoutPreview(w.Id, false)">
-                                <h3>@w.Name</h3>
-                                @if (w.Program is not null) { <span class="badge-purple">@w.Program.Name</span> }
-                                <div class="wk-meta">
-                                    <span>@w.WorkoutExercises.Count exercises</span>
-                                    <span>@w.WorkoutExercises.Sum(x => x.Sets) sets</span>
-                                </div>
-                            </div>
-                        }
-                    </div>
-                }
+                <div class="empty"><p>No prebuilt programs are available for this section yet.</p></div>
             }
             else
             {
-                @if (_prebuiltPrograms.Count == 0)
-                {
-                    <div class="empty"><p>No programs available yet.</p></div>
-                }
-                else
-                {
-                    <div class="card-grid">
-                        @foreach (var p in _prebuiltPrograms)
-                        {
-                            <div class="wk-card" @onclick="() => OpenProgramPreview(p, false)">
-                                <h3>@p.Name</h3>
-                                <span class="badge-purple">Pre-built</span>
-                                <div class="wk-meta">
-                                    <span>@p.DurationWeeks weeks</span>
-                                    <span>@p.DaysPerWeek d/wk</span>
-                                    <span>@p.Workouts.Count workouts</span>
-                                </div>
-                                <div class="chip-row">
-                                    @if (p.TargetLevel is not null) { <span class="chip-sm">@p.TargetLevel</span> }
-                                    @if (p.TargetGoal is not null) { <span class="chip-sm">@p.TargetGoal</span> }
-                                </div>
+                <div class="card-grid">
+                    @foreach (var p in programs)
+                    {
+                        <div class="wk-card" @onclick="() => OpenProgramPreview(p, false)">
+                            <h3>@p.Name</h3>
+                            <span class="badge-purple">Pre-built</span>
+                            <div class="wk-meta">
+                                <span>@GetProgramTypeLabel(p)</span>
+                                <span>@p.DurationWeeks weeks</span>
+                                <span>@p.DaysPerWeek d/wk</span>
+                                <span>@p.Workouts.Count workouts</span>
                             </div>
-                        }
-                    </div>
-                }
+                            <div class="chip-row">
+                                @if (p.TargetLevel is not null) { <span class="chip-sm">@p.TargetLevel</span> }
+                                @if (p.TargetGoal is not null) { <span class="chip-sm">@FormatGoal(p.TargetGoal)</span> }
+                            </div>
+                        </div>
+                    }
+                </div>
             }
         }
+
     </div>
 }
 
@@ -450,7 +496,7 @@ else
                 }
                 else
                 {
-                    <button type="button" class="btn-action" @onclick="CopyWorkout">Copy to My Workouts</button>
+                    <button type="button" class="btn-action" @onclick="CopyWorkout">Copy to My Activities</button>
                 }
             </div>
         </div>
@@ -536,8 +582,9 @@ else
     private User? _user;
     private string _weightUnit = "kg";
     private string _energyUnit = "kcal";
-    private int _tab;
-    private int _browseSubTab;
+    private string _trainingCategory = "strength";
+    private string _builderCategory = "strength";
+    private int _workoutViewTab;
     private string? _msg;
     private bool _msgErr;
     private bool _saving;
@@ -587,6 +634,18 @@ else
     private bool _sugCollapsed;
     private bool _libCollapsed;
 
+    private static readonly (string Key, string Label, string Description)[] TrainingCategories =
+    {
+        ("strength", "Strength Workout", "Build and manage resistance workouts, strength plans, and muscle-focused sessions."),
+        ("cardio", "Cardio", "Track endurance sessions, cardio workouts, and conditioning programs."),
+        ("recovery", "Recovery Activity", "Organize warmups, mobility work, stretching, and lower-intensity recovery sessions.")
+    };
+
+    private IEnumerable<Workout> FilteredMyWorkouts => _myWorkouts.Where(w => MatchesWorkoutCategory(w, _trainingCategory));
+    private IEnumerable<Workout> FilteredPremadeWorkouts => _premadeWorkouts.Where(w => MatchesWorkoutCategory(w, _trainingCategory));
+    private IEnumerable<Models.Program> FilteredMyPrograms => _myPrograms.Where(p => MatchesProgramCategory(p, _trainingCategory));
+    private IEnumerable<Models.Program> FilteredPrebuiltPrograms => _prebuiltPrograms.Where(p => MatchesProgramCategory(p, _trainingCategory));
+
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
         if (!firstRender) return;
@@ -613,7 +672,29 @@ else
         _prebuiltPrograms = await WorkoutService.GetPrebuiltProgramsAsync();
     }
 
+    private void SelectTrainingCategory(string category)
+    {
+        _trainingCategory = category;
+        _workoutViewTab = 0;
+        _msg = null;
+    }
+
+    private void QuickStartSelected()
+    {
+        OpenBuilderForCategory(_trainingCategory);
+    }
+
     private void OpenBuilder()
+    {
+        OpenBuilderForCategory(_trainingCategory);
+    }
+
+    private void OpenBuilderFor(MovementType? movementType)
+    {
+        OpenBuilderForCategory(movementType == MovementType.Cardio ? "cardio" : "strength");
+    }
+
+    private void OpenBuilderForCategory(string category)
     {
         _editId = null;
         _form = new UserWorkoutFormData();
@@ -622,7 +703,24 @@ else
         _activeExIdx = -1;
         _sugCollapsed = false;
         _libCollapsed = false;
+        _builderCategory = category;
+        _search = "";
+        ClearFilters();
+        if (category == "cardio")
+        {
+            _filterMove = MovementType.Cardio.ToString();
+            _showFilterMove = true;
+        }
+        else
+        {
+            _showFilterMove = false;
+        }
         Recalc();
+    }
+
+    private void ShowPrograms()
+    {
+        _workoutViewTab = 3;
     }
 
     private void CloseBuilder() { _showBuilder = false; _showFilterMuscle = _showFilterEquip = _showFilterMove = false; }
@@ -633,7 +731,10 @@ else
         _estCal = WorkoutService.EstimateWorkoutCalories(_form.Exercises, w);
         _estMin = WorkoutService.EstimateWorkoutMinutes(_form.Exercises);
         _warnings = WorkoutService.GetWorkoutWarnings(_form.Exercises, _user?.FitnessLevel);
-        _suggestions = WorkoutService.GetSuggestions(_form.Exercises, _allExercises);
+        _suggestions = WorkoutService.GetSuggestions(_form.Exercises, _allExercises)
+            .Where(e => MatchesExerciseCategory(e, _builderCategory))
+            .Take(6)
+            .ToList();
     }
 
     private void AddExercise(Exercise ex)
@@ -719,6 +820,7 @@ else
         };
         _showWorkoutPreview = false;
         _showBuilder = true;
+        _builderCategory = GetWorkoutCategoryKey(_previewWorkout);
         _activeExIdx = -1;
         _sugCollapsed = false;
         _libCollapsed = false;
@@ -739,9 +841,9 @@ else
         if (_previewWorkout is null) return;
         await WorkoutService.CopyWorkoutToUserAsync(_previewWorkout.Id, _userId);
         _myWorkouts = await WorkoutService.GetUserWorkoutsAsync(_userId);
-        _msg = "Workout copied to My Workouts."; _msgErr = false;
+        _msg = "Activity copied to My Activities."; _msgErr = false;
         _showWorkoutPreview = false;
-        _tab = 0;
+        _workoutViewTab = 0;
     }
 
     private async Task CopyProgram()
@@ -752,7 +854,7 @@ else
         _myWorkouts = await WorkoutService.GetUserWorkoutsAsync(_userId);
         _msg = "Program saved to My Programs."; _msgErr = false;
         _showProgramPreview = false;
-        _tab = 0;
+        _workoutViewTab = 1;
     }
 
     private void OpenEditProgram()
@@ -791,6 +893,172 @@ else
         _showProgramPreview = false;
     }
 
+    private List<ActivityItem> GetRecentActivity()
+    {
+        var workouts = FilteredMyWorkouts.Select(w => new ActivityItem
+        {
+            Name = w.Name,
+            Type = "Workout",
+            Detail = $"{w.WorkoutExercises.Count} exercises",
+            When = w.CreatedAt,
+            WorkoutId = w.Id,
+            Program = null
+        });
+
+        var programs = FilteredMyPrograms.Select(p => new ActivityItem
+        {
+            Name = p.Name,
+            Type = "Program",
+            Detail = $"{p.DurationWeeks} weeks, {p.DaysPerWeek} d/wk",
+            When = p.CreatedAt,
+            WorkoutId = null,
+            Program = p
+        });
+
+        return workouts.Concat(programs).OrderByDescending(x => x.When).Take(5).ToList();
+    }
+
+    private async Task OpenRecentActivity(ActivityItem item)
+    {
+        if (item.WorkoutId.HasValue)
+        {
+            await OpenWorkoutPreview(item.WorkoutId.Value, true);
+            return;
+        }
+
+        if (item.Program is not null)
+        {
+            OpenProgramPreview(item.Program, true);
+        }
+    }
+
+    private string GetTrainingCategorySummary(string category)
+    {
+        var workoutCount = _myWorkouts.Count(w => MatchesWorkoutCategory(w, category));
+        var programCount = _myPrograms.Count(p => MatchesProgramCategory(p, category));
+        return $"{workoutCount} workouts · {programCount} programs";
+    }
+
+    private static string GetTrainingCategoryLabel(string category) => category switch
+    {
+        "cardio" => "Cardio",
+        "recovery" => "Recovery",
+        _ => "Strength"
+    };
+
+    private static string GetTrainingCategoryHeading(string category) => category switch
+    {
+        "cardio" => "Cardio sessions and programs",
+        "recovery" => "Recovery, warmups, and mobility",
+        _ => "Strength workouts and programs"
+    };
+
+    private static string GetTrainingCategoryDescription(string category) => category switch
+    {
+        "cardio" => "Use this section for cardio workouts, cardio programs, and premade endurance plans.",
+        "recovery" => "Use this section for warmups, mobility work, stretching, and recovery-focused sessions.",
+        _ => "Use this section for your own strength workouts, saved strength programs, and premade lifting sessions."
+    };
+
+    private static string GetWorkoutTypeLabel(Workout workout) => GetTrainingCategoryLabel(GetWorkoutCategoryKey(workout));
+
+    private static string GetWorkoutCategoryKey(Workout workout)
+    {
+        if (MatchesWorkoutCategory(workout, "recovery")) return "recovery";
+        if (MatchesWorkoutCategory(workout, "cardio")) return "cardio";
+        return "strength";
+    }
+
+    private static string GetProgramTypeLabel(Models.Program program)
+    {
+        if (MatchesProgramCategory(program, "recovery")) return "Recovery";
+        if (MatchesProgramCategory(program, "cardio")) return "Cardio";
+        if (MatchesProgramCategory(program, "hybrid")) return "Hybrid";
+        return "Strength";
+    }
+
+    private static bool MatchesWorkoutCategory(Workout workout, string category)
+    {
+        var exercises = workout.WorkoutExercises.Select(x => x.Exercise).Where(e => e is not null).Cast<Exercise>().ToList();
+        if (exercises.Count == 0) return category == "strength";
+
+        var hasCardio = exercises.Any(IsCardioExercise);
+        var hasRecovery = exercises.Any(IsRecoveryExercise);
+        var hasStrength = exercises.Any(e => !IsCardioExercise(e) && !IsRecoveryExercise(e));
+
+        return category switch
+        {
+            "cardio" => hasCardio && !hasStrength,
+            "recovery" => hasRecovery && !hasStrength,
+            _ => hasStrength || !hasCardio && !hasRecovery
+        };
+    }
+
+    private static bool MatchesProgramCategory(Models.Program program, string category)
+    {
+        if (category == "recovery")
+        {
+            var programText = GetProgramSearchText(program);
+            return ContainsAny(programText, "recovery", "mobility", "stretch", "warmup", "warm-up", "prehab") || program.Workouts.Any(w => MatchesWorkoutCategory(w, "recovery"));
+        }
+
+        if (category == "hybrid")
+        {
+            var programText = GetProgramSearchText(program);
+            var hasCardio = ContainsAny(programText, "hybrid", "conditioning", "cardio", "endurance", "running", "cycling", "hiit") || program.Workouts.Any(w => MatchesWorkoutCategory(w, "cardio"));
+            var hasStrength = ContainsAny(programText, "hypertrophy", "strength", "muscle", "power", "lifting") || program.Workouts.Any(w => MatchesWorkoutCategory(w, "strength"));
+            return ContainsAny(programText, "hybrid", "circuit") || hasCardio && hasStrength;
+        }
+
+        if (category == "cardio")
+        {
+            var programText = GetProgramSearchText(program);
+            return (ContainsAny(programText, "cardio", "endurance", "running", "cycling", "rowing", "conditioning", "hiit") || program.Workouts.Any(w => MatchesWorkoutCategory(w, "cardio"))) && !MatchesProgramCategory(program, "hybrid");
+        }
+
+        return !MatchesProgramCategory(program, "cardio") && !MatchesProgramCategory(program, "recovery") || program.Workouts.Any(w => MatchesWorkoutCategory(w, "strength"));
+    }
+
+    private static bool MatchesExerciseCategory(Exercise exercise, string category)
+    {
+        var isCardio = IsCardioExercise(exercise);
+        var isRecovery = IsRecoveryExercise(exercise);
+
+        return category switch
+        {
+            "cardio" => isCardio,
+            "recovery" => isRecovery,
+            _ => !isCardio && !isRecovery
+        };
+    }
+
+    private static bool IsCardioExercise(Exercise exercise) => exercise.MovementType == MovementType.Cardio;
+
+    private static bool IsRecoveryExercise(Exercise exercise)
+    {
+        var text = $"{exercise.Name} {exercise.Description} {exercise.ExerciseType}";
+        return ContainsAny(text, "warmup", "warm-up", "mobility", "stretch", "activation", "recovery", "cooldown", "cool down", "dynamic", "foam roll", "prehab", "mobility drill");
+    }
+
+    private static string GetProgramSearchText(Models.Program program)
+    {
+        var workouts = program.Workouts.Select(w => w.Name);
+        return string.Join(" ", new[] { program.Name, program.Description, program.TargetGoal, program.TargetLevel, program.Tags }.Where(x => !string.IsNullOrWhiteSpace(x)).Concat(workouts));
+    }
+
+    private static bool ContainsAny(string value, params string[] terms) => terms.Any(term => value.Contains(term, StringComparison.OrdinalIgnoreCase));
+
+    private static string FormatGoal(string? goal)
+    {
+        return goal switch
+        {
+            "FatLoss" => "Fat Loss",
+            "GeneralHealth" => "General Health",
+            null or "" => "General",
+            _ => goal
+        };
+    }
+
     private void ToggleFilter(List<string> list, string val) { if (!list.Remove(val)) list.Add(val); }
     private void ClearFilters() { _filterMuscles.Clear(); _filterEquip.Clear(); _filterMove = ""; }
 
@@ -806,7 +1074,10 @@ else
         return _allExercises.Where(e =>
         {
             if (used.Contains(e.Id)) return false;
-            if (!string.IsNullOrWhiteSpace(_search) && !e.Name.Contains(_search, StringComparison.OrdinalIgnoreCase)) return false;
+            if (!MatchesExerciseCategory(e, _builderCategory)) return false;
+            if (!string.IsNullOrWhiteSpace(_search) && !e.Name.Contains(_search, StringComparison.OrdinalIgnoreCase)
+                && !e.Description.Contains(_search, StringComparison.OrdinalIgnoreCase)
+                && !e.ExerciseMuscleGroups.Any(m => m.MuscleGroup.Name.Contains(_search, StringComparison.OrdinalIgnoreCase))) return false;
             if (_filterMuscles.Count > 0 && !_filterMuscles.All(fm => e.ExerciseMuscleGroups.Any(m => m.MuscleGroup.Name == fm))) return false;
             if (_filterEquip.Count > 0 && !e.ExerciseEquipment.Any(eq => _filterEquip.Contains(eq.Equipment.Name))) return false;
             if (!string.IsNullOrEmpty(_filterMove) && e.MovementType.ToString() != _filterMove) return false;
@@ -835,4 +1106,14 @@ else
     }
     private decimal EstSingle(BuilderExerciseEntry e) => e.Exercise is not null ? WorkoutService.EstimateExerciseCalories(e.Exercise, e.Sets, e.Reps, e.RestTimeSec ?? 60, _user?.WeightKg ?? 70m) : 0;
     private decimal EstWorkout(Workout w) => WorkoutService.EstimateWorkoutCalories(w.WorkoutExercises.Select(x => new BuilderExerciseEntry { Exercise = x.Exercise, Sets = x.Sets, Reps = x.Reps, RestTimeSec = x.RestTimeSec }).ToList(), _user?.WeightKg ?? 70m);
+
+    private sealed class ActivityItem
+    {
+        public string Name { get; set; } = "";
+        public string Type { get; set; } = "";
+        public string Detail { get; set; } = "";
+        public DateTime When { get; set; }
+        public int? WorkoutId { get; set; }
+        public Models.Program? Program { get; set; }
+    }
 }

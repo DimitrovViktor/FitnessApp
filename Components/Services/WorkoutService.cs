@@ -107,7 +107,9 @@ public class WorkoutService
             TargetLevel = source.TargetLevel,
             TargetGoal = source.TargetGoal,
             IsPreBuilt = false,
-            CreatedByUserId = userId
+            CreatedByUserId = userId,
+            Notes = source.Notes,
+            Tags = source.Tags
         };
 
         _db.Programs.Add(program);
