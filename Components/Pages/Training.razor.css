@@ -208,3 +208,37 @@
     .sel-fields { flex-wrap:wrap; }
     .ex-detail-grid { grid-template-columns:1fr; }
 }
+
+
+.training-page .activity-list {
+    max-height: 240px;
+    overflow-y: auto;
+    padding-right: 4px;
+    scrollbar-width: thin;
+    scrollbar-color: var(--accent-border) transparent;
+}
+
+.training-page .card-grid,
+.training-page .lib-grid {
+    max-height: 560px;
+    overflow-y: auto;
+    padding-right: 4px;
+    scrollbar-width: thin;
+    scrollbar-color: var(--accent-border) transparent;
+}
+
+.training-page .wk-card,
+.training-page .lib-card,
+.training-page .activity-row {
+    flex-shrink: 0;
+}
+
+@media (max-width: 768px) {
+    .training-page .activity-list,
+    .training-page .card-grid,
+    .training-page .lib-grid {
+        max-height: none;
+        overflow-y: visible;
+        padding-right: 0;
+    }
+}

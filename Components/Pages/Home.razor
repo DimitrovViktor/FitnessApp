@@ -17,14 +17,21 @@ else
 {
     <div class="dashboard">
         <div class="dash-header">
-            <h1>Welcome back, <span class="accent">@_userName</span></h1>
-            <p class="dash-sub">Here's your fitness overview</p>
+            <div>
+                <h1>Welcome back, <span class="accent">@_userName</span></h1>
+                <p class="dash-sub">Your training summary for today</p>
+            </div>
+            <div class="dash-actions">
+                <button type="button" class="btn-ghost btn-sm" @onclick="GoToSchedule">Open Schedule</button>
+                <button type="button" class="btn-glow btn-sm" @onclick="GoToTraining">Training</button>
+            </div>
         </div>
 
         <div class="stats-grid">
-            <div class="stat-card"><span class="stat-label">Workouts</span><span class="stat-val">@_weeklyCount</span><span class="stat-hint">This week</span></div>
+            <div class="stat-card"><span class="stat-label">Completed</span><span class="stat-val">@_weeklyCount</span><span class="stat-hint">This week</span></div>
             <div class="stat-card"><span class="stat-label">Streak</span><span class="stat-val">@_streak</span><span class="stat-hint">Days</span></div>
             <div class="stat-card"><span class="stat-label">Today</span><span class="stat-val">@_todaySchedules.Count</span><span class="stat-hint">Scheduled</span></div>
+            <div class="stat-card"><span class="stat-label">Upcoming</span><span class="stat-val">@_upcomingSchedules.Count</span><span class="stat-hint">Next 7 days</span></div>
         </div>
 
         @if (_dueSchedule is not null && !_dueDismissed)
@@ -37,7 +44,7 @@ else
                 <div class="due-actions">
                     <button type="button" class="btn-glow btn-sm" @onclick="StartDueWorkout">Start Now</button>
                     <button type="button" class="btn-ghost btn-sm" @onclick="() => _showPostpone = true">Postpone</button>
-                    <button type="button" class="btn-danger-sm" @onclick="CancelDueWorkout">Cancel</button>
+                    <button type="button" class="btn-danger-sm" @onclick="CancelDueWorkout">Skip</button>
                 </div>
             </div>
         }
@@ -53,63 +60,24 @@ else
             </div>
         }
 
-        <div class="cal-section">
-            <div class="cal-header">
-                <button type="button" class="cal-nav" @onclick="PrevMonth">‹</button>
-                <h2>@_calDate.ToString("MMMM yyyy")</h2>
-                <button type="button" class="cal-nav" @onclick="NextMonth">›</button>
-            </div>
-
-            <div class="cal-grid">
-                @foreach (var d in new[] { "Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun" })
-                {
-                    <div class="cal-day-name">@d</div>
-                }
-
-                @{ var firstDay = new DateOnly(_calDate.Year, _calDate.Month, 1); }
-                @{ int offset = ((int)firstDay.DayOfWeek + 6) % 7; }
-                @for (int i = 0; i < offset; i++) { <div class="cal-cell empty"></div> }
-
-                @{ int daysInMonth = DateTime.DaysInMonth(_calDate.Year, _calDate.Month); }
-                @for (int d = 1; d <= daysInMonth; d++)
-                {
-                    var date = new DateOnly(_calDate.Year, _calDate.Month, d);
-                    var isToday = date == DateOnly.FromDateTime(DateTime.Now);
-                    var isSelected = date == _selectedDate;
-                    var hasSchedule = _monthSchedules.Any(s => s.ScheduledDate == date);
-                    var hasCompleted = _monthSchedules.Any(s => s.ScheduledDate == date && s.Status == ScheduleStatus.Completed);
-
-                    <div class="cal-cell @(isToday ? "today" : "") @(isSelected ? "selected" : "") @(hasSchedule ? "has-event" : "")" @onclick="() => SelectDate(date)">
-                        <span class="cal-num">@d</span>
-                        @if (hasCompleted) { <span class="cal-dot completed"></span> }
-                        else if (hasSchedule) { <span class="cal-dot scheduled"></span> }
+        <div class="dashboard-grid">
+            <section class="summary-card wide">
+                <div class="summary-head">
+                    <div>
+                        <h2>Today</h2>
+                        <p>@DateOnly.FromDateTime(DateTime.Now).ToString("dddd, d MMM yyyy")</p>
                     </div>
-                }
-            </div>
-        </div>
-
-        <div class="day-section">
-            <div class="day-header">
-                <h2>@FormatSelectedDate()</h2>
-                <button type="button" class="btn-ghost btn-sm" @onclick="() => _showScheduleModal = true">+ Schedule</button>
-            </div>
-
-            @if (_dayLogs.Count > 0)
-            {
-                <div class="day-stats-row">
-                    <span class="day-stat"><strong>@_dayLogs.Count</strong> workout@(_dayLogs.Count != 1 ? "s" : "")</span>
-                    <span class="day-stat"><strong>@_dayLogs.Sum(l => l.ExerciseLogs.Count(el => el.Status != LogStatus.Skipped))</strong> exercises</span>
-                    <span class="day-stat"><strong>@_dayLogs.Sum(l => l.ExerciseLogs.Sum(el => el.SetLogs.Count(s => s.IsCompleted)))</strong> sets</span>
-                    <span class="day-stat day-stat-cal"><strong>@FormatEnergyValue(_dayLogs.Sum(l => l.TotalCaloriesBurned))</strong></span>
+                    <button type="button" class="btn-ghost btn-sm" @onclick="GoToSchedule">Manage</button>
                 </div>
-            }
 
-            @if (_todaySchedules.Any(s => s.Status == ScheduleStatus.Scheduled || s.Status == ScheduleStatus.Postponed || s.Status == ScheduleStatus.InProgress))
-            {
-                <div class="day-block">
-                    <h3 class="block-title">Scheduled</h3>
+                @if (_todaySchedules.Count == 0)
+                {
+                    <div class="empty-sm">Nothing scheduled today. Add a session from Schedule or quick start an activity.</div>
+                }
+                else
+                {
                     <div class="sched-list">
-                        @foreach (var s in _todaySchedules.Where(s => s.Status != ScheduleStatus.Completed && s.Status != ScheduleStatus.Cancelled))
+                        @foreach (var s in _todaySchedules)
                         {
                             var statusClass = s.Status == ScheduleStatus.InProgress ? "st-active" : "";
                             <div class="sched-card @statusClass">
@@ -117,7 +85,7 @@ else
                                     <span class="sched-name">@s.Workout.Name</span>
                                     <span class="sched-time">
                                         @(s.ScheduledTime?.ToString("HH:mm") ?? "Any time")
-                                        · @s.Status
+                                        · @FormatScheduleStatus(s.Status)
                                         · @s.Workout.WorkoutExercises.Count exercises
                                     </span>
                                 </div>
@@ -125,7 +93,6 @@ else
                                     @if (s.Status == ScheduleStatus.Scheduled || s.Status == ScheduleStatus.Postponed)
                                     {
                                         <button type="button" class="btn-glow btn-xs" @onclick="() => QuickStart(s.Id)">Start</button>
-                                        <button type="button" class="btn-danger-xs" @onclick="() => DeleteSchedule(s.Id)" aria-label="Delete schedule"><span class="icon icon-x" aria-hidden="true"></span></button>
                                     }
                                     @if (s.Status == ScheduleStatus.InProgress)
                                     {
@@ -135,132 +102,73 @@ else
                             </div>
                         }
                     </div>
+                }
+            </section>
+
+            <section class="summary-card">
+                <div class="summary-head">
+                    <div>
+                        <h2>Quick Start</h2>
+                        <p>Start without planning</p>
+                    </div>
                 </div>
-            }
 
-            @if (_selectedDate == DateOnly.FromDateTime(DateTime.Now))
-            {
-                <div class="day-block">
-                    <h3 class="block-title">Quick Start</h3>
-                    @if (_userWorkouts.Count == 0)
-                    {
-                        <div class="empty-sm">Create an activity first in the Training section.</div>
-                    }
-                    else
-                    {
-                        <div class="quick-grid">
-                            @foreach (var w in _userWorkouts.Take(6))
-                            {
-                                <button type="button" class="quick-card" @onclick="() => QuickStartWorkout(w.Id)">
-                                    <span class="quick-name">@w.Name</span>
-                                    <span class="quick-meta">@w.WorkoutExercises.Count ex · @w.WorkoutExercises.Sum(x => x.Sets) sets</span>
-                                </button>
-                            }
-                        </div>
-                    }
+                @if (_userWorkouts.Count == 0)
+                {
+                    <div class="empty-sm">Create an activity first in Training.</div>
+                }
+                else
+                {
+                    <div class="quick-grid stacked">
+                        @foreach (var w in _userWorkouts.Take(5))
+                        {
+                            <button type="button" class="quick-card" @onclick="() => QuickStartWorkout(w.Id)">
+                                <span class="quick-name">@w.Name</span>
+                                <span class="quick-meta">@w.WorkoutExercises.Count ex · @w.WorkoutExercises.Sum(x => x.Sets) sets</span>
+                            </button>
+                        }
+                    </div>
+                }
+            </section>
+
+            <section class="summary-card wide">
+                <div class="summary-head">
+                    <div>
+                        <h2>Upcoming</h2>
+                        <p>Next planned sessions</p>
+                    </div>
+                    <button type="button" class="btn-ghost btn-sm" @onclick="GoToSchedule">Plan Week</button>
                 </div>
-            }
 
-            @if (_dayLogs.Count > 0)
-            {
-                <div class="day-block">
-                    <h3 class="block-title">Completed</h3>
-                    @foreach (var wl in _dayLogs)
-                    {
-                        var wlRef = wl;
-                        var isExpanded = _expandedLogId == wl.Id;
-                        <div class="log-card">
-                            <div class="log-header" @onclick="() => _expandedLogId = isExpanded ? -1 : wlRef.Id">
-                                <div class="log-header-left">
-                                    <div class="log-status-bar log-st-@wl.Status.ToString().ToLower()"></div>
-                                    <div>
-                                        <span class="log-name">@(wl.Workout?.Name ?? "Workout")</span>
-                                        <span class="log-meta">
-                                            @wl.StartedAt.ToLocalTime().ToString("HH:mm")–@(wl.CompletedAt?.ToLocalTime().ToString("HH:mm") ?? "?")
-                                            · @FormatDuration(wl.StartedAt, wl.CompletedAt)
-                                        </span>
-                                    </div>
-                                </div>
-                                <div class="log-header-right">
-                                    <span class="log-status-tag log-st-tag-@wl.Status.ToString().ToLower()">@FormatLogStatus(wl.Status)</span>
-                                    <span class="log-cal">@FormatEnergyValue(wl.TotalCaloriesBurned)</span>
-                                    <span class="log-toggle">@(isExpanded ? "−" : "+")</span>
-                                </div>
-                            </div>
+                @if (_upcomingSchedules.Count == 0)
+                {
+                    <div class="empty-sm">No upcoming sessions in the next 7 days.</div>
+                }
+                else
+                {
+                    <div class="upcoming-list">
+                        @foreach (var s in _upcomingSchedules.Take(6))
+                        {
+                            <button type="button" class="upcoming-card" @onclick="GoToSchedule">
+                                <span class="upcoming-date">@FormatUpcomingDate(s.ScheduledDate)</span>
+                                <span class="upcoming-name">@s.Workout.Name</span>
+                                <span class="upcoming-meta">@(s.ScheduledTime?.ToString("HH:mm") ?? "Any time") · @GetWorkoutKind(s.Workout)</span>
+                            </button>
+                        }
+                    </div>
+                }
+            </section>
 
-                            <div class="log-chips">
-                                <span class="log-chip">@wl.ExerciseLogs.Count(el => el.Status != LogStatus.Skipped) exercises</span>
-                                <span class="log-chip">@wl.ExerciseLogs.Sum(el => el.SetLogs.Count(s => s.IsCompleted)) sets</span>
-                                @if (wl.ExerciseLogs.Any(el => el.Status == LogStatus.Modified)) { <span class="log-chip chip-mod">@wl.ExerciseLogs.Count(el => el.Status == LogStatus.Modified) modified</span> }
-                                @if (wl.ExerciseLogs.Any(el => el.Status == LogStatus.Skipped)) { <span class="log-chip chip-skip">@wl.ExerciseLogs.Count(el => el.Status == LogStatus.Skipped) skipped</span> }
-                            </div>
-
-                            @if (isExpanded)
-                            {
-                                <div class="log-exercises">
-                                    @foreach (var el in wl.ExerciseLogs.OrderBy(x => x.SortOrder))
-                                    {
-                                        var elCss = el.Status switch
-                                        {
-                                            LogStatus.Completed => "el-completed",
-                                            LogStatus.Modified => "el-modified",
-                                            LogStatus.Skipped => "el-skipped",
-                                            _ => ""
-                                        };
-
-                                        <div class="el-card @elCss">
-                                            <div class="el-top">
-                                                <div class="el-info">
-                                                    <span class="el-dot"></span>
-                                                    <span class="el-name">@el.Exercise.Name</span>
-                                                </div>
-                                                <div class="el-right">
-                                                    <span class="el-tag">@el.Status</span>
-                                                    <span class="el-cal">@FormatEnergyValue(el.CaloriesBurned)</span>
-                                                </div>
-                                            </div>
-
-                                            @if (el.Status != LogStatus.Skipped && el.SetLogs.Count > 0)
-                                            {
-                                                <div class="el-sets">
-                                                    <div class="set-hdr">
-                                                        <span>Set</span><span>Reps</span><span>Weight</span><span></span>
-                                                    </div>
-                                                    @foreach (var sl in el.SetLogs.OrderBy(s => s.SetNumber))
-                                                    {
-                                                        <div class="set-data @(sl.IsCompleted ? "" : "set-inc")">
-                                                            <span>@sl.SetNumber</span>
-                                                            <span>@(sl.RepsCompleted?.ToString() ?? "—")</span>
-                                                            <span>@FormatWeightValue(sl.WeightKg)</span>
-                                                            <span>@((MarkupString)CompletionIcon(sl.IsCompleted))</span>
-                                                        </div>
-                                                    }
-                                                </div>
-                                            }
-
-                                            @if (el.Exercise.ExerciseMuscleGroups.Count > 0)
-                                            {
-                                                <div class="el-muscles">
-                                                    @foreach (var mg in el.Exercise.ExerciseMuscleGroups.Where(m => m.IsPrimary).Select(m => m.MuscleGroup.Name))
-                                                    {
-                                                        <span class="muscle-chip">@mg</span>
-                                                    }
-                                                </div>
-                                            }
-                                        </div>
-                                    }
-                                </div>
-                            }
-                        </div>
-                    }
+            <section class="summary-card">
+                <div class="summary-head">
+                    <div>
+                        <h2>Readiness</h2>
+                        <p>Today’s notes</p>
+                    </div>
                 </div>
-            }
-
-            <div class="day-block">
-                <h3 class="block-title">Notes</h3>
-                <div class="notes-card">
-                    <textarea class="notes-input" placeholder="How did today's training feel?" @bind="_notesText" rows="2"></textarea>
-                    <div class="notes-ratings">
+                <div class="notes-card compact">
+                    <textarea class="notes-input" placeholder="How does today feel?" @bind="_notesText" rows="2"></textarea>
+                    <div class="notes-ratings compact">
                         <div class="rating-group">
                             <span class="rating-label">Energy</span>
                             <div class="rating-dots">
@@ -288,37 +196,10 @@ else
                         <div class="notes-toast">@_notesMsg</div>
                     }
                 </div>
-            </div>
+            </section>
         </div>
     </div>
 }
-
-<Modal IsOpen="_showScheduleModal" OnClose="() => _showScheduleModal = false" Size="sm">
-    <div class="modal-form">
-        <h2>Schedule Workout</h2>
-        <div class="mf-group">
-            <label>Workout</label>
-            <select class="mf-input" @bind="_schedWorkoutId">
-                @foreach (var w in _userWorkouts)
-                {
-                    <option value="@w.Id">@w.Name</option>
-                }
-            </select>
-        </div>
-        <div class="mf-group">
-            <label>Date</label>
-            <input type="date" class="mf-input" @bind="_schedDate" />
-        </div>
-        <div class="mf-group">
-            <label>Time (optional)</label>
-            <input type="time" class="mf-input" @bind="_schedTime" />
-        </div>
-        <div class="mf-actions">
-            <button type="button" class="btn-ghost" @onclick="() => _showScheduleModal = false">Cancel</button>
-            <button type="button" class="btn-glow" @onclick="ScheduleWorkout">Schedule</button>
-        </div>
-    </div>
-</Modal>
 
 <Modal IsOpen="_showPostpone" OnClose="() => _showPostpone = false" Size="sm">
     <div class="modal-form">
@@ -337,33 +218,19 @@ else
     private string _userName = "";
     private bool _isLoading = true;
     private int _userId;
-    private string _weightUnit = "kg";
-    private string _energyUnit = "kcal";
-
     private int _weeklyCount;
     private int _streak;
-    private DateTime _calDate = DateTime.Now;
-    private DateOnly _selectedDate = DateOnly.FromDateTime(DateTime.Now);
-    private List<WorkoutSchedule> _monthSchedules = new();
     private List<WorkoutSchedule> _todaySchedules = new();
+    private List<WorkoutSchedule> _upcomingSchedules = new();
     private List<Workout> _userWorkouts = new();
     private WorkoutSchedule? _dueSchedule;
     private WorkoutSchedule? _activeSession;
     private bool _dueDismissed;
-
-    private List<WorkoutLog> _dayLogs = new();
-    private int _expandedLogId = -1;
     private string? _notesText;
     private int? _energy;
     private int? _mood;
     private bool _savingNotes;
     private string? _notesMsg;
-
-    private bool _showScheduleModal;
-    private int _schedWorkoutId;
-    private DateTime _schedDate = DateTime.Now;
-    private DateTime? _schedTime;
-
     private bool _showPostpone;
 
     protected override async Task OnAfterRenderAsync(bool firstRender)
@@ -372,9 +239,6 @@ else
         var state = await AuthState.GetAuthenticationStateAsync();
         if (state.User.Identity is not { IsAuthenticated: true }) { try { Navigation.NavigateTo("/login", forceLoad: true); } catch { } return; }
         _userId = int.Parse(state.User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)!.Value);
-        var settings = await SettingsSvc.GetSettingsAsync(_userId);
-        _weightUnit = settings.WeightUnit;
-        _energyUnit = settings.EnergyUnit;
         var user = await ProfileService.GetUserWithProfileAsync(_userId);
         if (user is { OnboardingCompleted: false }) { try { Navigation.NavigateTo("/onboarding"); } catch { } return; }
         _userName = state.User.Identity.Name ?? "User";
@@ -385,66 +249,34 @@ else
 
     private async Task LoadDashboard()
     {
+        var today = DateOnly.FromDateTime(DateTime.Now);
         _weeklyCount = await DashService.GetWeeklyWorkoutCountAsync(_userId);
         _streak = await DashService.GetStreakAsync(_userId);
         _userWorkouts = await DashService.GetUserWorkoutsAsync(_userId);
         _dueSchedule = await DashService.GetDueScheduleAsync(_userId);
         _activeSession = await DashService.GetActiveSessionAsync(_userId);
-        if (_userWorkouts.Count > 0) _schedWorkoutId = _userWorkouts[0].Id;
-        await LoadMonth();
-        await LoadDay();
-    }
-
-    private async Task LoadMonth()
-    {
-        _monthSchedules = await DashService.GetSchedulesForMonthAsync(_userId, _calDate.Year, _calDate.Month);
-    }
-
-    private async Task LoadDay()
-    {
-        _todaySchedules = await DashService.GetSchedulesForDateAsync(_userId, _selectedDate);
-        _dayLogs = await LogService.GetWorkoutLogsForDateAsync(_userId, _selectedDate);
-        var daily = await LogService.GetDailyLogAsync(_userId, _selectedDate);
+        _todaySchedules = await DashService.GetSchedulesForDateAsync(_userId, today);
+        _upcomingSchedules = await DashService.GetSchedulesForRangeAsync(_userId, today.AddDays(1), today.AddDays(7), false);
+        var daily = await LogService.GetDailyLogAsync(_userId, today);
         _notesText = daily?.Notes;
         _energy = daily?.EnergyLevel;
         _mood = daily?.MoodRating;
         _notesMsg = null;
-        _expandedLogId = -1;
-    }
-
-    private async Task PrevMonth() { _calDate = _calDate.AddMonths(-1); await LoadMonth(); }
-    private async Task NextMonth() { _calDate = _calDate.AddMonths(1); await LoadMonth(); }
-
-    private async Task SelectDate(DateOnly date)
-    {
-        _selectedDate = date;
-        await LoadDay();
-    }
-
-    private async Task ScheduleWorkout()
-    {
-        var date = DateOnly.FromDateTime(_schedDate);
-        TimeOnly? time = _schedTime.HasValue ? TimeOnly.FromDateTime(_schedTime.Value) : null;
-        await DashService.ScheduleWorkoutAsync(_userId, _schedWorkoutId, date, time);
-        _showScheduleModal = false;
-        await LoadMonth();
-        await LoadDay();
     }
 
     private async Task QuickStart(int scheduleId)
     {
         await DashService.StartWorkoutAsync(scheduleId, _userId);
         _activeSession = await DashService.GetActiveSessionAsync(_userId);
-        await LoadDay();
+        await LoadDashboard();
         GoToLiveWorkout();
     }
 
     private async Task QuickStartWorkout(int workoutId)
     {
-        var schedule = await DashService.QuickStartWorkoutAsync(_userId, workoutId);
+        await DashService.QuickStartWorkoutAsync(_userId, workoutId);
         _activeSession = await DashService.GetActiveSessionAsync(_userId);
-        await LoadMonth();
-        await LoadDay();
+        await LoadDashboard();
         GoToLiveWorkout();
     }
 
@@ -454,7 +286,7 @@ else
         await DashService.StartWorkoutAsync(_dueSchedule.Id, _userId);
         _activeSession = await DashService.GetActiveSessionAsync(_userId);
         _dueDismissed = true;
-        await LoadDay();
+        await LoadDashboard();
         GoToLiveWorkout();
     }
 
@@ -463,7 +295,7 @@ else
         if (_dueSchedule is null) return;
         await DashService.CancelScheduleAsync(_dueSchedule.Id, _userId);
         _dueDismissed = true;
-        await LoadDay();
+        await LoadDashboard();
     }
 
     private async Task PostponeDue(int minutes)
@@ -472,58 +304,57 @@ else
         await DashService.PostponeWorkoutAsync(_dueSchedule.Id, _userId, minutes);
         _showPostpone = false;
         _dueDismissed = true;
-        await LoadDay();
-    }
-
-    private async Task DeleteSchedule(int id)
-    {
-        await DashService.DeleteScheduleAsync(id, _userId);
-        await LoadMonth();
-        await LoadDay();
+        await LoadDashboard();
     }
 
     private async Task SaveNotes()
     {
         _savingNotes = true;
-        await LogService.SaveDailyLogAsync(_userId, _selectedDate, _notesText, _energy, _mood);
+        await LogService.SaveDailyLogAsync(_userId, DateOnly.FromDateTime(DateTime.Now), _notesText, _energy, _mood);
         _notesMsg = "Notes saved.";
         _savingNotes = false;
     }
 
+    private static string FormatScheduleStatus(ScheduleStatus status) => status switch
+    {
+        ScheduleStatus.InProgress => "In progress",
+        ScheduleStatus.Postponed => "Postponed",
+        ScheduleStatus.Completed => "Completed",
+        ScheduleStatus.Cancelled => "Skipped",
+        _ => "Scheduled"
+    };
 
-    private string FormatWeightValue(decimal? weightKg) => SettingsService.FormatWeight(weightKg, _weightUnit);
-
-    private string FormatEnergyValue(decimal calories) => SettingsService.FormatEnergy(calories, _energyUnit);
-
-    private static string CompletionIcon(bool completed) => completed
-        ? "<span class=\"icon icon-check\" aria-label=\"Completed\"></span>"
-        : "<span class=\"icon icon-x\" aria-label=\"Incomplete\"></span>";
-
-    private string FormatSelectedDate()
+    private static string FormatUpcomingDate(DateOnly date)
     {
         var today = DateOnly.FromDateTime(DateTime.Now);
-        if (_selectedDate == today) return $"Today — {_selectedDate:dddd, d MMM}";
-        if (_selectedDate == today.AddDays(-1)) return $"Yesterday — {_selectedDate:dddd, d MMM}";
-        return _selectedDate.ToString("dddd, d MMM yyyy");
+        if (date == today.AddDays(1)) return "Tomorrow";
+        return date.ToString("ddd, d MMM");
     }
 
-    private static string FormatDuration(DateTime start, DateTime? end)
+    private static string GetWorkoutKind(Workout workout)
     {
-        if (end is null) return "—";
-        var elapsed = end.Value - start;
-        return elapsed.TotalHours >= 1 ? $"{(int)elapsed.TotalHours}h {elapsed.Minutes}m" : $"{(int)elapsed.TotalMinutes}m";
+        var tags = workout.Program?.Tags ?? "";
+        if (tags.Contains("cardio", StringComparison.OrdinalIgnoreCase)) return "Cardio";
+        if (tags.Contains("hybrid", StringComparison.OrdinalIgnoreCase)) return "Hybrid";
+        var hasCardio = workout.WorkoutExercises.Any(x => x.Exercise?.MovementType == MovementType.Cardio);
+        var hasStrength = workout.WorkoutExercises.Any(x => x.Exercise is not null && x.Exercise.MovementType != MovementType.Cardio);
+        if (hasCardio && hasStrength) return "Hybrid";
+        if (hasCardio) return "Cardio";
+        return "Strength";
     }
-
-    private static string FormatLogStatus(WorkoutLogStatus status) => status switch
-    {
-        WorkoutLogStatus.Complete => "Complete",
-        WorkoutLogStatus.Modified => "Modified",
-        WorkoutLogStatus.Partial => "Partial",
-        _ => ""
-    };
 
     private void GoToLiveWorkout()
     {
         try { Navigation.NavigateTo("/live-workout"); } catch { }
+    }
+
+    private void GoToSchedule()
+    {
+        try { Navigation.NavigateTo("/schedule"); } catch { }
+    }
+
+    private void GoToTraining()
+    {
+        try { Navigation.NavigateTo("/training"); } catch { }
     }
 }

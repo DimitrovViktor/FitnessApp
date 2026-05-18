@@ -108,3 +108,31 @@
     .filter-row { flex-direction:column; }
     .filter-count { margin-left:0; }
 }
+
+
+.exercises-page .ex-grid {
+    max-height: 600px;
+    overflow-y: auto;
+    padding-right: 4px;
+    scrollbar-width: thin;
+    scrollbar-color: var(--accent-border) transparent;
+}
+
+.exercises-page .muscle-list,
+.exercises-page .alt-list {
+    max-height: 240px;
+    overflow-y: auto;
+    padding-right: 4px;
+    scrollbar-width: thin;
+    scrollbar-color: var(--accent-border) transparent;
+}
+
+@media (max-width: 768px) {
+    .exercises-page .ex-grid,
+    .exercises-page .muscle-list,
+    .exercises-page .alt-list {
+        max-height: none;
+        overflow-y: visible;
+        padding-right: 0;
+    }
+}

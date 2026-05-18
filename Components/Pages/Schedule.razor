@@ -1,0 +1,1009 @@
+@page "/schedule"
+@inject CustomAuthStateProvider AuthState
+@inject ProfileService ProfileService
+@inject DashboardService DashService
+@inject WorkoutService WorkoutSvc
+@inject LoggingService LogService
+@inject SettingsService SettingsSvc
+@inject NavigationManager Navigation
+@using FitnessApp.Models.Enums
+@using Microsoft.AspNetCore.Components
+
+<PageTitle>Schedule - Fitness App</PageTitle>
+
+@if (_isLoading)
+{
+    <div class="loading-state"><p>Loading...</p></div>
+}
+else
+{
+    <div class="schedule-page">
+        <div class="schedule-header">
+            <div>
+                <h1>Schedule</h1>
+                <p>Plan strength, cardio, hybrid and recovery activities in one place.</p>
+            </div>
+            <button type="button" class="btn-glow btn-sm" @onclick="() => OpenScheduleModal(_selectedDate)">Schedule Activity</button>
+        </div>
+
+        <div class="schedule-tabs">
+            @foreach (var tab in _tabs)
+            {
+                <button type="button" class="schedule-tab @(_activeView == tab.Key ? "active" : "")" @onclick="() => SetView(tab.Key)">
+                    <span class="tab-title">@tab.Label</span>
+                    <span class="tab-meta">@tab.Description</span>
+                </button>
+            }
+        </div>
+
+        @if (_activeSession is not null)
+        {
+            <div class="active-banner">
+                <div class="due-info">
+                    <span class="due-title"><strong>@_activeSession.Workout.Name</strong> in progress</span>
+                    <span class="due-time">Started @_activeSession.StartedAt?.ToLocalTime().ToString("HH:mm")</span>
+                </div>
+                <button type="button" class="btn-glow btn-sm" @onclick="GoToLiveWorkout">Continue</button>
+            </div>
+        }
+
+        @if (_activeView == "today")
+        {
+            <div class="schedule-layout two-col">
+                <section class="day-section">
+                    <div class="day-header">
+                        <div>
+                            <h2>@FormatSelectedDate()</h2>
+                            <p>@_selectedDateSchedules.Count scheduled · @_dayLogs.Count completed</p>
+                        </div>
+                        <div class="day-actions">
+                            <button type="button" class="btn-ghost btn-sm" @onclick="PrevDay">Previous</button>
+                            <button type="button" class="btn-ghost btn-sm" @onclick="GoToday">Today</button>
+                            <button type="button" class="btn-ghost btn-sm" @onclick="NextDay">Next</button>
+                        </div>
+                    </div>
+                    @RenderSelectedDay()
+                </section>
+
+                <section class="side-panel">
+                    <div class="panel-block">
+                        <h2>Quick Start</h2>
+                        @RenderQuickStart()
+                    </div>
+                    <div class="panel-block">
+                        <h2>Today’s Notes</h2>
+                        @RenderNotes()
+                    </div>
+                </section>
+            </div>
+        }
+        else if (_activeView == "week")
+        {
+            <section class="schedule-card">
+                <div class="view-header">
+                    <button type="button" class="cal-nav" @onclick="PrevWeek">‹</button>
+                    <div>
+                        <h2>@_weekStart.ToString("d MMM") - @_weekStart.AddDays(6).ToString("d MMM yyyy")</h2>
+                        <p>@_weekSchedules.Count planned activities</p>
+                    </div>
+                    <button type="button" class="cal-nav" @onclick="NextWeek">›</button>
+                </div>
+                <div class="week-grid">
+                    @foreach (var day in WeekDays())
+                    {
+                        var schedules = _weekSchedules.Where(s => s.ScheduledDate == day).OrderBy(s => s.ScheduledTime).ToList();
+                        <div class="week-day @(day == DateOnly.FromDateTime(DateTime.Now) ? "today" : "") @(day == _selectedDate ? "selected" : "")">
+                            <button type="button" class="week-day-head" @onclick="() => SelectWeekDay(day)">
+                                <span>@day.ToString("ddd")</span>
+                                <strong>@day.Day</strong>
+                            </button>
+                            <div class="week-day-body">
+                                @if (schedules.Count == 0)
+                                {
+                                    <button type="button" class="add-mini" @onclick="() => OpenScheduleModal(day)">Add</button>
+                                }
+                                else
+                                {
+                                    @foreach (var s in schedules)
+                                    {
+                                        <div class="week-item @GetWorkoutKindClass(s.Workout)">
+                                            <span>@(s.ScheduledTime?.ToString("HH:mm") ?? "Any")</span>
+                                            <strong>@s.Workout.Name</strong>
+                                            <em>@FormatScheduleStatus(s.Status)</em>
+                                        </div>
+                                    }
+                                    <button type="button" class="add-mini" @onclick="() => OpenScheduleModal(day)">Add</button>
+                                }
+                            </div>
+                        </div>
+                    }
+                </div>
+            </section>
+        }
+        else if (_activeView == "month")
+        {
+            <div class="schedule-layout two-col">
+                <section class="cal-section large">
+                    <div class="cal-header">
+                        <button type="button" class="cal-nav" @onclick="PrevMonth">‹</button>
+                        <h2>@_calDate.ToString("MMMM yyyy")</h2>
+                        <button type="button" class="cal-nav" @onclick="NextMonth">›</button>
+                    </div>
+
+                    <div class="cal-grid">
+                        @foreach (var d in new[] { "Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun" })
+                        {
+                            <div class="cal-day-name">@d</div>
+                        }
+
+                        @{ var firstDay = new DateOnly(_calDate.Year, _calDate.Month, 1); }
+                        @{ int offset = ((int)firstDay.DayOfWeek + 6) % 7; }
+                        @for (int i = 0; i < offset; i++) { <div class="cal-cell empty"></div> }
+
+                        @{ int daysInMonth = DateTime.DaysInMonth(_calDate.Year, _calDate.Month); }
+                        @for (int d = 1; d <= daysInMonth; d++)
+                        {
+                            var date = new DateOnly(_calDate.Year, _calDate.Month, d);
+                            var isToday = date == DateOnly.FromDateTime(DateTime.Now);
+                            var isSelected = date == _selectedDate;
+                            var hasSchedule = _monthSchedules.Any(s => s.ScheduledDate == date);
+                            var hasCompleted = _monthSchedules.Any(s => s.ScheduledDate == date && s.Status == ScheduleStatus.Completed);
+
+                            <div class="cal-cell @(isToday ? "today" : "") @(isSelected ? "selected" : "") @(hasSchedule ? "has-event" : "")" @onclick="() => SelectDate(date)">
+                                <span class="cal-num">@d</span>
+                                @if (hasCompleted) { <span class="cal-dot completed"></span> }
+                                else if (hasSchedule) { <span class="cal-dot scheduled"></span> }
+                            </div>
+                        }
+                    </div>
+                </section>
+
+                <section class="day-section compact-day">
+                    <div class="day-header">
+                        <div>
+                            <h2>@FormatSelectedDate()</h2>
+                            <p>@_selectedDateSchedules.Count scheduled</p>
+                        </div>
+                        <button type="button" class="btn-ghost btn-sm" @onclick="() => OpenScheduleModal(_selectedDate)">Add</button>
+                    </div>
+                    @RenderScheduleList(_selectedDateSchedules)
+                </section>
+            </div>
+        }
+        else
+        {
+            <section class="schedule-card">
+                <div class="program-plan-grid">
+                    <div class="program-plan-form">
+                        <h2>Assign Program</h2>
+                        <p>Choose a program, select the weekdays you train, then the app schedules the program workouts in order.</p>
+
+                        <div class="mf-group">
+                            <label>Program</label>
+                            <select class="mf-input" @bind="_planProgramId">
+                                @foreach (var p in _programs)
+                                {
+                                    <option value="@p.Id">@p.Name (@GetProgramType(p))</option>
+                                }
+                            </select>
+                        </div>
+
+                        <div class="plan-row">
+                            <div class="mf-group">
+                                <label>Start Date</label>
+                                <input type="date" class="mf-input" @bind="_planStartDate" />
+                            </div>
+                            <div class="mf-group">
+                                <label>Time</label>
+                                <input type="time" class="mf-input" @bind="_planTime" />
+                            </div>
+                        </div>
+
+                        <div class="mf-group">
+                            <label>Training Days</label>
+                            <div class="day-picker">
+                                @foreach (var day in _dayOptions)
+                                {
+                                    <button type="button" class="day-pill @(_planDays.Contains(day.Value) ? "active" : "")" @onclick="() => TogglePlanDay(day.Value)">@day.Label</button>
+                                }
+                            </div>
+                        </div>
+
+                        @if (!string.IsNullOrWhiteSpace(_planMessage))
+                        {
+                            <div class="plan-message @(_planError ? "error" : "")">@_planMessage</div>
+                        }
+
+                        <button type="button" class="btn-glow" @onclick="ScheduleSelectedProgram" disabled="@(!CanScheduleProgram())">Assign Program</button>
+                    </div>
+
+                    <div class="program-plan-preview">
+                        <h2>Selected Program</h2>
+                        @if (SelectedProgram is null)
+                        {
+                            <div class="empty-sm">No programs are available yet.</div>
+                        }
+                        else
+                        {
+                            <div class="program-summary-card">
+                                <span class="program-kind">@GetProgramType(SelectedProgram)</span>
+                                <h3>@SelectedProgram.Name</h3>
+                                <p>@(SelectedProgram.Description ?? "No description available.")</p>
+                                <div class="program-summary-meta">
+                                    <span>@SelectedProgram.DurationWeeks weeks</span>
+                                    <span>@SelectedProgram.DaysPerWeek days/week</span>
+                                    <span>@(SelectedProgram.TargetLevel ?? "Any level")</span>
+                                    <span>@(SelectedProgram.TargetGoal ?? "General")</span>
+                                </div>
+                            </div>
+
+                            @if (SelectedProgram.Workouts.Count == 0)
+                            {
+                                <div class="empty-sm">This program has no workouts yet. Add workouts in Admin or create a custom program before assigning it.</div>
+                            }
+                            else
+                            {
+                                <div class="plan-workout-list">
+                                    @foreach (var w in SelectedProgram.Workouts.OrderBy(w => w.SortOrder))
+                                    {
+                                        <div class="plan-workout-item">
+                                            <span>@w.SortOrder</span>
+                                            <div>
+                                                <strong>@w.Name</strong>
+                                                <em>@GetWorkoutKind(w) · @w.WorkoutExercises.Count exercises</em>
+                                            </div>
+                                        </div>
+                                    }
+                                </div>
+                            }
+                        }
+                    </div>
+                </div>
+            </section>
+        }
+    </div>
+}
+
+<Modal IsOpen="_showScheduleModal" OnClose="() => _showScheduleModal = false" Size="sm">
+    <div class="modal-form">
+        <h2>Schedule Activity</h2>
+        @if (_schedulableWorkouts.Count == 0)
+        {
+            <p class="mf-desc">Create or copy an activity before scheduling.</p>
+            <div class="mf-actions">
+                <button type="button" class="btn-glow" @onclick="GoToTraining">Open Training</button>
+            </div>
+        }
+        else
+        {
+            <div class="mf-group">
+                <label>Activity</label>
+                <select class="mf-input" @bind="_schedWorkoutId">
+                    @foreach (var w in _schedulableWorkouts)
+                    {
+                        <option value="@w.Id">@w.Name (@GetWorkoutKind(w))</option>
+                    }
+                </select>
+            </div>
+            <div class="mf-group">
+                <label>Date</label>
+                <input type="date" class="mf-input" @bind="_schedDate" />
+            </div>
+            <div class="mf-group">
+                <label>Time (optional)</label>
+                <input type="time" class="mf-input" @bind="_schedTime" />
+            </div>
+            <div class="mf-actions">
+                <button type="button" class="btn-ghost" @onclick="() => _showScheduleModal = false">Cancel</button>
+                <button type="button" class="btn-glow" @onclick="ScheduleWorkout">Schedule</button>
+            </div>
+        }
+    </div>
+</Modal>
+
+@code {
+    private string _userName = "";
+    private bool _isLoading = true;
+    private int _userId;
+    private string _weightUnit = "kg";
+    private string _energyUnit = "kcal";
+    private string _activeView = "today";
+    private DateTime _calDate = DateTime.Now;
+    private DateOnly _selectedDate = DateOnly.FromDateTime(DateTime.Now);
+    private DateOnly _weekStart = StartOfWeek(DateOnly.FromDateTime(DateTime.Now));
+    private List<WorkoutSchedule> _monthSchedules = new();
+    private List<WorkoutSchedule> _weekSchedules = new();
+    private List<WorkoutSchedule> _selectedDateSchedules = new();
+    private List<Workout> _userWorkouts = new();
+    private List<Workout> _premadeWorkouts = new();
+    private List<Workout> _schedulableWorkouts = new();
+    private List<WorkoutLog> _dayLogs = new();
+    private List<FitnessApp.Models.Program> _programs = new();
+    private WorkoutSchedule? _activeSession;
+    private int _expandedLogId = -1;
+    private string? _notesText;
+    private int? _energy;
+    private int? _mood;
+    private bool _savingNotes;
+    private string? _notesMsg;
+    private bool _showScheduleModal;
+    private int _schedWorkoutId;
+    private DateTime _schedDate = DateTime.Now;
+    private DateTime? _schedTime;
+    private int _planProgramId;
+    private DateTime _planStartDate = DateTime.Now;
+    private DateTime? _planTime = DateTime.Today.AddHours(18);
+    private HashSet<int> _planDays = new() { 1, 3, 5 };
+    private string? _planMessage;
+    private bool _planError;
+
+    private readonly List<ScheduleTab> _tabs = new()
+    {
+        new("today", "Today", "Start or adjust now"),
+        new("week", "Week", "Plan the next seven days"),
+        new("month", "Month", "See the wider layout"),
+        new("program", "Program Plan", "Assign a full program")
+    };
+
+    private readonly List<DayOption> _dayOptions = new()
+    {
+        new(1, "Mon"),
+        new(2, "Tue"),
+        new(3, "Wed"),
+        new(4, "Thu"),
+        new(5, "Fri"),
+        new(6, "Sat"),
+        new(0, "Sun")
+    };
+
+    private FitnessApp.Models.Program? SelectedProgram => _programs.FirstOrDefault(p => p.Id == _planProgramId);
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!firstRender) return;
+        var state = await AuthState.GetAuthenticationStateAsync();
+        if (state.User.Identity is not { IsAuthenticated: true }) { try { Navigation.NavigateTo("/login", forceLoad: true); } catch { } return; }
+        _userId = int.Parse(state.User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)!.Value);
+        var settings = await SettingsSvc.GetSettingsAsync(_userId);
+        _weightUnit = settings.WeightUnit;
+        _energyUnit = settings.EnergyUnit;
+        var user = await ProfileService.GetUserWithProfileAsync(_userId);
+        if (user is { OnboardingCompleted: false }) { try { Navigation.NavigateTo("/onboarding"); } catch { } return; }
+        _userName = state.User.Identity.Name ?? "User";
+        await LoadSchedule();
+        _isLoading = false;
+        StateHasChanged();
+    }
+
+    private async Task LoadSchedule()
+    {
+        _activeSession = await DashService.GetActiveSessionAsync(_userId);
+        _userWorkouts = await DashService.GetUserWorkoutsAsync(_userId);
+        _premadeWorkouts = await WorkoutSvc.GetPremadeWorkoutsAsync();
+        _schedulableWorkouts = _userWorkouts.Concat(_premadeWorkouts).GroupBy(w => w.Id).Select(g => g.First()).OrderBy(w => GetWorkoutKind(w)).ThenBy(w => w.Name).ToList();
+        if (_schedulableWorkouts.Count > 0 && _schedWorkoutId == 0) _schedWorkoutId = _schedulableWorkouts[0].Id;
+        var userPrograms = await WorkoutSvc.GetUserProgramsAsync(_userId);
+        var prebuiltPrograms = await WorkoutSvc.GetPrebuiltProgramsAsync();
+        _programs = userPrograms.Concat(prebuiltPrograms).GroupBy(p => p.Id).Select(g => g.First()).OrderBy(p => GetProgramType(p)).ThenBy(p => p.Name).ToList();
+        if (_programs.Count > 0 && _planProgramId == 0) _planProgramId = _programs[0].Id;
+        await LoadMonth();
+        await LoadWeek();
+        await LoadSelectedDate();
+    }
+
+    private async Task LoadMonth()
+    {
+        _monthSchedules = await DashService.GetSchedulesForMonthAsync(_userId, _calDate.Year, _calDate.Month);
+    }
+
+    private async Task LoadWeek()
+    {
+        _weekSchedules = await DashService.GetSchedulesForRangeAsync(_userId, _weekStart, _weekStart.AddDays(6), true);
+    }
+
+    private async Task LoadSelectedDate()
+    {
+        _selectedDateSchedules = await DashService.GetSchedulesForDateAsync(_userId, _selectedDate);
+        _dayLogs = await LogService.GetWorkoutLogsForDateAsync(_userId, _selectedDate);
+        var daily = await LogService.GetDailyLogAsync(_userId, _selectedDate);
+        _notesText = daily?.Notes;
+        _energy = daily?.EnergyLevel;
+        _mood = daily?.MoodRating;
+        _notesMsg = null;
+        _expandedLogId = -1;
+    }
+
+    private async Task SetView(string view)
+    {
+        _activeView = view;
+        if (view == "week") await LoadWeek();
+        if (view == "month") await LoadMonth();
+    }
+
+    private async Task PrevDay()
+    {
+        _selectedDate = _selectedDate.AddDays(-1);
+        _calDate = new DateTime(_selectedDate.Year, _selectedDate.Month, 1);
+        _weekStart = StartOfWeek(_selectedDate);
+        await LoadSelectedDate();
+        await LoadMonth();
+        await LoadWeek();
+    }
+
+    private async Task NextDay()
+    {
+        _selectedDate = _selectedDate.AddDays(1);
+        _calDate = new DateTime(_selectedDate.Year, _selectedDate.Month, 1);
+        _weekStart = StartOfWeek(_selectedDate);
+        await LoadSelectedDate();
+        await LoadMonth();
+        await LoadWeek();
+    }
+
+    private async Task GoToday()
+    {
+        _selectedDate = DateOnly.FromDateTime(DateTime.Now);
+        _calDate = DateTime.Now;
+        _weekStart = StartOfWeek(_selectedDate);
+        await LoadSelectedDate();
+        await LoadMonth();
+        await LoadWeek();
+    }
+
+    private async Task PrevWeek()
+    {
+        _weekStart = _weekStart.AddDays(-7);
+        await LoadWeek();
+    }
+
+    private async Task NextWeek()
+    {
+        _weekStart = _weekStart.AddDays(7);
+        await LoadWeek();
+    }
+
+    private async Task PrevMonth()
+    {
+        _calDate = _calDate.AddMonths(-1);
+        await LoadMonth();
+    }
+
+    private async Task NextMonth()
+    {
+        _calDate = _calDate.AddMonths(1);
+        await LoadMonth();
+    }
+
+    private async Task SelectDate(DateOnly date)
+    {
+        _selectedDate = date;
+        _weekStart = StartOfWeek(date);
+        await LoadSelectedDate();
+    }
+
+    private async Task SelectWeekDay(DateOnly date)
+    {
+        _selectedDate = date;
+        _activeView = "today";
+        _calDate = new DateTime(date.Year, date.Month, 1);
+        await LoadSelectedDate();
+        await LoadMonth();
+    }
+
+    private void OpenScheduleModal(DateOnly date)
+    {
+        _schedDate = date.ToDateTime(TimeOnly.MinValue);
+        _showScheduleModal = true;
+    }
+
+    private async Task ScheduleWorkout()
+    {
+        var date = DateOnly.FromDateTime(_schedDate);
+        TimeOnly? time = _schedTime.HasValue ? TimeOnly.FromDateTime(_schedTime.Value) : null;
+        await DashService.ScheduleWorkoutIfMissingAsync(_userId, _schedWorkoutId, date, time);
+        _showScheduleModal = false;
+        _selectedDate = date;
+        _weekStart = StartOfWeek(date);
+        _calDate = new DateTime(date.Year, date.Month, 1);
+        await LoadMonth();
+        await LoadWeek();
+        await LoadSelectedDate();
+    }
+
+    private async Task QuickStart(int scheduleId)
+    {
+        await DashService.StartWorkoutAsync(scheduleId, _userId);
+        _activeSession = await DashService.GetActiveSessionAsync(_userId);
+        await LoadMonth();
+        await LoadWeek();
+        await LoadSelectedDate();
+        GoToLiveWorkout();
+    }
+
+    private async Task QuickStartWorkout(int workoutId)
+    {
+        await DashService.QuickStartWorkoutAsync(_userId, workoutId);
+        _activeSession = await DashService.GetActiveSessionAsync(_userId);
+        await LoadMonth();
+        await LoadWeek();
+        await LoadSelectedDate();
+        GoToLiveWorkout();
+    }
+
+    private async Task CancelSchedule(int id)
+    {
+        await DashService.CancelScheduleAsync(id, _userId);
+        await LoadMonth();
+        await LoadWeek();
+        await LoadSelectedDate();
+    }
+
+    private async Task DeleteSchedule(int id)
+    {
+        await DashService.DeleteScheduleAsync(id, _userId);
+        await LoadMonth();
+        await LoadWeek();
+        await LoadSelectedDate();
+    }
+
+    private async Task SaveNotes()
+    {
+        _savingNotes = true;
+        await LogService.SaveDailyLogAsync(_userId, _selectedDate, _notesText, _energy, _mood);
+        _notesMsg = "Notes saved.";
+        _savingNotes = false;
+    }
+
+    private bool CanScheduleProgram()
+    {
+        return SelectedProgram is not null && SelectedProgram.Workouts.Count > 0 && _planDays.Count > 0;
+    }
+
+    private async Task ScheduleSelectedProgram()
+    {
+        _planMessage = null;
+        _planError = false;
+        var program = SelectedProgram;
+        if (program is null)
+        {
+            _planError = true;
+            _planMessage = "Select a program first.";
+            return;
+        }
+
+        var workouts = program.Workouts.OrderBy(w => w.SortOrder).ToList();
+        if (workouts.Count == 0)
+        {
+            _planError = true;
+            _planMessage = "This program has no workouts to schedule.";
+            return;
+        }
+
+        if (_planDays.Count == 0)
+        {
+            _planError = true;
+            _planMessage = "Select at least one training day.";
+            return;
+        }
+
+        var start = DateOnly.FromDateTime(_planStartDate);
+        var end = start.AddDays(program.DurationWeeks * 7 - 1);
+        var date = start;
+        var scheduled = 0;
+        var workoutIndex = 0;
+        TimeOnly? time = _planTime.HasValue ? TimeOnly.FromDateTime(_planTime.Value) : null;
+
+        while (date <= end)
+        {
+            if (_planDays.Contains((int)date.DayOfWeek))
+            {
+                var workout = workouts[workoutIndex % workouts.Count];
+                await DashService.ScheduleWorkoutIfMissingAsync(_userId, workout.Id, date, time);
+                scheduled++;
+                workoutIndex++;
+            }
+            date = date.AddDays(1);
+        }
+
+        _planMessage = $"Scheduled {scheduled} activities from {program.Name}.";
+        _selectedDate = start;
+        _weekStart = StartOfWeek(start);
+        _calDate = new DateTime(start.Year, start.Month, 1);
+        await LoadMonth();
+        await LoadWeek();
+        await LoadSelectedDate();
+    }
+
+    private void TogglePlanDay(int day)
+    {
+        if (!_planDays.Add(day)) _planDays.Remove(day);
+    }
+
+    private IEnumerable<DateOnly> WeekDays()
+    {
+        for (var i = 0; i < 7; i++) yield return _weekStart.AddDays(i);
+    }
+
+    private RenderFragment RenderSelectedDay() => builder =>
+    {
+        var seq = 0;
+        builder.OpenElement(seq++, "div");
+        builder.AddAttribute(seq++, "class", "selected-day-content");
+        builder.AddContent(seq++, RenderScheduleSection());
+        builder.AddContent(seq++, RenderCompletedSection());
+        builder.CloseElement();
+    };
+
+    private RenderFragment RenderScheduleSection() => builder =>
+    {
+        var seq = 0;
+        builder.OpenElement(seq++, "div");
+        builder.AddAttribute(seq++, "class", "day-block");
+        builder.OpenElement(seq++, "h3");
+        builder.AddAttribute(seq++, "class", "block-title");
+        builder.AddContent(seq++, "Scheduled");
+        builder.CloseElement();
+        builder.AddContent(seq++, RenderScheduleList(_selectedDateSchedules));
+        builder.CloseElement();
+    };
+
+    private RenderFragment RenderCompletedSection() => builder =>
+    {
+        var seq = 0;
+        builder.OpenElement(seq++, "div");
+        builder.AddAttribute(seq++, "class", "day-block");
+        builder.OpenElement(seq++, "h3");
+        builder.AddAttribute(seq++, "class", "block-title");
+        builder.AddContent(seq++, "Completed");
+        builder.CloseElement();
+
+        if (_dayLogs.Count == 0)
+        {
+            builder.OpenElement(seq++, "div");
+            builder.AddAttribute(seq++, "class", "empty-sm");
+            builder.AddContent(seq++, "No completed activities for this date.");
+            builder.CloseElement();
+        }
+        else
+        {
+            foreach (var wl in _dayLogs)
+            {
+                var wlRef = wl;
+                var isExpanded = _expandedLogId == wl.Id;
+                builder.OpenElement(seq++, "div");
+                builder.AddAttribute(seq++, "class", "log-card");
+                builder.OpenElement(seq++, "div");
+                builder.AddAttribute(seq++, "class", "log-header");
+                builder.AddAttribute(seq++, "onclick", EventCallback.Factory.Create(this, () => _expandedLogId = isExpanded ? -1 : wlRef.Id));
+                builder.OpenElement(seq++, "div");
+                builder.AddAttribute(seq++, "class", "log-header-left");
+                builder.OpenElement(seq++, "div");
+                builder.AddAttribute(seq++, "class", $"log-status-bar log-st-{wl.Status.ToString().ToLower()}");
+                builder.CloseElement();
+                builder.OpenElement(seq++, "div");
+                builder.OpenElement(seq++, "span");
+                builder.AddAttribute(seq++, "class", "log-name");
+                builder.AddContent(seq++, wl.Workout?.Name ?? "Workout");
+                builder.CloseElement();
+                builder.OpenElement(seq++, "span");
+                builder.AddAttribute(seq++, "class", "log-meta");
+                builder.AddContent(seq++, $"{wl.StartedAt.ToLocalTime():HH:mm}-{(wl.CompletedAt?.ToLocalTime().ToString("HH:mm") ?? "?")} · {FormatDuration(wl.StartedAt, wl.CompletedAt)}");
+                builder.CloseElement();
+                builder.CloseElement();
+                builder.CloseElement();
+                builder.OpenElement(seq++, "div");
+                builder.AddAttribute(seq++, "class", "log-header-right");
+                builder.OpenElement(seq++, "span");
+                builder.AddAttribute(seq++, "class", $"log-status-tag log-st-tag-{wl.Status.ToString().ToLower()}");
+                builder.AddContent(seq++, FormatLogStatus(wl.Status));
+                builder.CloseElement();
+                builder.OpenElement(seq++, "span");
+                builder.AddAttribute(seq++, "class", "log-cal");
+                builder.AddContent(seq++, FormatEnergyValue(wl.TotalCaloriesBurned));
+                builder.CloseElement();
+                builder.OpenElement(seq++, "span");
+                builder.AddAttribute(seq++, "class", "log-toggle");
+                builder.AddContent(seq++, isExpanded ? "−" : "+");
+                builder.CloseElement();
+                builder.CloseElement();
+                builder.CloseElement();
+                builder.OpenElement(seq++, "div");
+                builder.AddAttribute(seq++, "class", "log-chips");
+                builder.OpenElement(seq++, "span");
+                builder.AddAttribute(seq++, "class", "log-chip");
+                builder.AddContent(seq++, $"{wl.ExerciseLogs.Count(el => el.Status != LogStatus.Skipped)} exercises");
+                builder.CloseElement();
+                builder.OpenElement(seq++, "span");
+                builder.AddAttribute(seq++, "class", "log-chip");
+                builder.AddContent(seq++, $"{wl.ExerciseLogs.Sum(el => el.SetLogs.Count(s => s.IsCompleted))} sets");
+                builder.CloseElement();
+                builder.CloseElement();
+
+                if (isExpanded)
+                {
+                    builder.OpenElement(seq++, "div");
+                    builder.AddAttribute(seq++, "class", "log-exercises");
+                    foreach (var el in wl.ExerciseLogs.OrderBy(x => x.SortOrder))
+                    {
+                        var elCss = el.Status switch
+                        {
+                            LogStatus.Completed => "el-completed",
+                            LogStatus.Modified => "el-modified",
+                            LogStatus.Skipped => "el-skipped",
+                            _ => ""
+                        };
+                        builder.OpenElement(seq++, "div");
+                        builder.AddAttribute(seq++, "class", $"el-card {elCss}");
+                        builder.OpenElement(seq++, "div");
+                        builder.AddAttribute(seq++, "class", "el-top");
+                        builder.OpenElement(seq++, "div");
+                        builder.AddAttribute(seq++, "class", "el-info");
+                        builder.OpenElement(seq++, "span");
+                        builder.AddAttribute(seq++, "class", "el-dot");
+                        builder.CloseElement();
+                        builder.OpenElement(seq++, "span");
+                        builder.AddAttribute(seq++, "class", "el-name");
+                        builder.AddContent(seq++, el.Exercise.Name);
+                        builder.CloseElement();
+                        builder.CloseElement();
+                        builder.OpenElement(seq++, "div");
+                        builder.AddAttribute(seq++, "class", "el-right");
+                        builder.OpenElement(seq++, "span");
+                        builder.AddAttribute(seq++, "class", "el-tag");
+                        builder.AddContent(seq++, el.Status.ToString());
+                        builder.CloseElement();
+                        builder.OpenElement(seq++, "span");
+                        builder.AddAttribute(seq++, "class", "el-cal");
+                        builder.AddContent(seq++, FormatEnergyValue(el.CaloriesBurned));
+                        builder.CloseElement();
+                        builder.CloseElement();
+                        builder.CloseElement();
+                        builder.CloseElement();
+                    }
+                    builder.CloseElement();
+                }
+                builder.CloseElement();
+            }
+        }
+        builder.CloseElement();
+    };
+
+    private RenderFragment RenderScheduleList(IEnumerable<WorkoutSchedule> schedules) => builder =>
+    {
+        var seq = 0;
+        var list = schedules.OrderBy(s => s.ScheduledTime).ToList();
+        if (list.Count == 0)
+        {
+            builder.OpenElement(seq++, "div");
+            builder.AddAttribute(seq++, "class", "empty-sm");
+            builder.AddContent(seq++, "No activities scheduled.");
+            builder.CloseElement();
+            return;
+        }
+
+        builder.OpenElement(seq++, "div");
+        builder.AddAttribute(seq++, "class", "sched-list");
+        foreach (var s in list)
+        {
+            var statusClass = s.Status == ScheduleStatus.InProgress ? "st-active" : "";
+            builder.OpenElement(seq++, "div");
+            builder.AddAttribute(seq++, "class", $"sched-card {statusClass}");
+            builder.OpenElement(seq++, "div");
+            builder.AddAttribute(seq++, "class", "sched-info");
+            builder.OpenElement(seq++, "span");
+            builder.AddAttribute(seq++, "class", "sched-name");
+            builder.AddContent(seq++, s.Workout.Name);
+            builder.CloseElement();
+            builder.OpenElement(seq++, "span");
+            builder.AddAttribute(seq++, "class", "sched-time");
+            builder.AddContent(seq++, $"{(s.ScheduledTime?.ToString("HH:mm") ?? "Any time")} · {FormatScheduleStatus(s.Status)} · {GetWorkoutKind(s.Workout)} · {s.Workout.WorkoutExercises.Count} exercises");
+            builder.CloseElement();
+            builder.CloseElement();
+            builder.OpenElement(seq++, "div");
+            builder.AddAttribute(seq++, "class", "sched-actions");
+            if (s.Status == ScheduleStatus.Scheduled || s.Status == ScheduleStatus.Postponed)
+            {
+                builder.OpenElement(seq++, "button");
+                builder.AddAttribute(seq++, "type", "button");
+                builder.AddAttribute(seq++, "class", "btn-glow btn-xs");
+                builder.AddAttribute(seq++, "onclick", EventCallback.Factory.Create(this, () => QuickStart(s.Id)));
+                builder.AddContent(seq++, "Start");
+                builder.CloseElement();
+                builder.OpenElement(seq++, "button");
+                builder.AddAttribute(seq++, "type", "button");
+                builder.AddAttribute(seq++, "class", "btn-ghost btn-xs");
+                builder.AddAttribute(seq++, "onclick", EventCallback.Factory.Create(this, () => CancelSchedule(s.Id)));
+                builder.AddContent(seq++, "Skip");
+                builder.CloseElement();
+                builder.OpenElement(seq++, "button");
+                builder.AddAttribute(seq++, "type", "button");
+                builder.AddAttribute(seq++, "class", "btn-danger-xs");
+                builder.AddAttribute(seq++, "onclick", EventCallback.Factory.Create(this, () => DeleteSchedule(s.Id)));
+                builder.AddContent(seq++, (MarkupString)"<span class=\"icon icon-x\" aria-hidden=\"true\"></span>");
+                builder.CloseElement();
+            }
+            if (s.Status == ScheduleStatus.InProgress)
+            {
+                builder.OpenElement(seq++, "button");
+                builder.AddAttribute(seq++, "type", "button");
+                builder.AddAttribute(seq++, "class", "btn-glow btn-xs");
+                builder.AddAttribute(seq++, "onclick", EventCallback.Factory.Create(this, GoToLiveWorkout));
+                builder.AddContent(seq++, "Continue");
+                builder.CloseElement();
+            }
+            builder.CloseElement();
+            builder.CloseElement();
+        }
+        builder.CloseElement();
+    };
+
+    private RenderFragment RenderQuickStart() => builder =>
+    {
+        var seq = 0;
+        if (_userWorkouts.Count == 0)
+        {
+            builder.OpenElement(seq++, "div");
+            builder.AddAttribute(seq++, "class", "empty-sm");
+            builder.AddContent(seq++, "Create an activity first in Training.");
+            builder.CloseElement();
+            return;
+        }
+
+        builder.OpenElement(seq++, "div");
+        builder.AddAttribute(seq++, "class", "quick-grid stacked");
+        foreach (var w in _userWorkouts.Take(6))
+        {
+            builder.OpenElement(seq++, "button");
+            builder.AddAttribute(seq++, "type", "button");
+            builder.AddAttribute(seq++, "class", "quick-card");
+            builder.AddAttribute(seq++, "onclick", EventCallback.Factory.Create(this, () => QuickStartWorkout(w.Id)));
+            builder.OpenElement(seq++, "span");
+            builder.AddAttribute(seq++, "class", "quick-name");
+            builder.AddContent(seq++, w.Name);
+            builder.CloseElement();
+            builder.OpenElement(seq++, "span");
+            builder.AddAttribute(seq++, "class", "quick-meta");
+            builder.AddContent(seq++, $"{w.WorkoutExercises.Count} ex · {w.WorkoutExercises.Sum(x => x.Sets)} sets");
+            builder.CloseElement();
+            builder.CloseElement();
+        }
+        builder.CloseElement();
+    };
+
+    private RenderFragment RenderNotes() => builder =>
+    {
+        var seq = 0;
+        builder.OpenElement(seq++, "div");
+        builder.AddAttribute(seq++, "class", "notes-card compact");
+        builder.OpenElement(seq++, "textarea");
+        builder.AddAttribute(seq++, "class", "notes-input");
+        builder.AddAttribute(seq++, "placeholder", "How did this day feel?");
+        builder.AddAttribute(seq++, "rows", "2");
+        builder.AddAttribute(seq++, "value", BindConverter.FormatValue(_notesText));
+        builder.AddAttribute(seq++, "onchange", EventCallback.Factory.CreateBinder<string?>(this, value => _notesText = value, _notesText));
+        builder.CloseElement();
+        builder.OpenElement(seq++, "div");
+        builder.AddAttribute(seq++, "class", "notes-ratings compact");
+        builder.AddContent(seq++, RenderRating("Energy", _energy, value => _energy = _energy == value ? null : value));
+        builder.AddContent(seq++, RenderRating("Mood", _mood, value => _mood = _mood == value ? null : value));
+        builder.OpenElement(seq++, "button");
+        builder.AddAttribute(seq++, "type", "button");
+        builder.AddAttribute(seq++, "class", "btn-glow btn-xs notes-save");
+        builder.AddAttribute(seq++, "disabled", _savingNotes);
+        builder.AddAttribute(seq++, "onclick", EventCallback.Factory.Create(this, SaveNotes));
+        builder.AddContent(seq++, _savingNotes ? "Saving..." : "Save");
+        builder.CloseElement();
+        builder.CloseElement();
+        if (!string.IsNullOrEmpty(_notesMsg))
+        {
+            builder.OpenElement(seq++, "div");
+            builder.AddAttribute(seq++, "class", "notes-toast");
+            builder.AddContent(seq++, _notesMsg);
+            builder.CloseElement();
+        }
+        builder.CloseElement();
+    };
+
+    private RenderFragment RenderRating(string label, int? current, Action<int> setValue) => builder =>
+    {
+        var seq = 0;
+        builder.OpenElement(seq++, "div");
+        builder.AddAttribute(seq++, "class", "rating-group");
+        builder.OpenElement(seq++, "span");
+        builder.AddAttribute(seq++, "class", "rating-label");
+        builder.AddContent(seq++, label);
+        builder.CloseElement();
+        builder.OpenElement(seq++, "div");
+        builder.AddAttribute(seq++, "class", "rating-dots");
+        for (var i = 1; i <= 5; i++)
+        {
+            var val = i;
+            builder.OpenElement(seq++, "button");
+            builder.AddAttribute(seq++, "type", "button");
+            builder.AddAttribute(seq++, "class", $"r-dot {(current == val ? "r-active" : "")}");
+            builder.AddAttribute(seq++, "onclick", EventCallback.Factory.Create(this, () => setValue(val)));
+            builder.AddContent(seq++, val);
+            builder.CloseElement();
+        }
+        builder.CloseElement();
+        builder.CloseElement();
+    };
+
+    private string FormatWeightValue(decimal? weightKg) => SettingsService.FormatWeight(weightKg, _weightUnit);
+
+    private string FormatEnergyValue(decimal calories) => SettingsService.FormatEnergy(calories, _energyUnit);
+
+    private string FormatSelectedDate()
+    {
+        var today = DateOnly.FromDateTime(DateTime.Now);
+        if (_selectedDate == today) return $"Today — {_selectedDate:dddd, d MMM}";
+        if (_selectedDate == today.AddDays(-1)) return $"Yesterday — {_selectedDate:dddd, d MMM}";
+        if (_selectedDate == today.AddDays(1)) return $"Tomorrow — {_selectedDate:dddd, d MMM}";
+        return _selectedDate.ToString("dddd, d MMM yyyy");
+    }
+
+    private static string FormatDuration(DateTime start, DateTime? end)
+    {
+        if (end is null) return "—";
+        var elapsed = end.Value - start;
+        return elapsed.TotalHours >= 1 ? $"{(int)elapsed.TotalHours}h {elapsed.Minutes}m" : $"{(int)elapsed.TotalMinutes}m";
+    }
+
+    private static string FormatLogStatus(WorkoutLogStatus status) => status switch
+    {
+        WorkoutLogStatus.Complete => "Complete",
+        WorkoutLogStatus.Modified => "Modified",
+        WorkoutLogStatus.Partial => "Partial",
+        _ => ""
+    };
+
+    private static string FormatScheduleStatus(ScheduleStatus status) => status switch
+    {
+        ScheduleStatus.InProgress => "In progress",
+        ScheduleStatus.Postponed => "Postponed",
+        ScheduleStatus.Completed => "Completed",
+        ScheduleStatus.Cancelled => "Skipped",
+        _ => "Scheduled"
+    };
+
+    private static string GetProgramType(FitnessApp.Models.Program program)
+    {
+        var tags = program.Tags ?? "";
+        if (tags.Contains("cardio", StringComparison.OrdinalIgnoreCase)) return "Cardio";
+        if (tags.Contains("hybrid", StringComparison.OrdinalIgnoreCase)) return "Hybrid";
+        return "Workout";
+    }
+
+    private static string GetWorkoutKind(Workout workout)
+    {
+        var tags = workout.Program?.Tags ?? "";
+        if (tags.Contains("cardio", StringComparison.OrdinalIgnoreCase)) return "Cardio";
+        if (tags.Contains("hybrid", StringComparison.OrdinalIgnoreCase)) return "Hybrid";
+        var hasCardio = workout.WorkoutExercises.Any(x => x.Exercise?.MovementType == MovementType.Cardio);
+        var hasStrength = workout.WorkoutExercises.Any(x => x.Exercise is not null && x.Exercise.MovementType != MovementType.Cardio);
+        if (hasCardio && hasStrength) return "Hybrid";
+        if (hasCardio) return "Cardio";
+        return "Strength";
+    }
+
+    private static string GetWorkoutKindClass(Workout workout) => $"kind-{GetWorkoutKind(workout).ToLowerInvariant()}";
+
+    private static DateOnly StartOfWeek(DateOnly date)
+    {
+        var diff = ((int)date.DayOfWeek + 6) % 7;
+        return date.AddDays(-diff);
+    }
+
+    private void GoToLiveWorkout()
+    {
+        try { Navigation.NavigateTo("/live-workout"); } catch { }
+    }
+
+    private void GoToTraining()
+    {
+        try { Navigation.NavigateTo("/training"); } catch { }
+    }
+
+    private record ScheduleTab(string Key, string Label, string Description);
+    private record DayOption(int Value, string Label);
+}

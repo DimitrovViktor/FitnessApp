@@ -123,3 +123,35 @@
     .browse-grid { grid-template-columns:1fr; }
     .detail-header { flex-direction:column; }
 }
+
+
+.programs-page .browse-grid {
+    max-height: 590px;
+    overflow-y: auto;
+    padding-right: 4px;
+    scrollbar-width: thin;
+    scrollbar-color: var(--accent-border) transparent;
+}
+
+.programs-page .structure-list,
+.programs-page .notes-list,
+.programs-page .stats-list,
+.programs-page .suited-list {
+    max-height: 240px;
+    overflow-y: auto;
+    padding-right: 4px;
+    scrollbar-width: thin;
+    scrollbar-color: var(--accent-border) transparent;
+}
+
+@media (max-width: 900px) {
+    .programs-page .browse-grid,
+    .programs-page .structure-list,
+    .programs-page .notes-list,
+    .programs-page .stats-list,
+    .programs-page .suited-list {
+        max-height: none;
+        overflow-y: visible;
+        padding-right: 0;
+    }
+}

@@ -37,6 +37,12 @@
                 </NavLink>
             </div>
 
+            <div class="nav-item px-3">
+                <NavLink class="nav-link" href="schedule">
+                    <span class="bi bi-schedule-nav-menu" aria-hidden="true"></span> Schedule
+                </NavLink>
+            </div>
+
             <button type="button" class="nav-divider nav-section-toggle @(_trainingOpen ? "expanded" : "")" aria-expanded="@_trainingOpen" @onclick="ToggleTraining" @onclick:stopPropagation="true">
                 <span>Training</span>
                 <span class="bi bi-chevron-nav-menu" aria-hidden="true"></span>

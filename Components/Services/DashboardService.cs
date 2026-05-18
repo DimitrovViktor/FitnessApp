@@ -21,6 +21,26 @@ public class DashboardService
             .FirstOrDefaultAsync(u => u.Id == userId);
     }
 
+
+    public async Task<List<WorkoutSchedule>> GetSchedulesForRangeAsync(int userId, DateOnly start, DateOnly end, bool includeCancelled = false)
+    {
+        var query = _db.WorkoutSchedules
+            .Include(ws => ws.Workout).ThenInclude(w => w.WorkoutExercises).ThenInclude(we => we.Exercise)
+            .Include(ws => ws.Workout).ThenInclude(w => w.Program)
+            .Where(ws => ws.UserId == userId && ws.ScheduledDate >= start && ws.ScheduledDate <= end);
+
+        if (!includeCancelled)
+        {
+            query = query.Where(ws => ws.Status != ScheduleStatus.Cancelled);
+        }
+
+        return await query
+            .OrderBy(ws => ws.ScheduledDate)
+            .ThenBy(ws => ws.ScheduledTime)
+            .ThenBy(ws => ws.Workout.Name)
+            .ToListAsync();
+    }
+
     public async Task<List<WorkoutSchedule>> GetSchedulesForMonthAsync(int userId, int year, int month)
     {
         var start = new DateOnly(year, month, 1);
@@ -28,6 +48,7 @@ public class DashboardService
 
         return await _db.WorkoutSchedules
             .Include(ws => ws.Workout).ThenInclude(w => w.WorkoutExercises).ThenInclude(we => we.Exercise)
+            .Include(ws => ws.Workout).ThenInclude(w => w.Program)
             .Where(ws => ws.UserId == userId && ws.ScheduledDate >= start && ws.ScheduledDate <= end)
             .OrderBy(ws => ws.ScheduledDate).ThenBy(ws => ws.ScheduledTime)
             .ToListAsync();
@@ -38,6 +59,7 @@ public class DashboardService
         return await _db.WorkoutSchedules
             .Include(ws => ws.Workout).ThenInclude(w => w.WorkoutExercises).ThenInclude(we => we.Exercise)
                 .ThenInclude(e => e.ExerciseMuscleGroups).ThenInclude(em => em.MuscleGroup)
+            .Include(ws => ws.Workout).ThenInclude(w => w.Program)
             .Where(ws => ws.UserId == userId && ws.ScheduledDate == date)
             .OrderBy(ws => ws.ScheduledTime)
             .ToListAsync();
@@ -67,6 +89,24 @@ public class DashboardService
         _db.WorkoutSchedules.Add(schedule);
         await _db.SaveChangesAsync();
         return schedule;
+    }
+
+
+    public async Task<WorkoutSchedule> ScheduleWorkoutIfMissingAsync(int userId, int workoutId, DateOnly date, TimeOnly? time)
+    {
+        var existing = await _db.WorkoutSchedules
+            .FirstOrDefaultAsync(ws => ws.UserId == userId
+                && ws.WorkoutId == workoutId
+                && ws.ScheduledDate == date
+                && ws.ScheduledTime == time
+                && ws.Status != ScheduleStatus.Cancelled);
+
+        if (existing is not null)
+        {
+            return existing;
+        }
+
+        return await ScheduleWorkoutAsync(userId, workoutId, date, time);
     }
 
     public async Task<bool> StartWorkoutAsync(int scheduleId, int userId)
