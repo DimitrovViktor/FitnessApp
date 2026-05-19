@@ -27,9 +27,13 @@ else if (_session is null)
 }
 else
 {
+    var currentExercise = CurrentExerciseState;
+    var currentWorkoutExercise = CurrentWorkoutExercise;
+
     <div class="live-page">
         <div class="live-header">
             <div>
+                <span class="live-kicker">Live Session</span>
                 <h1>@_session.Workout.Name</h1>
                 <div class="live-badges">
                     <span class="lbdg lbdg-prog">@_completedSets / @_totalSets sets</span>
@@ -37,15 +41,21 @@ else
                     <span class="lbdg lbdg-cal">@FormatEnergyValue(_estCalBurned)</span>
                 </div>
             </div>
-            <button type="button" class="btn-action btn-finish-style" @onclick="FinishWorkout">Finish Workout</button>
+            <div class="live-header-actions">
+                <button type="button" class="btn-cancel-workout" @onclick="CancelWorkout">Cancel Workout</button>
+                <button type="button" class="btn-ghost btn-add-exercise" @onclick="OpenAddExercise">Add Exercise</button>
+                <button type="button" class="btn-action btn-finish-style" @onclick="FinishWorkout">Finish Workout</button>
+            </div>
         </div>
 
-        <div class="live-progress">
-            <div class="live-bar" style="width:@(_totalSets > 0 ? (int)((double)_completedSets / _totalSets * 100) : 0)%"></div>
-        </div>
-
-        <div class="cancel-row">
-            <button type="button" class="btn-cancel-workout" @onclick="CancelWorkout">Cancel Workout</button>
+        <div class="live-progress-card">
+            <div class="live-progress-top">
+                <span>Session Progress</span>
+                <strong>@ProgressPercent%</strong>
+            </div>
+            <div class="live-progress">
+                <div class="live-bar" style="width:@ProgressPercent%"></div>
+            </div>
         </div>
 
         @if (_resting)
@@ -60,6 +70,75 @@ else
             </div>
         }
 
+        <div class="live-focus-grid">
+            <section class="live-focus-card">
+                <div class="focus-eyebrow">Current Exercise</div>
+                @if (currentExercise is not null && currentWorkoutExercise is not null)
+                {
+                    <div class="focus-title-row">
+                        <div>
+                            <h2>@currentWorkoutExercise.Exercise.Name</h2>
+                            <p>@MuscleStr(currentWorkoutExercise.Exercise)</p>
+                        </div>
+                        <span class="focus-status @ExerciseStatusClass(currentExercise)">@ExerciseStatusText(currentExercise)</span>
+                    </div>
+                    <div class="focus-metrics">
+                        <div>
+                            <span>Next Set</span>
+                            <strong>@CurrentSetSummary()</strong>
+                        </div>
+                        <div>
+                            <span>Completed</span>
+                            <strong>@CompletedSetCount(currentExercise) / @currentExercise.Sets.Count</strong>
+                        </div>
+                        <div>
+                            <span>Rest</span>
+                            <strong>@(currentWorkoutExercise.RestTimeSec ?? _restTimerDefault)s</strong>
+                        </div>
+                    </div>
+                    <div class="focus-actions">
+                        <button type="button" class="btn-ghost btn-sm" disabled="@(!CanJumpToPreviousExercise())" @onclick="JumpToPreviousExercise">Previous</button>
+                        <button type="button" class="btn-ghost btn-sm" disabled="@(!CanJumpToNextExercise())" @onclick="JumpToNextExercise">Next</button>
+                    </div>
+                }
+                else
+                {
+                    <h2>Workout Ready</h2>
+                    <p>Review your exercises and complete sets as you train.</p>
+                }
+            </section>
+
+            <section class="live-summary-card">
+                <div class="summary-row">
+                    <span>Exercises</span>
+                    <strong>@CompletedExerciseCount / @_liveState.Exercises.Count</strong>
+                </div>
+                <div class="summary-row">
+                    <span>Sets Left</span>
+                    <strong>@RemainingSets</strong>
+                </div>
+                <div class="summary-row">
+                    <span>Energy</span>
+                    <strong>@FormatEnergyValue(_estCalBurned)</strong>
+                </div>
+            </section>
+        </div>
+
+        <div class="exercise-nav-strip">
+            @for (int ni = 0; ni < _liveState.Exercises.Count && ni < _orderedExercises.Count; ni++)
+            {
+                var navIdx = ni;
+                var navState = _liveState.Exercises[navIdx];
+                var navExercise = _orderedExercises[navIdx];
+
+                <button type="button" class="exercise-step @ExerciseStepClass(navIdx)" @onclick="() => JumpToExercise(navIdx)">
+                    <span>@(navIdx + 1)</span>
+                    <strong>@ShortExerciseName(navExercise.Exercise.Name)</strong>
+                    <small>@ExerciseStatusText(navState)</small>
+                </button>
+            }
+        </div>
+
         <div class="ex-checklist">
             @for (int ei = 0; ei < _liveState.Exercises.Count; ei++)
             {
@@ -67,8 +146,8 @@ else
                 var les = _liveState.Exercises[exIdx];
                 var we = _orderedExercises[exIdx];
                 var activeSets = les.Sets.Where(s => !s.IsSkipped).ToList();
-                var allDone = les.IsSkipped || activeSets.All(s => s.IsCompleted);
-                var anyDone = les.IsSkipped || activeSets.Any(s => s.IsCompleted);
+                var allDone = les.IsSkipped || (activeSets.Count > 0 && activeSets.All(s => s.IsCompleted)) || (activeSets.Count == 0 && HasCompletedSets(les));
+                var anyDone = les.IsSkipped || activeSets.Any(s => s.IsCompleted) || HasCompletedSets(les);
                 var statusClass = les.IsSkipped ? "ex-skipped" : (allDone ? "ex-done" : (anyDone ? "ex-partial" : (_liveState.CurrentExerciseIndex == exIdx ? "ex-current" : "")));
 
                 <div class="ex-block @statusClass">
@@ -77,13 +156,13 @@ else
                             <span class="ex-num">@(exIdx + 1)</span>
                             <div>
                                 <span class="ex-hdr-name @(les.IsSkipped ? "text-skipped" : "")">@we.Exercise.Name</span>
-                                <span class="ex-hdr-meta">@les.Sets.Count(s => !s.IsSkipped) x @(les.Sets.FirstOrDefault()?.Reps ?? we.Reps) · @(we.RestTimeSec ?? _restTimerDefault)s rest · @MuscleStr(we.Exercise)</span>
+                                <span class="ex-hdr-meta">@ExerciseSetSummary(les, we) · @(we.RestTimeSec ?? _restTimerDefault)s rest · @MuscleStr(we.Exercise)@(les.IsSessionOnly ? " · Session only" : "")</span>
                             </div>
                         </div>
                         <span class="ex-hdr-status">
                             @if (les.IsSkipped) { <span class="skip-label">Skipped</span> }
                             else if (allDone) { <span class="check-icon"><span class="icon icon-check" aria-label="Completed"></span></span> }
-                            else { <span>@activeSets.Count(s => s.IsCompleted)/@activeSets.Count</span> }
+                            else { <span>@CompletedSetCount(les)/@les.Sets.Count</span> }
                         </span>
                     </div>
 
@@ -102,7 +181,11 @@ else
                                         <span class="set-label">Set @(setIdx + 1)</span>
                                         <div class="set-reps-control">
                                             <button type="button" class="reps-btn" disabled="@(setS.IsCompleted || setS.IsSkipped || setS.Reps <= 1)" @onclick="() => AdjustReps(exIdx, setIdx, -1)">-</button>
-                                            <span class="set-detail">@setS.Reps reps</span>
+                                            <input type="number" class="reps-input" min="1" step="1" value="@setS.Reps"
+                                                   disabled="@(setS.IsCompleted || setS.IsSkipped)"
+                                                   aria-label="Reps"
+                                                   @onchange="(e) => SetReps(exIdx, setIdx, e)" />
+                                            <span class="reps-unit">reps</span>
                                             <button type="button" class="reps-btn" disabled="@(setS.IsCompleted || setS.IsSkipped)" @onclick="() => AdjustReps(exIdx, setIdx, 1)">+</button>
                                         </div>
                                         <div class="set-weight-control">
@@ -119,7 +202,7 @@ else
                                         {
                                             <div class="set-actions">
                                                 <button type="button" class="btn-action btn-set-size" @onclick="() => CompleteSet(exIdx, setIdx, we.RestTimeSec ?? _restTimerDefault)">Complete</button>
-                                                <button type="button" class="btn-skip-set" @onclick="() => SkipSet(exIdx, setIdx)">Skip</button>
+                                                <button type="button" class="btn-skip-set" @onclick="() => SkipSet(exIdx, setIdx)">Skip Set</button>
                                             </div>
                                         }
                                         else
@@ -130,8 +213,17 @@ else
                                 }
 
                                 <div class="ex-modify-row">
-                                    <button type="button" class="btn-ghost btn-sm" disabled="@(les.Sets.All(s => s.IsCompleted || s.IsSkipped))" @onclick="() => AddSet(exIdx, we)">+ Add Set</button>
-                                    <button type="button" class="btn-ghost btn-sm btn-skip-ex" @onclick="() => SkipExercise(exIdx)">Skip Exercise</button>
+                                    <div class="ex-modify-left">
+                                        <button type="button" class="btn-ghost btn-sm" disabled="@(les.Sets.All(s => s.IsCompleted || s.IsSkipped))" @onclick="() => AddSet(exIdx, we)">Add Set</button>
+                                        @if (HasSkippedSets(les))
+                                        {
+                                            <button type="button" class="btn-ghost btn-sm" @onclick="() => RestoreSkippedSets(exIdx)">Restore Skipped Sets</button>
+                                        }
+                                    </div>
+                                    @if (HasRemainingSets(les))
+                                    {
+                                        <button type="button" class="btn-ghost btn-sm btn-skip-ex" @onclick="() => SkipExercise(exIdx)">@ExerciseSkipLabel(les)</button>
+                                    }
                                 </div>
                             }
                             else
@@ -147,6 +239,65 @@ else
         </div>
     </div>
 }
+
+<Modal IsOpen="_showAddExercise" OnClose="CloseAddExercise" Size="md">
+    <div class="add-exercise-modal">
+        <div class="add-exercise-head">
+            <div>
+                <span class="modal-kicker">Session Only</span>
+                <h2>Add Exercise</h2>
+                <p>This exercise will be recorded in this live session without changing the saved workout.</p>
+            </div>
+        </div>
+
+        <div class="add-exercise-controls">
+            <label class="add-field add-search-field">
+                <span>Search Exercise</span>
+                <input type="search" placeholder="Search by name, muscle, or type" @bind="_exerciseSearch" @bind:event="oninput" />
+            </label>
+            <label class="add-field">
+                <span>Sets</span>
+                <input type="number" min="1" max="20" step="1" @bind="_addExerciseSets" />
+            </label>
+            <label class="add-field">
+                <span>Reps</span>
+                <input type="number" min="1" max="999" step="1" @bind="_addExerciseReps" />
+            </label>
+            <label class="add-field">
+                <span>Rest</span>
+                <input type="number" min="0" max="600" step="5" @bind="_addExerciseRest" />
+            </label>
+        </div>
+
+        @if (!string.IsNullOrWhiteSpace(_addExerciseError))
+        {
+            <div class="add-error">@_addExerciseError</div>
+        }
+
+        <div class="exercise-picker-list">
+            @foreach (var exercise in FilteredAddExercises)
+            {
+                var selected = exercise.Id == _selectedAddExerciseId;
+                <button type="button" class="exercise-picker-item @(selected ? "selected" : "")" @onclick="() => SelectAddExercise(exercise.Id)">
+                    <div>
+                        <strong>@exercise.Name</strong>
+                        <span>@PickerExerciseMeta(exercise)</span>
+                    </div>
+                    <span class="picker-type">@(exercise.ExerciseType ?? exercise.MovementType.ToString())</span>
+                </button>
+            }
+            @if (!FilteredAddExercises.Any())
+            {
+                <div class="empty-picker">No exercises match your search.</div>
+            }
+        </div>
+
+        <div class="mf-actions add-actions">
+            <button type="button" class="btn-ghost" @onclick="CloseAddExercise">Cancel</button>
+            <button type="button" class="btn-action" disabled="@(_selectedAddExerciseId is null)" @onclick="AddSelectedExerciseToSession">Add To Session</button>
+        </div>
+    </div>
+</Modal>
 
 <Modal IsOpen="_showFinish" OnClose="() => _showFinish = false" Size="sm">
     <div class="finish-modal">
@@ -189,6 +340,7 @@ else
     private int _restTimerDefault = 60;
     private WorkoutSchedule? _session;
     private List<WorkoutExercise> _orderedExercises = new();
+    private List<Exercise> _exerciseLibrary = new();
 
     private LiveSessionState _liveState = new();
     private int _completedSets;
@@ -204,8 +356,29 @@ else
 
     private bool _showFinish;
     private bool _showCancelConfirm;
+    private bool _showAddExercise;
+    private string _exerciseSearch = "";
+    private int? _selectedAddExerciseId;
+    private int _addExerciseSets = 3;
+    private int _addExerciseReps = 10;
+    private int _addExerciseRest = 60;
+    private string _addExerciseError = "";
     private string _finishTitle = "";
     private WorkoutLogStatus? _finishStatus;
+
+    private IEnumerable<Exercise> FilteredAddExercises => _exerciseLibrary
+        .Where(e => string.IsNullOrWhiteSpace(_exerciseSearch)
+            || e.Name.Contains(_exerciseSearch, StringComparison.OrdinalIgnoreCase)
+            || (e.ExerciseType?.Contains(_exerciseSearch, StringComparison.OrdinalIgnoreCase) ?? false)
+            || e.MovementType.ToString().Contains(_exerciseSearch, StringComparison.OrdinalIgnoreCase)
+            || e.ExerciseMuscleGroups.Any(m => m.MuscleGroup.Name.Contains(_exerciseSearch, StringComparison.OrdinalIgnoreCase)))
+        .Take(40);
+
+    private int ProgressPercent => _totalSets > 0 ? Math.Clamp((int)Math.Round((double)_completedSets / _totalSets * 100), 0, 100) : 0;
+    private int RemainingSets => Math.Max(_totalSets - _completedSets, 0);
+    private int CompletedExerciseCount => _liveState.Exercises.Count(IsExerciseDone);
+    private LiveExerciseState? CurrentExerciseState => _liveState.CurrentExerciseIndex >= 0 && _liveState.CurrentExerciseIndex < _liveState.Exercises.Count ? _liveState.Exercises[_liveState.CurrentExerciseIndex] : null;
+    private WorkoutExercise? CurrentWorkoutExercise => _liveState.CurrentExerciseIndex >= 0 && _liveState.CurrentExerciseIndex < _orderedExercises.Count ? _orderedExercises[_liveState.CurrentExerciseIndex] : null;
 
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
@@ -219,6 +392,7 @@ else
         _energyUnit = settings.EnergyUnit;
         _restTimerDefault = settings.RestTimerDefault;
         _session = await DashService.GetActiveSessionAsync(_userId);
+        _exerciseLibrary = await WorkoutService.GetExerciseLibraryAsync();
 
         if (_session is not null)
         {
@@ -237,11 +411,14 @@ else
 
     private void LoadOrInitState()
     {
+        var stateLoaded = false;
+
         if (!string.IsNullOrEmpty(_session!.LiveSessionJson))
         {
             try
             {
                 _liveState = JsonSerializer.Deserialize<LiveSessionState>(_session.LiveSessionJson) ?? new();
+                stateLoaded = _liveState.Exercises.Count > 0;
             }
             catch
             {
@@ -249,25 +426,94 @@ else
             }
         }
 
-        if (_liveState.Exercises.Count != _orderedExercises.Count)
-        {
-            _liveState = new LiveSessionState();
-            foreach (var we in _orderedExercises)
-            {
-                var les = new LiveExerciseState
-                {
-                    ExerciseId = we.ExerciseId,
-                    OriginalSets = we.Sets,
-                    OriginalReps = we.Reps
-                };
-                for (int i = 0; i < we.Sets; i++)
-                    les.Sets.Add(new LiveSetState { Reps = we.Reps });
-                _liveState.Exercises.Add(les);
-            }
-            _liveState.ExpandedExerciseIndex = 0;
-        }
+        if (!stateLoaded)
+            InitializeStateFromWorkout();
+        else if (!RebuildOrderedExercisesFromState())
+            InitializeStateFromWorkout();
+
+        if (_liveState.CurrentExerciseIndex < 0 || _liveState.CurrentExerciseIndex >= _liveState.Exercises.Count)
+            _liveState.CurrentExerciseIndex = 0;
+
+        if (_liveState.ExpandedExerciseIndex < -1 || _liveState.ExpandedExerciseIndex >= _liveState.Exercises.Count)
+            _liveState.ExpandedExerciseIndex = _liveState.CurrentExerciseIndex;
 
         RecalcTotals();
+    }
+
+    private void InitializeStateFromWorkout()
+    {
+        _liveState = new LiveSessionState();
+        foreach (var we in _orderedExercises)
+        {
+            var les = new LiveExerciseState
+            {
+                ExerciseId = we.ExerciseId,
+                OriginalSets = we.Sets,
+                OriginalReps = we.Reps,
+                RestTimeSec = we.RestTimeSec
+            };
+            for (int i = 0; i < we.Sets; i++)
+                les.Sets.Add(new LiveSetState { Reps = we.Reps });
+            _liveState.Exercises.Add(les);
+        }
+        _liveState.ExpandedExerciseIndex = 0;
+    }
+
+    private bool RebuildOrderedExercisesFromState()
+    {
+        if (_session is null) return false;
+
+        var baseExercises = _orderedExercises.ToList();
+        var usedBaseIndexes = new HashSet<int>();
+        var rebuilt = new List<WorkoutExercise>();
+
+        for (int stateIndex = 0; stateIndex < _liveState.Exercises.Count; stateIndex++)
+        {
+            var stateExercise = _liveState.Exercises[stateIndex];
+            var baseIndex = -1;
+
+            for (int i = 0; i < baseExercises.Count; i++)
+            {
+                if (usedBaseIndexes.Contains(i)) continue;
+                if (baseExercises[i].ExerciseId != stateExercise.ExerciseId) continue;
+                baseIndex = i;
+                break;
+            }
+
+            if (baseIndex >= 0 && !stateExercise.IsSessionOnly)
+            {
+                usedBaseIndexes.Add(baseIndex);
+                rebuilt.Add(baseExercises[baseIndex]);
+                continue;
+            }
+
+            var exercise = _exerciseLibrary.FirstOrDefault(e => e.Id == stateExercise.ExerciseId);
+            if (exercise is null) return false;
+
+            stateExercise.IsSessionOnly = true;
+            rebuilt.Add(CreateSessionOnlyWorkoutExercise(exercise, stateExercise, stateIndex));
+        }
+
+        _orderedExercises = rebuilt;
+        return _orderedExercises.Count == _liveState.Exercises.Count;
+    }
+
+    private WorkoutExercise CreateSessionOnlyWorkoutExercise(Exercise exercise, LiveExerciseState state, int sortOrder)
+    {
+        var sets = Math.Clamp(state.OriginalSets > 0 ? state.OriginalSets : state.Sets.Count, 1, 20);
+        var reps = Math.Clamp(state.OriginalReps > 0 ? state.OriginalReps : state.Sets.FirstOrDefault()?.Reps ?? 10, 1, 999);
+
+        return new WorkoutExercise
+        {
+            WorkoutId = _session?.WorkoutId ?? 0,
+            Workout = _session!.Workout,
+            ExerciseId = exercise.Id,
+            Exercise = exercise,
+            Sets = sets,
+            Reps = reps,
+            SortOrder = sortOrder,
+            RestTimeSec = state.RestTimeSec ?? _restTimerDefault
+        };
     }
 
     private void RecalcTotals()
@@ -275,6 +521,94 @@ else
         _totalSets = _liveState.Exercises.Where(e => !e.IsSkipped).Sum(e => e.Sets.Count(s => !s.IsSkipped));
         _completedSets = _liveState.Exercises.Where(e => !e.IsSkipped).Sum(e => e.Sets.Count(s => s.IsCompleted && !s.IsSkipped));
         RecalcCalories();
+    }
+
+    private static bool HasCompletedSets(LiveExerciseState exercise) => exercise.Sets.Any(s => s.IsCompleted && !s.IsSkipped);
+
+    private static bool HasSkippedSets(LiveExerciseState exercise) => exercise.Sets.Any(s => s.IsSkipped);
+
+    private static bool HasRemainingSets(LiveExerciseState exercise) => !exercise.IsSkipped && exercise.Sets.Any(s => !s.IsCompleted && !s.IsSkipped);
+
+    private static int CompletedSetCount(LiveExerciseState exercise) => exercise.Sets.Count(s => s.IsCompleted && !s.IsSkipped);
+
+    private static bool IsExerciseDone(LiveExerciseState exercise)
+    {
+        if (exercise.IsSkipped) return true;
+        var activeSets = exercise.Sets.Where(s => !s.IsSkipped).ToList();
+        return activeSets.Count > 0 && activeSets.All(s => s.IsCompleted);
+    }
+
+    private static string ExerciseStatusText(LiveExerciseState exercise)
+    {
+        if (exercise.IsSkipped) return "Skipped";
+        if (IsExerciseDone(exercise)) return "Done";
+        if (HasCompletedSets(exercise)) return "In Progress";
+        if (HasSkippedSets(exercise)) return "Adjusted";
+        return "Pending";
+    }
+
+    private static string ExerciseStatusClass(LiveExerciseState exercise)
+    {
+        if (exercise.IsSkipped) return "status-skipped";
+        if (IsExerciseDone(exercise)) return "status-done";
+        if (HasCompletedSets(exercise)) return "status-active";
+        return "status-pending";
+    }
+
+    private string ExerciseStepClass(int index)
+    {
+        if (index < 0 || index >= _liveState.Exercises.Count) return string.Empty;
+        var exercise = _liveState.Exercises[index];
+        var classes = ExerciseStatusClass(exercise);
+        if (_liveState.CurrentExerciseIndex == index) classes += " is-current";
+        return classes;
+    }
+
+    private static string ExerciseSkipLabel(LiveExerciseState exercise) => HasCompletedSets(exercise) ? "Skip Rest of Exercise" : "Skip Exercise";
+
+    private static string ShortExerciseName(string name)
+    {
+        const int maxLength = 18;
+        return name.Length <= maxLength ? name : $"{name[..maxLength]}...";
+    }
+
+    private static string ExerciseSetSummary(LiveExerciseState exercise, WorkoutExercise workoutExercise)
+    {
+        var completed = CompletedSetCount(exercise);
+        var active = exercise.Sets.Count(s => !s.IsSkipped);
+        var skipped = exercise.Sets.Count(s => s.IsSkipped);
+        var reps = exercise.Sets.FirstOrDefault(s => !s.IsSkipped)?.Reps ?? exercise.Sets.FirstOrDefault()?.Reps ?? workoutExercise.Reps;
+        return skipped > 0 ? $"{completed}/{exercise.Sets.Count} sets · {skipped} skipped · {reps} reps" : $"{active} x {reps}";
+    }
+
+    private string CurrentSetSummary()
+    {
+        var exercise = CurrentExerciseState;
+        if (exercise is null) return "Ready";
+        var nextIndex = exercise.Sets.FindIndex(s => !s.IsCompleted && !s.IsSkipped);
+        if (nextIndex >= 0) return $"Set {nextIndex + 1} of {exercise.Sets.Count}";
+        return "Complete";
+    }
+
+    private bool CanJumpToPreviousExercise() => _liveState.CurrentExerciseIndex > 0;
+
+    private bool CanJumpToNextExercise() => _liveState.CurrentExerciseIndex < _liveState.Exercises.Count - 1;
+
+    private void JumpToPreviousExercise()
+    {
+        if (CanJumpToPreviousExercise()) JumpToExercise(_liveState.CurrentExerciseIndex - 1);
+    }
+
+    private void JumpToNextExercise()
+    {
+        if (CanJumpToNextExercise()) JumpToExercise(_liveState.CurrentExerciseIndex + 1);
+    }
+
+    private void JumpToExercise(int index)
+    {
+        if (index < 0 || index >= _liveState.Exercises.Count) return;
+        _liveState.CurrentExerciseIndex = index;
+        _liveState.ExpandedExerciseIndex = index;
     }
 
     private void RecalcCalories()
@@ -301,6 +635,77 @@ else
         if (_session is null) return;
         var json = JsonSerializer.Serialize(_liveState);
         await DashService.SaveLiveSessionStateAsync(_session.Id, _userId, json);
+    }
+
+    private void OpenAddExercise()
+    {
+        _addExerciseError = "";
+        _showAddExercise = true;
+        _selectedAddExerciseId ??= FilteredAddExercises.FirstOrDefault()?.Id;
+    }
+
+    private void CloseAddExercise()
+    {
+        _showAddExercise = false;
+        _addExerciseError = "";
+    }
+
+    private void SelectAddExercise(int exerciseId)
+    {
+        _selectedAddExerciseId = exerciseId;
+        _addExerciseError = "";
+    }
+
+    private async Task AddSelectedExerciseToSession()
+    {
+        if (_session is null || _selectedAddExerciseId is null) return;
+
+        var exercise = _exerciseLibrary.FirstOrDefault(e => e.Id == _selectedAddExerciseId.Value);
+        if (exercise is null)
+        {
+            _addExerciseError = "Select an exercise before adding it to the session.";
+            return;
+        }
+
+        var sets = Math.Clamp(_addExerciseSets, 1, 20);
+        var reps = Math.Clamp(_addExerciseReps, 1, 999);
+        var rest = Math.Clamp(_addExerciseRest, 0, 600);
+
+        _addExerciseSets = sets;
+        _addExerciseReps = reps;
+        _addExerciseRest = rest;
+
+        var liveExercise = new LiveExerciseState
+        {
+            ExerciseId = exercise.Id,
+            OriginalSets = sets,
+            OriginalReps = reps,
+            RestTimeSec = rest,
+            IsSessionOnly = true
+        };
+
+        for (int i = 0; i < sets; i++)
+            liveExercise.Sets.Add(new LiveSetState { Reps = reps });
+
+        _liveState.Exercises.Add(liveExercise);
+        _orderedExercises.Add(CreateSessionOnlyWorkoutExercise(exercise, liveExercise, _orderedExercises.Count));
+
+        var newIndex = _liveState.Exercises.Count - 1;
+        _liveState.CurrentExerciseIndex = newIndex;
+        _liveState.ExpandedExerciseIndex = newIndex;
+
+        RecalcTotals();
+        await PersistState();
+
+        _showAddExercise = false;
+        _addExerciseError = "";
+        StateHasChanged();
+    }
+
+    private static string PickerExerciseMeta(Exercise exercise)
+    {
+        var muscles = string.Join(", ", exercise.ExerciseMuscleGroups.Where(m => m.IsPrimary).Select(m => m.MuscleGroup.Name));
+        return string.IsNullOrWhiteSpace(muscles) ? exercise.Level.ToString() : $"{muscles} · {exercise.Level}";
     }
 
     private async void CompleteSet(int exIdx, int setIdx, int restSec)
@@ -335,6 +740,8 @@ else
         RecalcTotals();
 
         var les = _liveState.Exercises[exIdx];
+        if (!HasCompletedSets(les) && les.Sets.All(s => s.IsSkipped))
+            les.IsSkipped = true;
         if (les.Sets.Where(s => !s.IsSkipped).All(s => s.IsCompleted))
             AdvanceToNextExercise(exIdx);
 
@@ -352,7 +759,25 @@ else
 
     private async void SkipExercise(int exIdx)
     {
-        _liveState.Exercises[exIdx].IsSkipped = true;
+        var exercise = _liveState.Exercises[exIdx];
+        if (HasCompletedSets(exercise))
+        {
+            foreach (var set in exercise.Sets.Where(s => !s.IsCompleted))
+            {
+                set.IsSkipped = true;
+            }
+            exercise.IsSkipped = false;
+        }
+        else
+        {
+            exercise.IsSkipped = true;
+            foreach (var set in exercise.Sets)
+            {
+                set.IsCompleted = false;
+                set.IsSkipped = true;
+            }
+        }
+
         RecalcTotals();
         AdvanceToNextExercise(exIdx);
 
@@ -370,7 +795,29 @@ else
 
     private async void UnskipExercise(int exIdx)
     {
-        _liveState.Exercises[exIdx].IsSkipped = false;
+        var exercise = _liveState.Exercises[exIdx];
+        exercise.IsSkipped = false;
+        foreach (var set in exercise.Sets)
+        {
+            set.IsSkipped = false;
+        }
+        _liveState.CurrentExerciseIndex = exIdx;
+        _liveState.ExpandedExerciseIndex = exIdx;
+        RecalcTotals();
+        await PersistState();
+        StateHasChanged();
+    }
+
+    private async void RestoreSkippedSets(int exIdx)
+    {
+        var exercise = _liveState.Exercises[exIdx];
+        exercise.IsSkipped = false;
+        foreach (var set in exercise.Sets)
+        {
+            set.IsSkipped = false;
+        }
+        _liveState.CurrentExerciseIndex = exIdx;
+        _liveState.ExpandedExerciseIndex = exIdx;
         RecalcTotals();
         await PersistState();
         StateHasChanged();
@@ -380,6 +827,18 @@ else
     {
         var setS = _liveState.Exercises[exIdx].Sets[setIdx];
         setS.Reps = Math.Max(1, setS.Reps + delta);
+        await PersistState();
+        StateHasChanged();
+    }
+
+    private async void SetReps(int exIdx, int setIdx, ChangeEventArgs e)
+    {
+        var setS = _liveState.Exercises[exIdx].Sets[setIdx];
+        if (int.TryParse(e.Value?.ToString(), out var reps))
+            setS.Reps = Math.Clamp(reps, 1, 999);
+        else
+            setS.Reps = 1;
+
         await PersistState();
         StateHasChanged();
     }
@@ -507,7 +966,7 @@ else
     {
         bool anySkipped = _liveState.Exercises.Any(e => e.IsSkipped);
         bool anyIncomplete = _liveState.Exercises.Any(e => !e.IsSkipped && e.Sets.Any(s => !s.IsCompleted && !s.IsSkipped));
-        bool anyModified = _liveState.Exercises.Any(e => !e.IsSkipped && (e.Sets.Count != e.OriginalSets || e.Sets.Any(s => s.Reps != e.OriginalReps || s.IsSkipped)));
+        bool anyModified = _liveState.Exercises.Any(e => !e.IsSkipped && (e.IsSessionOnly || e.Sets.Count != e.OriginalSets || e.Sets.Any(s => s.Reps != e.OriginalReps || s.IsSkipped)));
 
         if (anySkipped || anyIncomplete) return WorkoutLogStatus.Partial;
         if (anyModified) return WorkoutLogStatus.Modified;
@@ -523,11 +982,16 @@ else
         {
             var les = _liveState.Exercises[i];
             var we = _orderedExercises[i];
+            var completedSets = les.Sets.Count(s => s.IsCompleted && !s.IsSkipped);
+            var skippedSets = les.Sets.Count(s => s.IsSkipped);
+            var hasIncompleteSets = les.Sets.Any(s => !s.IsCompleted && !s.IsSkipped);
             var status = LogStatus.Completed;
 
-            if (les.IsSkipped)
+            if (les.IsSkipped || (completedSets == 0 && skippedSets > 0 && !hasIncompleteSets))
                 status = LogStatus.Skipped;
-            else if (les.Sets.Count != les.OriginalSets || les.Sets.Any(s => s.Reps != les.OriginalReps || s.IsSkipped))
+            else if (les.IsSessionOnly && completedSets > 0)
+                status = LogStatus.Added;
+            else if (skippedSets > 0 || hasIncompleteSets || les.Sets.Count != les.OriginalSets || les.Sets.Any(s => s.Reps != les.OriginalReps))
                 status = LogStatus.Modified;
 
             decimal cal = 0;
@@ -550,11 +1014,12 @@ else
 
             foreach (var setS in les.Sets)
             {
+                var setCompleted = setS.IsCompleted && !setS.IsSkipped;
                 entry.Sets.Add(new SetLogEntry
                 {
-                    RepsCompleted = setS.IsSkipped ? null : setS.Reps,
-                    WeightKg = setS.IsSkipped ? null : setS.WeightKg,
-                    IsCompleted = setS.IsCompleted && !setS.IsSkipped
+                    RepsCompleted = setCompleted ? setS.Reps : null,
+                    WeightKg = setCompleted ? setS.WeightKg : null,
+                    IsCompleted = setCompleted
                 });
             }
 

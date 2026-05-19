@@ -30,6 +30,8 @@ public class LiveExerciseState
     public int ExerciseId { get; set; }
     public int OriginalSets { get; set; }
     public int OriginalReps { get; set; }
+    public int? RestTimeSec { get; set; }
+    public bool IsSessionOnly { get; set; }
     public bool IsSkipped { get; set; }
     public List<LiveSetState> Sets { get; set; } = new();
 }
