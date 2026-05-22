@@ -39,5 +39,5 @@ Statistics about the user and their activities
 ## To-do
 
 - User profiles - add profile system where users can search for each other and add each other as friends
-- Foods section - add ingredients to use/avoid
+- Diet section - pick daily food and track calories
 - Social page - users can make posts to share custom workouts and make posts
