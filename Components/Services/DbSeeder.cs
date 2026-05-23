@@ -226,13 +226,28 @@ public static class DbSeeder
 
     private static async Task SeedFoodsAsync(AppDbContext db)
     {
-        var existingNames = (await db.Foods.Select(f => f.Name).ToListAsync()).ToHashSet(StringComparer.OrdinalIgnoreCase);
+        var existingFoods = await db.Foods
+            .Where(f => !f.IsCustom && f.CreatedByUserId == null)
+            .ToListAsync();
+
+        var existingByName = existingFoods.ToDictionary(f => f.Name, StringComparer.OrdinalIgnoreCase);
 
         foreach (var food in BuildFoodList())
         {
-            if (existingNames.Contains(food.Name)) continue;
+            if (existingByName.TryGetValue(food.Name, out var existing))
+            {
+                existing.CaloriesPer100g = food.CaloriesPer100g;
+                existing.ProteinPer100g = food.ProteinPer100g;
+                existing.CarbsPer100g = food.CarbsPer100g;
+                existing.FatPer100g = food.FatPer100g;
+                existing.DietCategory = food.DietCategory;
+                existing.ServingUnit = food.ServingUnit;
+                existing.ServingGrams = food.ServingGrams;
+                continue;
+            }
+
             db.Foods.Add(food);
-            existingNames.Add(food.Name);
+            existingByName[food.Name] = food;
         }
 
         if (db.ChangeTracker.HasChanges())
@@ -600,41 +615,88 @@ public static class DbSeeder
     {
         return new List<Food>
         {
-            new() { Name = "Chicken Breast (raw)", CaloriesPer100g = 120, ProteinPer100g = 22.5m, CarbsPer100g = 0, FatPer100g = 2.6m },
-            new() { Name = "Chicken Thigh (raw)", CaloriesPer100g = 177, ProteinPer100g = 17.3m, CarbsPer100g = 0, FatPer100g = 12.0m },
-            new() { Name = "Salmon Fillet (raw)", CaloriesPer100g = 208, ProteinPer100g = 20.4m, CarbsPer100g = 0, FatPer100g = 13.4m },
-            new() { Name = "Tuna (canned in water)", CaloriesPer100g = 116, ProteinPer100g = 25.5m, CarbsPer100g = 0, FatPer100g = 0.8m },
-            new() { Name = "Lean Beef Mince (5% fat)", CaloriesPer100g = 137, ProteinPer100g = 21.4m, CarbsPer100g = 0, FatPer100g = 5.0m },
-            new() { Name = "Whole Eggs", CaloriesPer100g = 155, ProteinPer100g = 12.6m, CarbsPer100g = 1.1m, FatPer100g = 11.0m },
-            new() { Name = "Egg Whites", CaloriesPer100g = 52, ProteinPer100g = 10.9m, CarbsPer100g = 0.7m, FatPer100g = 0.2m },
-            new() { Name = "Greek Yoghurt (0% fat)", CaloriesPer100g = 59, ProteinPer100g = 10.2m, CarbsPer100g = 3.6m, FatPer100g = 0.4m },
-            new() { Name = "Cottage Cheese (low fat)", CaloriesPer100g = 72, ProteinPer100g = 12.4m, CarbsPer100g = 2.7m, FatPer100g = 1.0m },
-            new() { Name = "Whey Protein Powder", CaloriesPer100g = 380, ProteinPer100g = 75.0m, CarbsPer100g = 10.0m, FatPer100g = 5.0m },
-            new() { Name = "White Rice (uncooked)", CaloriesPer100g = 365, ProteinPer100g = 6.6m, CarbsPer100g = 80.0m, FatPer100g = 0.6m },
-            new() { Name = "Brown Rice (uncooked)", CaloriesPer100g = 362, ProteinPer100g = 7.5m, CarbsPer100g = 76.2m, FatPer100g = 2.7m },
-            new() { Name = "Rolled Oats", CaloriesPer100g = 389, ProteinPer100g = 13.2m, CarbsPer100g = 66.3m, FatPer100g = 6.9m },
-            new() { Name = "Sweet Potato (raw)", CaloriesPer100g = 86, ProteinPer100g = 1.6m, CarbsPer100g = 20.1m, FatPer100g = 0.1m },
-            new() { Name = "White Potato (raw)", CaloriesPer100g = 77, ProteinPer100g = 2.0m, CarbsPer100g = 17.5m, FatPer100g = 0.1m },
-            new() { Name = "Wholemeal Bread", CaloriesPer100g = 247, ProteinPer100g = 13.0m, CarbsPer100g = 41.3m, FatPer100g = 3.4m },
-            new() { Name = "White Pasta (uncooked)", CaloriesPer100g = 371, ProteinPer100g = 13.0m, CarbsPer100g = 74.7m, FatPer100g = 1.5m },
-            new() { Name = "Banana", CaloriesPer100g = 89, ProteinPer100g = 1.1m, CarbsPer100g = 22.8m, FatPer100g = 0.3m },
-            new() { Name = "Apple", CaloriesPer100g = 52, ProteinPer100g = 0.3m, CarbsPer100g = 13.8m, FatPer100g = 0.2m },
-            new() { Name = "Blueberries", CaloriesPer100g = 57, ProteinPer100g = 0.7m, CarbsPer100g = 14.5m, FatPer100g = 0.3m },
-            new() { Name = "Broccoli", CaloriesPer100g = 34, ProteinPer100g = 2.8m, CarbsPer100g = 6.6m, FatPer100g = 0.4m },
-            new() { Name = "Spinach (raw)", CaloriesPer100g = 23, ProteinPer100g = 2.9m, CarbsPer100g = 3.6m, FatPer100g = 0.4m },
-            new() { Name = "Avocado", CaloriesPer100g = 160, ProteinPer100g = 2.0m, CarbsPer100g = 8.5m, FatPer100g = 14.7m },
-            new() { Name = "Olive Oil", CaloriesPer100g = 884, ProteinPer100g = 0, CarbsPer100g = 0, FatPer100g = 100.0m },
-            new() { Name = "Peanut Butter", CaloriesPer100g = 588, ProteinPer100g = 25.1m, CarbsPer100g = 20.0m, FatPer100g = 50.4m },
-            new() { Name = "Almonds", CaloriesPer100g = 579, ProteinPer100g = 21.2m, CarbsPer100g = 21.6m, FatPer100g = 49.9m },
-            new() { Name = "Cheddar Cheese", CaloriesPer100g = 403, ProteinPer100g = 24.9m, CarbsPer100g = 1.3m, FatPer100g = 33.1m },
-            new() { Name = "Whole Milk", CaloriesPer100g = 61, ProteinPer100g = 3.2m, CarbsPer100g = 4.8m, FatPer100g = 3.3m },
-            new() { Name = "Tofu (firm)", CaloriesPer100g = 144, ProteinPer100g = 17.3m, CarbsPer100g = 2.8m, FatPer100g = 8.7m },
-            new() { Name = "Red Lentils (uncooked)", CaloriesPer100g = 358, ProteinPer100g = 24.6m, CarbsPer100g = 60.1m, FatPer100g = 1.1m },
-            new() { Name = "Chickpeas (canned)", CaloriesPer100g = 139, ProteinPer100g = 7.0m, CarbsPer100g = 22.5m, FatPer100g = 2.6m },
-            new() { Name = "Quinoa (uncooked)", CaloriesPer100g = 368, ProteinPer100g = 14.1m, CarbsPer100g = 64.2m, FatPer100g = 6.1m },
-            new() { Name = "Turkey Breast (raw)", CaloriesPer100g = 104, ProteinPer100g = 23.7m, CarbsPer100g = 0, FatPer100g = 0.7m },
-            new() { Name = "White Fish (cod, raw)", CaloriesPer100g = 82, ProteinPer100g = 17.8m, CarbsPer100g = 0, FatPer100g = 0.7m },
-            new() { Name = "Prawns (raw)", CaloriesPer100g = 99, ProteinPer100g = 20.1m, CarbsPer100g = 0.9m, FatPer100g = 1.7m }
+            FoodSeed("Chicken Breast (cooked)", 165, 31m, 0m, 3.6m, "loss", "serving", 120),
+            FoodSeed("Turkey Breast (cooked)", 135, 29m, 0m, 1.6m, "loss", "serving", 120),
+            FoodSeed("Tuna (canned in water)", 116, 25.5m, 0m, 0.8m, "loss", "can", 120),
+            FoodSeed("White Fish (cod, cooked)", 105, 23m, 0m, 0.9m, "loss", "fillet", 150),
+            FoodSeed("Prawns (cooked)", 99, 24m, 0.2m, 0.3m, "loss", "serving", 100),
+            FoodSeed("Egg Whites", 52, 10.9m, 0.7m, 0.2m, "loss", "white", 33),
+            FoodSeed("Greek Yoghurt (0% fat)", 59, 10.2m, 3.6m, 0.4m, "loss", "pot", 170),
+            FoodSeed("Cottage Cheese (low fat)", 72, 12.4m, 2.7m, 1m, "loss", "serving", 150),
+            FoodSeed("Whey Protein Powder", 380, 75m, 10m, 5m, "loss", "scoop", 30),
+            FoodSeed("Broccoli", 34, 2.8m, 6.6m, 0.4m, "loss", "serving", 100),
+            FoodSeed("Spinach (raw)", 23, 2.9m, 3.6m, 0.4m, "loss", "serving", 60),
+            FoodSeed("Cauliflower", 25, 1.9m, 5m, 0.3m, "loss", "serving", 100),
+            FoodSeed("Green Beans", 31, 1.8m, 7m, 0.2m, "loss", "serving", 100),
+            FoodSeed("Courgette", 17, 1.2m, 3.1m, 0.3m, "loss", "serving", 120),
+            FoodSeed("Mushrooms", 22, 3.1m, 3.3m, 0.3m, "loss", "serving", 100),
+            FoodSeed("Lettuce", 15, 1.4m, 2.9m, 0.2m, "loss", "serving", 80),
+            FoodSeed("Cucumber", 15, 0.7m, 3.6m, 0.1m, "loss", "serving", 100),
+            FoodSeed("Tomatoes", 18, 0.9m, 3.9m, 0.2m, "loss", "serving", 100),
+            FoodSeed("Strawberries", 32, 0.7m, 7.7m, 0.3m, "loss", "serving", 150),
+            FoodSeed("Apple", 52, 0.3m, 13.8m, 0.2m, "loss", "apple", 180),
+            FoodSeed("Blueberries", 57, 0.7m, 14.5m, 0.3m, "loss", "serving", 100),
+            FoodSeed("Air Popped Popcorn", 387, 12.9m, 77.8m, 4.5m, "loss", "bowl", 25),
+            FoodSeed("Salmon Fillet (cooked)", 208, 20.4m, 0m, 13.4m, "gain", "fillet", 150),
+            FoodSeed("Chicken Thigh (cooked)", 209, 26m, 0m, 10.9m, "gain", "serving", 130),
+            FoodSeed("Lean Beef Mince (5% fat)", 137, 21.4m, 0m, 5m, "gain", "serving", 125),
+            FoodSeed("Fried Egg", 196, 13.6m, 0.8m, 15.3m, "gain", "egg", 50),
+            FoodSeed("Whole Eggs", 155, 12.6m, 1.1m, 11m, "gain", "egg", 50),
+            FoodSeed("Whole Milk", 61, 3.2m, 4.8m, 3.3m, "gain", "cup", 244),
+            FoodSeed("Greek Yoghurt (full fat)", 97, 9m, 3.8m, 5m, "gain", "pot", 170),
+            FoodSeed("Cheddar Cheese", 403, 24.9m, 1.3m, 33.1m, "gain", "slice", 28),
+            FoodSeed("Peanut Butter", 588, 25.1m, 20m, 50.4m, "gain", "tablespoon", 16),
+            FoodSeed("Almonds", 579, 21.2m, 21.6m, 49.9m, "gain", "handful", 30),
+            FoodSeed("Walnuts", 654, 15.2m, 13.7m, 65.2m, "gain", "handful", 30),
+            FoodSeed("Olive Oil", 884, 0m, 0m, 100m, "gain", "tablespoon", 14),
+            FoodSeed("Avocado", 160, 2m, 8.5m, 14.7m, "gain", "avocado", 150),
+            FoodSeed("Rolled Oats", 389, 13.2m, 66.3m, 6.9m, "gain", "serving", 60),
+            FoodSeed("Granola", 471, 10m, 64m, 20m, "gain", "serving", 60),
+            FoodSeed("Bagel", 257, 10m, 50m, 1.5m, "gain", "bagel", 100),
+            FoodSeed("White Rice (cooked)", 130, 2.7m, 28.2m, 0.3m, "gain", "serving", 180),
+            FoodSeed("White Pasta (cooked)", 158, 5.8m, 30.9m, 0.9m, "gain", "serving", 180),
+            FoodSeed("Sweet Potato (baked)", 90, 2m, 20.7m, 0.2m, "gain", "potato", 180),
+            FoodSeed("Banana", 89, 1.1m, 22.8m, 0.3m, "gain", "banana", 118),
+            FoodSeed("Raisins", 299, 3.1m, 79.2m, 0.5m, "gain", "serving", 40),
+            FoodSeed("Honey", 304, 0.3m, 82.4m, 0m, "gain", "tablespoon", 21),
+            FoodSeed("Brown Rice (cooked)", 123, 2.7m, 25.6m, 1m, "maintenance", "serving", 180),
+            FoodSeed("Quinoa (cooked)", 120, 4.4m, 21.3m, 1.9m, "maintenance", "serving", 170),
+            FoodSeed("Red Lentils (cooked)", 116, 9m, 20.1m, 0.4m, "maintenance", "serving", 180),
+            FoodSeed("Chickpeas (canned)", 139, 7m, 22.5m, 2.6m, "maintenance", "serving", 150),
+            FoodSeed("Black Beans (cooked)", 132, 8.9m, 23.7m, 0.5m, "maintenance", "serving", 170),
+            FoodSeed("Tofu (firm)", 144, 17.3m, 2.8m, 8.7m, "maintenance", "serving", 150),
+            FoodSeed("Tempeh", 193, 20.3m, 7.6m, 10.8m, "maintenance", "serving", 100),
+            FoodSeed("Wholemeal Bread", 247, 13m, 41.3m, 3.4m, "maintenance", "slice", 40),
+            FoodSeed("Whole Wheat Wrap", 310, 9m, 52m, 7m, "maintenance", "wrap", 70),
+            FoodSeed("White Potato (boiled)", 87, 1.9m, 20.1m, 0.1m, "maintenance", "potato", 170),
+            FoodSeed("Mixed Vegetables", 65, 2.8m, 12m, 0.5m, "maintenance", "serving", 150),
+            FoodSeed("Asparagus", 20, 2.2m, 3.9m, 0.1m, "maintenance", "serving", 100),
+            FoodSeed("Carrots", 41, 0.9m, 9.6m, 0.2m, "maintenance", "serving", 100),
+            FoodSeed("Orange", 47, 0.9m, 11.8m, 0.1m, "maintenance", "orange", 140),
+            FoodSeed("Skimmed Milk", 35, 3.4m, 5m, 0.1m, "maintenance", "cup", 244),
+            FoodSeed("Soy Milk", 54, 3.3m, 6.3m, 1.8m, "maintenance", "cup", 244),
+            FoodSeed("Hummus", 166, 7.9m, 14.3m, 9.6m, "maintenance", "serving", 50),
+            FoodSeed("Turkey Mince", 149, 21m, 0m, 7m, "maintenance", "serving", 125),
+            FoodSeed("Pork Tenderloin", 143, 26m, 0m, 3.5m, "maintenance", "serving", 125),
+            FoodSeed("Mackerel", 205, 18.6m, 0m, 13.9m, "maintenance", "fillet", 120),
+            FoodSeed("Boiled Egg", 155, 12.6m, 1.1m, 11m, "maintenance", "egg", 50)
+        };
+    }
+
+    private static Food FoodSeed(string name, decimal calories, decimal protein, decimal carbs, decimal fat, string category, string servingUnit, decimal servingGrams)
+    {
+        return new Food
+        {
+            Name = name,
+            CaloriesPer100g = calories,
+            ProteinPer100g = protein,
+            CarbsPer100g = carbs,
+            FatPer100g = fat,
+            DietCategory = category,
+            ServingUnit = servingUnit,
+            ServingGrams = servingGrams,
+            IsCustom = false,
+            CreatedByUserId = null
         };
     }
 

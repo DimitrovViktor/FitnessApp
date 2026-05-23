@@ -1,0 +1,492 @@
+@page "/diet"
+@inject DietService DietSvc
+@inject CustomAuthStateProvider AuthState
+@inject NavigationManager Navigation
+@using System.Globalization
+
+<PageTitle>Diet - Fitness App</PageTitle>
+
+@if (_isLoading)
+{
+    <div class="loading-state"><p>Loading...</p></div>
+}
+else
+{
+    <div class="diet-page">
+        <div class="page-header">
+            <div>
+                <h1>Diet</h1>
+                <p class="page-sub">Build daily food lists, calculate macros, and add your own foods.</p>
+            </div>
+            <div class="diet-date-wrap">
+                <label>Date</label>
+                <input type="date" value="@_selectedDate.ToString("yyyy-MM-dd")" @onchange="ChangeDate" />
+            </div>
+        </div>
+
+        <div class="diet-category-grid">
+            @foreach (var category in DietCategories)
+            {
+                var active = _selectedCategory == category.Key;
+                <button type="button" class="diet-category-card @(active ? "active" : "")" @onclick="() => SelectCategory(category.Key)">
+                    <span class="diet-category-title">@category.Label</span>
+                    <span class="diet-category-sub">@category.Description</span>
+                </button>
+            }
+        </div>
+
+        <div class="diet-stats-grid">
+            <div class="diet-stat-card">
+                <span class="diet-stat-label">Calories</span>
+                <span class="diet-stat-value">@FormatWhole(TotalCalories)</span>
+                <span class="diet-stat-sub">kcal</span>
+            </div>
+            <div class="diet-stat-card">
+                <span class="diet-stat-label">Protein</span>
+                <span class="diet-stat-value">@FormatMacro(TotalProtein)</span>
+                <span class="diet-stat-sub">grams</span>
+            </div>
+            <div class="diet-stat-card">
+                <span class="diet-stat-label">Carbs</span>
+                <span class="diet-stat-value">@FormatMacro(TotalCarbs)</span>
+                <span class="diet-stat-sub">grams</span>
+            </div>
+            <div class="diet-stat-card">
+                <span class="diet-stat-label">Fat</span>
+                <span class="diet-stat-value">@FormatMacro(TotalFat)</span>
+                <span class="diet-stat-sub">grams</span>
+            </div>
+        </div>
+
+        @if (!string.IsNullOrWhiteSpace(_message))
+        {
+            <div class="diet-message @(_messageIsError ? "error" : "success")">@_message</div>
+        }
+
+        <div class="diet-layout">
+            <section class="diet-panel library-panel">
+                <div class="diet-panel-head">
+                    <div>
+                        <h2>Food Library</h2>
+                        <p>@CurrentCategoryLabel foods and your custom foods for this category.</p>
+                    </div>
+                    <span class="diet-count">@FilteredFoods.Count() foods</span>
+                </div>
+
+                <div class="diet-search-row">
+                    <input type="text" value="@_foodSearch" @oninput="UpdateFoodSearch" aria-label="Search foods" />
+                    <button type="button" class="diet-small-btn" @onclick="ClearSearch">Clear</button>
+                </div>
+
+                <div class="diet-food-list">
+                    @if (!FilteredFoods.Any())
+                    {
+                        <div class="diet-empty">No foods match this search. Add a custom food below or switch category.</div>
+                    }
+                    else
+                    {
+                        @foreach (var food in FilteredFoods)
+                        {
+                            var addState = GetAddState(food.Id);
+                            <article class="diet-food-card" @key="food.Id">
+                                <div class="diet-food-main">
+                                    <div>
+                                        <div class="diet-food-title-row">
+                                            <span class="diet-food-name">@food.Name</span>
+                                            <span class="diet-badge @(food.IsCustom ? "custom" : "default")">@(food.IsCustom ? "Custom" : "Default")</span>
+                                        </div>
+                                        <span class="diet-food-serving">@FormatDecimal(food.ServingGrams)g per @food.ServingUnit</span>
+                                    </div>
+                                    <div class="diet-food-kcal">@FormatWhole(ServingCalories(food)) kcal</div>
+                                </div>
+
+                                <div class="macro-row">
+                                    <span><strong>@FormatMacro(ServingProtein(food))</strong> protein</span>
+                                    <span><strong>@FormatMacro(ServingCarbs(food))</strong> carbs</span>
+                                    <span><strong>@FormatMacro(ServingFat(food))</strong> fat</span>
+                                </div>
+
+                                <div class="diet-add-row">
+                                    <input type="number" min="0.01" step="0.1" value="@FormatDecimal(addState.Amount)" @onchange="e => SetAddAmount(food.Id, e.Value?.ToString())" aria-label="Amount" />
+                                    <select value="@addState.Mode" @onchange="e => SetAddMode(food.Id, e.Value?.ToString())" aria-label="Amount type">
+                                        <option value="serving">@food.ServingUnit</option>
+                                        <option value="grams">grams</option>
+                                    </select>
+                                    <button type="button" class="diet-action-btn" @onclick="() => AddFood(food.Id)">Add</button>
+                                </div>
+                            </article>
+                        }
+                    }
+                </div>
+            </section>
+
+            <section class="diet-panel log-panel">
+                <div class="diet-panel-head">
+                    <div>
+                        <h2>Daily Food List</h2>
+                        <p>@_selectedDate.ToString("dddd, d MMM yyyy")</p>
+                    </div>
+                    <span class="diet-count">@_logs.Count entries</span>
+                </div>
+
+                <div class="diet-log-list">
+                    @if (_logs.Count == 0)
+                    {
+                        <div class="diet-empty">No foods added for this date yet.</div>
+                    }
+                    else
+                    {
+                        @foreach (var log in _logs)
+                        {
+                            var state = GetLogState(log.Id, log);
+                            <article class="diet-log-card" @key="log.Id">
+                                <div class="diet-log-main">
+                                    <div>
+                                        <span class="diet-food-name">@log.Food.Name</span>
+                                        <span class="diet-food-serving">@FormatServingLabel(log)</span>
+                                    </div>
+                                    <div class="diet-food-kcal">@FormatWhole(log.CaloriesConsumed) kcal</div>
+                                </div>
+
+                                <div class="macro-row compact">
+                                    <span>@FormatMacro(Macro(log.Food.ProteinPer100g, log.QuantityGrams))g protein</span>
+                                    <span>@FormatMacro(Macro(log.Food.CarbsPer100g, log.QuantityGrams))g carbs</span>
+                                    <span>@FormatMacro(Macro(log.Food.FatPer100g, log.QuantityGrams))g fat</span>
+                                </div>
+
+                                <div class="diet-add-row log-edit-row">
+                                    <input type="number" min="0.01" step="0.1" value="@FormatDecimal(state.Amount)" @onchange="e => SetLogAmount(log.Id, e.Value?.ToString())" aria-label="Log amount" />
+                                    <select value="@state.Mode" @onchange="e => SetLogMode(log.Id, e.Value?.ToString())" aria-label="Log amount type">
+                                        <option value="serving">@log.Food.ServingUnit</option>
+                                        <option value="grams">grams</option>
+                                    </select>
+                                    <button type="button" class="diet-small-btn" @onclick="() => SaveLog(log.Id)">Update</button>
+                                    <button type="button" class="diet-danger-btn" @onclick="() => RemoveLog(log.Id)">Remove</button>
+                                </div>
+                            </article>
+                        }
+                    }
+                </div>
+            </section>
+        </div>
+
+        <section class="diet-panel custom-food-panel">
+            <div class="diet-panel-head">
+                <div>
+                    <h2>Add Custom Food</h2>
+                    <p>Create a food with macros per serving. It becomes available only to your account.</p>
+                </div>
+            </div>
+
+            <div class="custom-food-grid">
+                <div class="diet-field wide">
+                    <label>Name</label>
+                    <input type="text" @bind="_customFood.Name" />
+                </div>
+                <div class="diet-field">
+                    <label>Category</label>
+                    <select @bind="_customFood.DietCategory">
+                        @foreach (var category in DietCategories)
+                        {
+                            <option value="@category.Key">@category.Label</option>
+                        }
+                    </select>
+                </div>
+                <div class="diet-field">
+                    <label>Serving unit</label>
+                    <input type="text" @bind="_customFood.ServingUnit" />
+                </div>
+                <div class="diet-field">
+                    <label>Serving grams</label>
+                    <input type="number" min="1" step="1" @bind="_customFood.ServingGrams" />
+                </div>
+                <div class="diet-field">
+                    <label>Calories</label>
+                    <input type="number" min="0" step="1" @bind="_customFood.CaloriesPerServing" />
+                </div>
+                <div class="diet-field">
+                    <label>Protein</label>
+                    <input type="number" min="0" step="0.1" @bind="_customFood.ProteinPerServing" />
+                </div>
+                <div class="diet-field">
+                    <label>Carbs</label>
+                    <input type="number" min="0" step="0.1" @bind="_customFood.CarbsPerServing" />
+                </div>
+                <div class="diet-field">
+                    <label>Fat</label>
+                    <input type="number" min="0" step="0.1" @bind="_customFood.FatPerServing" />
+                </div>
+            </div>
+
+            <div class="diet-form-actions">
+                <button type="button" class="diet-action-btn" @onclick="CreateCustomFood">Save Custom Food</button>
+            </div>
+        </section>
+    </div>
+}
+
+@code {
+    private bool _isLoading = true;
+    private int _userId;
+    private DateOnly _selectedDate = DateOnly.FromDateTime(DateTime.Now);
+    private string _selectedCategory = "maintenance";
+    private string _foodSearch = "";
+    private string? _message;
+    private bool _messageIsError;
+    private List<Food> _foods = new();
+    private List<FoodLog> _logs = new();
+    private CustomFoodFormData _customFood = new();
+    private readonly Dictionary<int, AmountState> _addStates = new();
+    private readonly Dictionary<int, AmountState> _logStates = new();
+
+    private static readonly CategoryOption[] DietCategories =
+    {
+        new("loss", "Weight Loss", "Lower-calorie foods with lean protein, high volume, and controlled fats."),
+        new("gain", "Weight Gain", "Higher-calorie foods for easier surplus meals and muscle-building phases."),
+        new("maintenance", "Maintenance", "Balanced foods for stable body weight and everyday macro tracking.")
+    };
+
+    private IEnumerable<Food> FilteredFoods => _foods.Where(f => string.IsNullOrWhiteSpace(_foodSearch) || f.Name.Contains(_foodSearch, StringComparison.OrdinalIgnoreCase));
+    private string CurrentCategoryLabel => DietCategories.First(c => c.Key == _selectedCategory).Label;
+    private decimal TotalCalories => _logs.Sum(l => l.CaloriesConsumed);
+    private decimal TotalProtein => _logs.Sum(l => Macro(l.Food.ProteinPer100g, l.QuantityGrams));
+    private decimal TotalCarbs => _logs.Sum(l => Macro(l.Food.CarbsPer100g, l.QuantityGrams));
+    private decimal TotalFat => _logs.Sum(l => Macro(l.Food.FatPer100g, l.QuantityGrams));
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!firstRender) return;
+
+        var state = await AuthState.GetAuthenticationStateAsync();
+        if (state.User.Identity is not { IsAuthenticated: true })
+        {
+            try { Navigation.NavigateTo("/login", forceLoad: true); } catch { }
+            return;
+        }
+
+        _userId = int.Parse(state.User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)!.Value);
+        _customFood.DietCategory = _selectedCategory;
+        await LoadData();
+        _isLoading = false;
+        StateHasChanged();
+    }
+
+    private async Task LoadData()
+    {
+        await LoadFoods();
+        await LoadLogs();
+    }
+
+    private async Task LoadFoods()
+    {
+        _foods = await DietSvc.GetFoodsAsync(_userId, _selectedCategory);
+        foreach (var food in _foods)
+        {
+            if (!_addStates.ContainsKey(food.Id))
+                _addStates[food.Id] = new AmountState { Amount = 1, Mode = "serving" };
+        }
+    }
+
+    private async Task LoadLogs()
+    {
+        _logs = await DietSvc.GetFoodLogsAsync(_userId, _selectedDate);
+        _logStates.Clear();
+        foreach (var log in _logs)
+        {
+            _logStates[log.Id] = BuildLogState(log);
+        }
+    }
+
+    private async Task SelectCategory(string category)
+    {
+        _selectedCategory = DietService.NormalizeCategory(category);
+        _customFood.DietCategory = _selectedCategory;
+        _message = null;
+        await LoadFoods();
+    }
+
+    private async Task ChangeDate(ChangeEventArgs e)
+    {
+        if (DateOnly.TryParse(e.Value?.ToString(), out var date))
+        {
+            _selectedDate = date;
+            _message = null;
+            await LoadLogs();
+        }
+    }
+
+    private void UpdateFoodSearch(ChangeEventArgs e)
+    {
+        _foodSearch = e.Value?.ToString() ?? "";
+    }
+
+    private void ClearSearch()
+    {
+        _foodSearch = "";
+    }
+
+    private async Task AddFood(int foodId)
+    {
+        var state = GetAddState(foodId);
+        var success = await DietSvc.AddFoodLogAsync(_userId, foodId, _selectedDate, state.Amount, state.Mode);
+        await LoadLogs();
+        SetMessage(success ? "Food added to the selected day." : "Food could not be added.", !success);
+    }
+
+    private async Task SaveLog(int logId)
+    {
+        var state = GetLogState(logId);
+        var success = await DietSvc.UpdateFoodLogAsync(_userId, logId, state.Amount, state.Mode);
+        await LoadLogs();
+        SetMessage(success ? "Food entry updated." : "Food entry could not be updated.", !success);
+    }
+
+    private async Task RemoveLog(int logId)
+    {
+        var success = await DietSvc.DeleteFoodLogAsync(_userId, logId);
+        await LoadLogs();
+        SetMessage(success ? "Food entry removed." : "Food entry could not be removed.", !success);
+    }
+
+    private async Task CreateCustomFood()
+    {
+        if (string.IsNullOrWhiteSpace(_customFood.Name))
+        {
+            SetMessage("Food name is required.", true);
+            return;
+        }
+
+        var created = await DietSvc.CreateCustomFoodAsync(_userId, _customFood);
+        if (created is null)
+        {
+            SetMessage("Custom food could not be saved.", true);
+            return;
+        }
+
+        _selectedCategory = created.DietCategory;
+        _customFood = new CustomFoodFormData { DietCategory = _selectedCategory };
+        await LoadFoods();
+        SetMessage("Custom food saved.", false);
+    }
+
+    private AmountState GetAddState(int foodId)
+    {
+        if (!_addStates.TryGetValue(foodId, out var state))
+        {
+            state = new AmountState { Amount = 1, Mode = "serving" };
+            _addStates[foodId] = state;
+        }
+        return state;
+    }
+
+    private AmountState GetLogState(int logId)
+    {
+        if (!_logStates.TryGetValue(logId, out var state))
+        {
+            state = new AmountState { Amount = 1, Mode = "serving" };
+            _logStates[logId] = state;
+        }
+        return state;
+    }
+
+    private AmountState GetLogState(int logId, FoodLog log)
+    {
+        if (!_logStates.TryGetValue(logId, out var state))
+        {
+            state = BuildLogState(log);
+            _logStates[logId] = state;
+        }
+        return state;
+    }
+
+    private static AmountState BuildLogState(FoodLog log)
+    {
+        if (log.Food.ServingGrams > 0 && log.Food.ServingUnit != "grams")
+            return new AmountState { Amount = Math.Round(log.QuantityGrams / log.Food.ServingGrams, 2), Mode = "serving" };
+
+        return new AmountState { Amount = log.QuantityGrams, Mode = "grams" };
+    }
+
+    private void SetAddAmount(int foodId, string? value)
+    {
+        GetAddState(foodId).Amount = ParseAmount(value, 1);
+    }
+
+    private void SetAddMode(int foodId, string? value)
+    {
+        GetAddState(foodId).Mode = value == "grams" ? "grams" : "serving";
+    }
+
+    private void SetLogAmount(int logId, string? value)
+    {
+        GetLogState(logId).Amount = ParseAmount(value, 1);
+    }
+
+    private void SetLogMode(int logId, string? value)
+    {
+        GetLogState(logId).Mode = value == "grams" ? "grams" : "serving";
+    }
+
+    private static decimal ParseAmount(string? value, decimal fallback)
+    {
+        if (decimal.TryParse(value, NumberStyles.Any, CultureInfo.InvariantCulture, out var parsed) || decimal.TryParse(value, out parsed))
+            return parsed <= 0 ? fallback : parsed;
+
+        return fallback;
+    }
+
+    private void SetMessage(string message, bool isError)
+    {
+        _message = message;
+        _messageIsError = isError;
+    }
+
+    private static decimal ServingCalories(Food food) => Macro(food.CaloriesPer100g, food.ServingGrams);
+    private static decimal ServingProtein(Food food) => Macro(food.ProteinPer100g, food.ServingGrams);
+    private static decimal ServingCarbs(Food food) => Macro(food.CarbsPer100g, food.ServingGrams);
+    private static decimal ServingFat(Food food) => Macro(food.FatPer100g, food.ServingGrams);
+
+    private static decimal Macro(decimal? per100g, decimal grams)
+    {
+        return Math.Round((per100g ?? 0) * grams / 100, 1, MidpointRounding.AwayFromZero);
+    }
+
+    private static string FormatWhole(decimal value)
+    {
+        return Math.Round(value, 0, MidpointRounding.AwayFromZero).ToString("0", CultureInfo.InvariantCulture);
+    }
+
+    private static string FormatMacro(decimal value)
+    {
+        return value.ToString("0.#", CultureInfo.InvariantCulture);
+    }
+
+    private static string FormatDecimal(decimal value)
+    {
+        return value.ToString("0.##", CultureInfo.InvariantCulture);
+    }
+
+    private static string FormatServingLabel(FoodLog log)
+    {
+        if (log.Food.ServingGrams <= 0 || log.Food.ServingUnit == "grams")
+            return $"{FormatDecimal(log.QuantityGrams)}g";
+
+        var amount = log.QuantityGrams / log.Food.ServingGrams;
+        var unit = Math.Round(amount, 2) == 1 ? log.Food.ServingUnit : Pluralize(log.Food.ServingUnit);
+        return $"{FormatDecimal(amount)} {unit} / {FormatDecimal(log.QuantityGrams)}g";
+    }
+
+    private static string Pluralize(string unit)
+    {
+        if (unit.EndsWith("s", StringComparison.OrdinalIgnoreCase)) return unit;
+        return unit + "s";
+    }
+
+    private sealed class AmountState
+    {
+        public decimal Amount { get; set; } = 1;
+        public string Mode { get; set; } = "serving";
+    }
+
+    private sealed record CategoryOption(string Key, string Label, string Description);
+}

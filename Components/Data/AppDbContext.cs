@@ -192,6 +192,10 @@ public class AppDbContext : DbContext
             e.Property(f => f.ProteinPer100g).HasPrecision(6, 2);
             e.Property(f => f.CarbsPer100g).HasPrecision(6, 2);
             e.Property(f => f.FatPer100g).HasPrecision(6, 2);
+            e.Property(f => f.DietCategory).HasMaxLength(32).IsRequired();
+            e.Property(f => f.ServingUnit).HasMaxLength(40).IsRequired();
+            e.Property(f => f.ServingGrams).HasPrecision(7, 2);
+            e.HasOne(f => f.CreatedByUser).WithMany().HasForeignKey(f => f.CreatedByUserId).OnDelete(DeleteBehavior.Cascade);
         });
 
         mb.Entity<FoodPreparation>(e =>

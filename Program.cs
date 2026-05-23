@@ -23,6 +23,7 @@ builder.Services.AddScoped<CustomAuthStateProvider>();
 builder.Services.AddScoped<AuthenticationStateProvider>(sp =>
     sp.GetRequiredService<CustomAuthStateProvider>());
 builder.Services.AddScoped<ProgressService>();
+builder.Services.AddScoped<DietService>();
 
 var app = builder.Build();
 
@@ -55,6 +56,35 @@ using (var scope = app.Services.CreateScope())
     }
     catch { }
 
+    try
+    {
+        db.Database.ExecuteSqlRaw("ALTER TABLE Foods ADD COLUMN DietCategory TEXT NOT NULL DEFAULT 'maintenance'");
+    }
+    catch { }
+
+    try
+    {
+        db.Database.ExecuteSqlRaw("ALTER TABLE Foods ADD COLUMN ServingUnit TEXT NOT NULL DEFAULT 'serving'");
+    }
+    catch { }
+
+    try
+    {
+        db.Database.ExecuteSqlRaw("ALTER TABLE Foods ADD COLUMN ServingGrams NUMERIC NOT NULL DEFAULT 100");
+    }
+    catch { }
+
+    try
+    {
+        db.Database.ExecuteSqlRaw("ALTER TABLE Foods ADD COLUMN IsCustom INTEGER NOT NULL DEFAULT 0");
+    }
+    catch { }
+
+    try
+    {
+        db.Database.ExecuteSqlRaw("ALTER TABLE Foods ADD COLUMN CreatedByUserId INTEGER NULL");
+    }
+    catch { }
 
     try
     {

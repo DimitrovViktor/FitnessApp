@@ -8,6 +8,12 @@ public class Food
     public decimal? ProteinPer100g { get; set; }
     public decimal? CarbsPer100g { get; set; }
     public decimal? FatPer100g { get; set; }
+    public string DietCategory { get; set; } = "maintenance";
+    public string ServingUnit { get; set; } = "serving";
+    public decimal ServingGrams { get; set; } = 100;
+    public bool IsCustom { get; set; }
+    public int? CreatedByUserId { get; set; }
+    public User? CreatedByUser { get; set; }
 
     public ICollection<FoodPreparation> Preparations { get; set; } = new List<FoodPreparation>();
     public ICollection<FoodLog> FoodLogs { get; set; } = new List<FoodLog>();
