@@ -36,8 +36,11 @@ Program descriptions with workouts, recommended schedules, muscle exercise volum
 
 Statistics about the user and their activities
 
+## Diet page 
+
+Daily food log and nutrient/calorie tracking
+
 ## To-do
 
 - User profiles - add profile system where users can search for each other and add each other as friends
-- Diet section - pick daily food and track calories
 - Social page - users can make posts to share custom workouts and make posts
