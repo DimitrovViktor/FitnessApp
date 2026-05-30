@@ -43,5 +43,6 @@ Daily food log and nutrient/calorie tracking
 ## To-do
 
 - Foods page - lists of different foods in categories
+- Diet Plans - premade diet plans and user's diet plans
 - User profiles - add profile system where users can search for each other and add each other as friends
 - Social page - users can make posts to share custom workouts and make posts
