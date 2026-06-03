@@ -12,6 +12,10 @@ Registration with information collection and login authentication.
 
 Calendar with activities and workout details
 
+## Schedule
+
+Activity scheduling
+
 ## Profile
 
 User information storage with editing functionality
