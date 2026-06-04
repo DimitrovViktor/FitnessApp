@@ -1,0 +1,914 @@
+@page "/diet-plans"
+@inject DietService DietSvc
+@inject CustomAuthStateProvider AuthState
+@inject NavigationManager Navigation
+@using System.Globalization
+
+<PageTitle>Diet Plans - Fitness App</PageTitle>
+
+@if (_isLoading)
+{
+    <div class="loading-state"><p>Loading...</p></div>
+}
+else if (_detail is not null)
+{
+    <div class="diet-plan-detail-page">
+        <button type="button" class="btn-back" @onclick="CloseDetail">Back to Diet Plans</button>
+        <div class="detail-hero">
+            <div>
+                <span class="detail-kicker">@CategoryLabel(_detail.DietCategory)</span>
+                <h1>@_detail.Name</h1>
+                <p>@_detail.Description</p>
+                <div class="detail-meta-row">
+                    <span>@_detail.DurationWeeks weeks</span>
+                    <span>@_detail.MealsPerDay meals/day</span>
+                    <span>@(_detail.TargetLevel ?? "Any level")</span>
+                    <span>@(_detail.TargetGoal ?? "General Health")</span>
+                    <span>@(_detail.IsPreBuilt ? "Pre-built" : "Saved")</span>
+                </div>
+            </div>
+            <div class="detail-actions-stack">
+                @if (_detail.IsPreBuilt)
+                {
+                    <button type="button" class="btn-glow" @onclick="CopyDetailPlan">Save Plan</button>
+                }
+                <button type="button" class="btn-ghost" @onclick='() => Navigation.NavigateTo("/schedule")'>Open Schedule</button>
+            </div>
+        </div>
+
+        @if (!string.IsNullOrWhiteSpace(_message))
+        {
+            <div class="diet-message @(_messageIsError ? "error" : "success")">@_message</div>
+        }
+
+        <div class="diet-plan-detail-grid">
+            <section class="diet-panel">
+                <div class="diet-panel-head">
+                    <div>
+                        <h2>Meal Structure</h2>
+                        <p>@(DetailIsEditable ? "Edit day, meal, grams, or add more foods to this saved plan." : $"{_detail.Foods.Count} foods across the repeating plan.")</p>
+                    </div>
+                    @if (DetailIsEditable)
+                    {
+                        <div class="detail-head-actions">
+                            <span class="diet-count">Editable</span>
+                            @if (!_showDetailFoodPicker)
+                            {
+                                <button type="button" class="btn-icon-add" @onclick="OpenDetailFoodPicker" aria-label="Add food to plan">+</button>
+                            }
+                        </div>
+                    }
+                </div>
+
+                @if (DetailIsEditable && _showDetailFoodPicker)
+                {
+                    <div class="detail-add-panel">
+                        <div class="bld-search-row diet-builder-search-row labeled-builder-row">
+                            <label class="bld-input-group bld-input-wide">
+                                <span>Food search</span>
+                                <input class="bld-search" type="text" placeholder="Search food library..." @bind="_detailSearch" @bind:event="oninput" />
+                            </label>
+                            <label class="bld-input-group compact-input-group">
+                                <span>Day</span>
+                                <input class="mini-field" type="number" min="1" step="1" @bind="_detailDay" />
+                            </label>
+                            <label class="bld-input-group medium-input-group">
+                                <span>Meal</span>
+                                <input class="mini-field wide-mini" type="text" @bind="_detailMeal" />
+                            </label>
+                            <label class="bld-input-group compact-input-group">
+                                <span>Quantity (grams)</span>
+                                <input class="mini-field" type="number" min="1" step="1" @bind="_detailGrams" />
+                            </label>
+                            <div class="bld-row-actions">
+                                <button type="button" class="btn-glow btn-sm" @onclick="() => AddDetailFood(null)">Add Selected</button>
+                                <button type="button" class="btn-ghost btn-sm" @onclick="CloseDetailFoodPicker">Cancel</button>
+                            </div>
+                        </div>
+                        <div class="food-library-strip">
+                            @foreach (var food in DetailFoods)
+                            {
+                                <button type="button" class="lib-card food-pick-card @(_detailFoodId == food.Id ? "active" : "")" @onclick="() => AddDetailFood(food.Id)">
+                                    <span class="lib-name">@food.Name</span>
+                                    <span class="lib-meta">@food.FoodGroup · @FormatWhole(food.CaloriesPer100g) kcal / 100g</span>
+                                </button>
+                            }
+                        </div>
+                    </div>
+                }
+
+                <div class="diet-plan-food-list">
+                    @if (_detail.Foods.Count == 0)
+                    {
+                        <div class="diet-empty">This diet plan has no foods yet.</div>
+                    }
+                    else
+                    {
+                        @foreach (var day in _detail.Foods.GroupBy(f => f.DayNumber).OrderBy(g => g.Key))
+                        {
+                            <div class="plan-day-block">
+                                <h3>Day @day.Key</h3>
+                                @foreach (var item in day.OrderBy(i => i.SortOrder))
+                                {
+                                    if (DetailIsEditable)
+                                    {
+                                        var state = GetPlanFoodState(item);
+                                        <div class="diet-plan-food-row editable-food-row" @key="item.Id">
+                                            <div class="plan-food-title">
+                                                <strong>@item.Food.Name</strong>
+                                                <span>@FormatWhole(Macro(item.Food.CaloriesPer100g, state.Grams)) kcal · @FormatMacro(Macro(item.Food.ProteinPer100g, state.Grams))g protein</span>
+                                            </div>
+                                            <div class="plan-edit-fields labeled-edit-fields">
+                                                <label class="bld-input-group compact-input-group">
+                                                    <span>Day</span>
+                                                    <input type="number" min="1" step="1" value="@state.DayNumber" @onchange="e => state.DayNumber = ParseInt(e.Value?.ToString(), item.DayNumber)" />
+                                                </label>
+                                                <label class="bld-input-group medium-input-group">
+                                                    <span>Meal</span>
+                                                    <input type="text" value="@state.MealName" @oninput="e => state.MealName = e.Value?.ToString() ?? item.MealName" />
+                                                </label>
+                                                <label class="bld-input-group compact-input-group">
+                                                    <span>Quantity (grams)</span>
+                                                    <input type="number" min="1" step="1" value="@FormatDecimal(state.Grams)" @onchange="e => state.Grams = ParseAmount(e.Value?.ToString(), item.QuantityGrams)" />
+                                                </label>
+                                                <div class="inline-action-stack">
+                                                    <button type="button" class="btn-ghost btn-xs" @onclick="() => SavePlanFood(item.Id)">Update</button>
+                                                    <button type="button" class="btn-danger-xs" @onclick="() => RemovePlanFood(item.Id)" aria-label="Remove food"><span class="icon icon-x" aria-hidden="true"></span></button>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    }
+                                    else
+                                    {
+                                        <div class="diet-plan-food-row">
+                                            <div>
+                                                <strong>@item.MealName</strong>
+                                                <span>@item.Food.Name</span>
+                                            </div>
+                                            <div>
+                                                <strong>@FormatDecimal(item.QuantityGrams)g</strong>
+                                                <span>@FormatWhole(Macro(item.Food.CaloriesPer100g, item.QuantityGrams)) kcal</span>
+                                            </div>
+                                        </div>
+                                    }
+                                }
+                            </div>
+                        }
+                    }
+                </div>
+            </section>
+
+            <aside class="diet-panel detail-side-panel">
+                <div class="diet-panel-head">
+                    <div>
+                        <h2>Plan Stats</h2>
+                        <p>Average per plan day.</p>
+                    </div>
+                </div>
+                <div class="plan-stat-list">
+                    <div><span>Calories</span><strong>@FormatWhole(AverageDailyCalories(_detail)) kcal</strong></div>
+                    <div><span>Protein</span><strong>@FormatMacro(AverageDailyMacro(_detail, "protein"))g</strong></div>
+                    <div><span>Carbs</span><strong>@FormatMacro(AverageDailyMacro(_detail, "carbs"))g</strong></div>
+                    <div><span>Fat</span><strong>@FormatMacro(AverageDailyMacro(_detail, "fat"))g</strong></div>
+                    <div><span>Target calories</span><strong>@(_detail.DailyCaloriesTarget.HasValue ? FormatWhole(_detail.DailyCaloriesTarget.Value) + " kcal" : "Not set")</strong></div>
+                    <div><span>Target protein</span><strong>@(_detail.DailyProteinTarget.HasValue ? FormatMacro(_detail.DailyProteinTarget.Value) + "g" : "Not set")</strong></div>
+                </div>
+                @{ var notes = GetNotes(_detail); }
+                @if (notes.Count > 0)
+                {
+                    <div class="diet-note-list">
+                        <h3>Notes</h3>
+                        @foreach (var note in notes)
+                        {
+                            <div class="diet-note-item"><span></span><p>@note</p></div>
+                        }
+                    </div>
+                }
+            </aside>
+        </div>
+    </div>
+}
+else
+{
+    <div class="diet-plans-page">
+        <div class="page-header">
+            <div>
+                <h1>Diet Plans</h1>
+                <p class="page-sub">Build diet days, save full diet plans, or copy pre-built options to edit them.</p>
+            </div>
+            <button type="button" class="btn-glow" @onclick="OpenBuilder">Create Diet Plan</button>
+        </div>
+
+        <div class="tab-bar training-tabs diet-plan-tabs">
+            <button type="button" class="tab @(_activeTab == 0 ? "active" : "")" @onclick="() => SelectTab(0)">My Day</button>
+            <button type="button" class="tab @(_activeTab == 1 ? "active" : "")" @onclick="() => SelectTab(1)">My Diet</button>
+            <button type="button" class="tab @(_activeTab == 2 ? "active" : "")" @onclick="() => SelectTab(2)">Browse Days</button>
+            <button type="button" class="tab @(_activeTab == 3 ? "active" : "")" @onclick="() => SelectTab(3)">Browse Plans</button>
+        </div>
+
+        <div class="diet-category-grid">
+            @foreach (var category in DietCategories)
+            {
+                var active = _selectedCategory == category.Key;
+                <button type="button" class="diet-category-card @(active ? "active" : "")" @onclick="() => SelectCategory(category.Key)">
+                    <span class="diet-category-title">@category.Label</span>
+                    <span class="diet-category-sub">@category.Description</span>
+                    <span class="diet-category-count">@GetCategoryCount(category.Key) plans</span>
+                </button>
+            }
+        </div>
+
+        <div class="filter-section">
+            <div class="filter-row">
+                <div class="filter-group">
+                    <span class="filter-label">Difficulty</span>
+                    <div class="pill-row">
+                        @foreach (var level in Levels)
+                        {
+                            <button type="button" class="pill-sub @(_levelFilter == level.Key ? "pill-sub-active" : "")" @onclick="() => _levelFilter = level.Key">@level.Label</button>
+                        }
+                    </div>
+                </div>
+                <div class="filter-group">
+                    <span class="filter-label">Goal</span>
+                    <div class="pill-row">
+                        @foreach (var goal in Goals)
+                        {
+                            <button type="button" class="pill-sub @(_goalFilter == goal.Key ? "pill-sub-active" : "")" @onclick="() => _goalFilter = goal.Key">@goal.Label</button>
+                        }
+                    </div>
+                </div>
+                <div class="filter-count">@CurrentCount</div>
+            </div>
+        </div>
+
+        @if (!string.IsNullOrWhiteSpace(_message))
+        {
+            <div class="diet-message @(_messageIsError ? "error" : "success")">@_message</div>
+        }
+
+        @if (_activeTab == 0 || _activeTab == 2)
+        {
+            <div class="diet-plan-grid day-card-grid">
+                @if (FilteredPlanDays.Count == 0)
+                {
+                    <div class="diet-empty grid-empty">No diet days match these filters.</div>
+                }
+                else
+                {
+                    @foreach (var day in FilteredPlanDays)
+                    {
+                        <article class="diet-plan-card day-plan-card" @onclick="() => OpenDetail(day.PlanId)">
+                            <div class="diet-plan-card-top">
+                                <div>
+                                    <h3>@day.PlanName · Day @day.DayNumber</h3>
+                                    <p>@day.Description</p>
+                                </div>
+                                <span class="diet-badge @(day.IsPreBuilt ? "default" : "custom")">@(day.IsPreBuilt ? "Pre-built" : "Saved")</span>
+                            </div>
+                            <div class="wk-meta diet-plan-meta">
+                                <span>@CategoryLabel(day.Category)</span>
+                                <span>@day.ItemCount foods</span>
+                                <span>@FormatWhole(day.Calories) kcal</span>
+                                <span>@FormatMacro(day.Protein)g protein</span>
+                            </div>
+                            <div class="diet-day-foods">
+                                @foreach (var item in day.Items.Take(4))
+                                {
+                                    <span>@item.MealName · @item.Food.Name</span>
+                                }
+                            </div>
+                            <div class="card-actions-row" @onclick:stopPropagation>
+                                @if (day.IsPreBuilt)
+                                {
+                                    <button type="button" class="btn-glow btn-xs" @onclick="() => CopyDay(day)">Save Day</button>
+                                }
+                                else
+                                {
+                                    <button type="button" class="btn-ghost btn-xs" @onclick="() => OpenDetail(day.PlanId)">Edit Day</button>
+                                }
+                            </div>
+                        </article>
+                    }
+                }
+            </div>
+        }
+        else
+        {
+            <div class="diet-plan-grid">
+                @if (FilteredPlans.Count == 0)
+                {
+                    <div class="diet-empty grid-empty">No diet plans match these filters.</div>
+                }
+                else
+                {
+                    @foreach (var plan in FilteredPlans)
+                    {
+                        <article class="diet-plan-card" @onclick="() => OpenDetail(plan.Id)">
+                            <div class="diet-plan-card-top">
+                                <div>
+                                    <h3>@plan.Name</h3>
+                                    <p>@plan.Description</p>
+                                </div>
+                                <span class="diet-badge @(plan.IsPreBuilt ? "default" : "custom")">@(plan.IsPreBuilt ? "Pre-built" : "Saved")</span>
+                            </div>
+                            <div class="wk-meta diet-plan-meta">
+                                <span>@CategoryLabel(plan.DietCategory)</span>
+                                <span>@plan.DurationWeeks weeks</span>
+                                <span>@plan.MealsPerDay meals/day</span>
+                                <span>@plan.Foods.Count foods</span>
+                            </div>
+                            <div class="chip-row">
+                                @if (plan.TargetLevel is not null) { <span class="chip-sm">@plan.TargetLevel</span> }
+                                @if (plan.TargetGoal is not null) { <span class="chip-sm">@plan.TargetGoal</span> }
+                            </div>
+                            <div class="diet-plan-card-stats">
+                                <span>@FormatWhole(AverageDailyCalories(plan)) kcal/day</span>
+                                <span>@FormatMacro(AverageDailyMacro(plan, "protein"))g protein</span>
+                            </div>
+                            <div class="card-actions-row" @onclick:stopPropagation>
+                                @if (plan.IsPreBuilt)
+                                {
+                                    <button type="button" class="btn-glow btn-xs" @onclick="() => CopyPlan(plan.Id)">Save Plan</button>
+                                }
+                                else
+                                {
+                                    <button type="button" class="btn-ghost btn-xs" @onclick="() => OpenDetail(plan.Id)">Edit Plan</button>
+                                }
+                            </div>
+                        </article>
+                    }
+                }
+            </div>
+        }
+    </div>
+}
+
+<Modal IsOpen="_showBuilder" OnClose="CloseBuilder" Size="full">
+    <div class="bld diet-builder-full">
+        <div class="bld-top">
+            <div class="builder-top-row">
+                <div>
+                    <span class="detail-kicker">Diet plan builder</span>
+                    <input class="bld-name" type="text" placeholder="Diet plan name" @bind="_form.Name" />
+                </div>
+                <div class="bld-badges">
+                    <span class="bdg bdg-cal">@CategoryLabel(_form.DietCategory)</span>
+                    <span class="bdg bdg-sets">@_form.Items.Count foods</span>
+                    <span class="bdg bdg-time">@FormatWhole(FormCalories) kcal/day</span>
+                </div>
+            </div>
+        </div>
+
+        <div class="diet-builder-settings">
+            <div class="diet-field wide">
+                <label>Description</label>
+                <input type="text" @bind="_form.Description" />
+            </div>
+            <div class="diet-field">
+                <label>Category</label>
+                <select @bind="_form.DietCategory">
+                    @foreach (var category in DietCategories)
+                    {
+                        <option value="@category.Key">@category.Label</option>
+                    }
+                </select>
+            </div>
+            <div class="diet-field">
+                <label>Difficulty</label>
+                <select @bind="_form.TargetLevel">
+                    <option>Beginner</option>
+                    <option>Intermediate</option>
+                    <option>Advanced</option>
+                </select>
+            </div>
+            <div class="diet-field">
+                <label>Goal</label>
+                <input type="text" @bind="_form.TargetGoal" />
+            </div>
+            <div class="diet-field">
+                <label>Duration weeks</label>
+                <input type="number" min="1" max="52" @bind="_form.DurationWeeks" />
+            </div>
+            <div class="diet-field">
+                <label>Meals/day</label>
+                <input type="number" min="1" max="8" @bind="_form.MealsPerDay" />
+            </div>
+            <div class="diet-field">
+                <label>Target calories</label>
+                <input type="number" min="0" step="1" @bind="_form.DailyCaloriesTarget" />
+            </div>
+            <div class="diet-field">
+                <label>Target protein</label>
+                <input type="number" min="0" step="1" @bind="_form.DailyProteinTarget" />
+            </div>
+        </div>
+
+        <div class="bld-search-row diet-builder-search-row labeled-builder-row">
+            <label class="bld-input-group bld-input-wide">
+                <span>Food search</span>
+                <input class="bld-search" type="text" placeholder="Search foods to add..." @bind="_builderSearch" @bind:event="oninput" />
+            </label>
+            <label class="bld-input-group compact-input-group">
+                <span>Day</span>
+                <input class="mini-field" type="number" min="1" step="1" @bind="_builderDay" />
+            </label>
+            <label class="bld-input-group medium-input-group">
+                <span>Meal</span>
+                <input class="mini-field wide-mini" type="text" @bind="_builderMeal" />
+            </label>
+            <label class="bld-input-group compact-input-group">
+                <span>Quantity (grams)</span>
+                <input class="mini-field" type="number" min="1" step="1" @bind="_builderGrams" />
+            </label>
+        </div>
+
+        <div class="diet-builder-body">
+            <section class="diet-builder-library">
+                <div class="sec-header static">
+                    <h3 class="sec-title">Food Library</h3>
+                    <span class="diet-count">@BuilderFoods.Count foods</span>
+                </div>
+                <div class="lib-grid food-library-builder-grid">
+                    @foreach (var food in BuilderFoods)
+                    {
+                        <button type="button" class="lib-card food-pick-card @(_builderFoodId == food.Id ? "active" : "")" @onclick="() => AddBuilderFood(food.Id)">
+                            <span class="lib-name">@food.Name</span>
+                            <span class="lib-meta">@food.FoodGroup · @FormatWhole(food.CaloriesPer100g) kcal / 100g</span>
+                        </button>
+                    }
+                </div>
+            </section>
+
+            <section class="diet-builder-selected">
+                <div class="sec-header static">
+                    <h3 class="sec-title">Selected Foods</h3>
+                    <button type="button" class="btn-glow btn-xs" @onclick="() => AddBuilderFood(null)">Add Selected</button>
+                </div>
+                <div class="diet-plan-food-list builder-list">
+                    @if (_form.Items.Count == 0)
+                    {
+                        <div class="diet-empty">Add foods to build the plan.</div>
+                    }
+                    else
+                    {
+                        @foreach (var item in _form.Items.OrderBy(i => i.DayNumber).ThenBy(i => i.SortOrder).ToList())
+                        {
+                            var food = _allFoods.FirstOrDefault(f => f.Id == item.FoodId);
+                            <div class="diet-plan-food-row editable-food-row">
+                                <div class="plan-food-title">
+                                    <strong>Day @item.DayNumber · @item.MealName</strong>
+                                    <span>@(food?.Name ?? "Food")</span>
+                                </div>
+                                <div class="plan-edit-fields builder-selected-fields labeled-edit-fields">
+                                    <label class="bld-input-group compact-input-group">
+                                        <span>Day</span>
+                                        <input type="number" min="1" step="1" @bind="item.DayNumber" />
+                                    </label>
+                                    <label class="bld-input-group medium-input-group">
+                                        <span>Meal</span>
+                                        <input type="text" @bind="item.MealName" />
+                                    </label>
+                                    <label class="bld-input-group compact-input-group">
+                                        <span>Quantity (grams)</span>
+                                        <input type="number" min="1" step="1" @bind="item.QuantityGrams" />
+                                    </label>
+                                    <div class="inline-action-stack">
+                                        <button type="button" class="btn-danger-xs" @onclick="() => RemoveBuilderFood(item)" aria-label="Remove food"><span class="icon icon-x" aria-hidden="true"></span></button>
+                                    </div>
+                                </div>
+                            </div>
+                        }
+                    }
+                </div>
+            </section>
+        </div>
+
+        <div class="bld-footer">
+            <button type="button" class="btn-ghost" @onclick="CloseBuilder">Cancel</button>
+            <button type="button" class="btn-action" @onclick="CreateDietPlan">Save Diet Plan</button>
+        </div>
+    </div>
+</Modal>
+
+@code {
+    private bool _isLoading = true;
+    private int _userId;
+    private int _activeTab = 3;
+    private string _selectedCategory = "maintenance";
+    private string _levelFilter = "all";
+    private string _goalFilter = "all";
+    private string? _message;
+    private bool _messageIsError;
+    private List<DietPlan> _plans = new();
+    private List<Food> _allFoods = new();
+    private DietPlan? _detail;
+    private bool _showBuilder;
+    private bool _showDetailFoodPicker;
+    private DietPlanFormData _form = new();
+    private string _builderSearch = "";
+    private int _builderFoodId;
+    private decimal _builderGrams = 100;
+    private string _builderMeal = "Meal";
+    private int _builderDay = 1;
+    private string _detailSearch = "";
+    private int _detailFoodId;
+    private decimal _detailGrams = 100;
+    private string _detailMeal = "Meal";
+    private int _detailDay = 1;
+    private readonly Dictionary<int, PlanFoodEditState> _planFoodStates = new();
+
+    private static readonly CategoryOption[] DietCategories =
+    {
+        new("loss", "Weight Loss", "Plans for fat loss, appetite control, and high protein intake."),
+        new("gain", "Weight Gain", "Plans for calorie surplus, muscle gain, and easy meal structure."),
+        new("maintenance", "Maintenance", "Plans for stable body weight and consistent daily nutrition.")
+    };
+
+    private static readonly FilterOption[] Levels =
+    {
+        new("all", "All"),
+        new("beginner", "Beginner"),
+        new("intermediate", "Intermediate"),
+        new("advanced", "Advanced")
+    };
+
+    private static readonly FilterOption[] Goals =
+    {
+        new("all", "All"),
+        new("weight loss", "Weight Loss"),
+        new("fat loss", "Fat Loss"),
+        new("weight gain", "Weight Gain"),
+        new("muscle gain", "Muscle Gain"),
+        new("general health", "General Health"),
+        new("performance", "Performance")
+    };
+
+    private List<DietPlan> FilteredPlans => _plans
+        .Where(p => p.DietCategory == _selectedCategory)
+        .Where(p => _activeTab == 1 ? IsOwnedPlan(p) : _activeTab == 3 && p.IsPreBuilt)
+        .Where(PlanPassesFilters)
+        .OrderBy(p => p.IsPreBuilt ? 1 : 0)
+        .ThenBy(p => p.Name)
+        .ToList();
+
+    private List<PlanDayView> FilteredPlanDays => _plans
+        .Where(p => p.DietCategory == _selectedCategory)
+        .Where(p => _activeTab == 0 ? IsOwnedPlan(p) : _activeTab == 2 && p.IsPreBuilt)
+        .Where(PlanPassesFilters)
+        .SelectMany(ToPlanDays)
+        .OrderBy(d => d.PlanName)
+        .ThenBy(d => d.DayNumber)
+        .ToList();
+
+    private List<Food> BuilderFoods => _allFoods
+        .Where(f => f.CreatedByUserId == null || f.CreatedByUserId == _userId)
+        .Where(f => string.IsNullOrWhiteSpace(_builderSearch) || f.Name.Contains(_builderSearch, StringComparison.OrdinalIgnoreCase) || f.FoodGroup.Contains(_builderSearch, StringComparison.OrdinalIgnoreCase))
+        .OrderBy(f => f.Name)
+        .Take(60)
+        .ToList();
+
+    private List<Food> DetailFoods => _allFoods
+        .Where(f => f.CreatedByUserId == null || f.CreatedByUserId == _userId)
+        .Where(f => string.IsNullOrWhiteSpace(_detailSearch) || f.Name.Contains(_detailSearch, StringComparison.OrdinalIgnoreCase) || f.FoodGroup.Contains(_detailSearch, StringComparison.OrdinalIgnoreCase))
+        .OrderBy(f => f.Name)
+        .Take(40)
+        .ToList();
+
+    private bool DetailIsEditable => _detail is not null && !_detail.IsPreBuilt && _detail.CreatedByUserId == _userId;
+    private string CurrentCount => _activeTab == 0 || _activeTab == 2 ? $"{FilteredPlanDays.Count} days" : $"{FilteredPlans.Count} plans";
+    private decimal FormCalories => _form.Items.Count == 0 ? 0 : _form.Items.GroupBy(i => Math.Max(1, i.DayNumber)).Average(g => g.Sum(i => Macro(_allFoods.FirstOrDefault(f => f.Id == i.FoodId)?.CaloriesPer100g, i.QuantityGrams)));
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!firstRender) return;
+
+        var state = await AuthState.GetAuthenticationStateAsync();
+        if (state.User.Identity is not { IsAuthenticated: true })
+        {
+            try { Navigation.NavigateTo("/login", forceLoad: true); } catch { }
+            return;
+        }
+
+        _userId = int.Parse(state.User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)!.Value);
+        await LoadData();
+        _isLoading = false;
+        StateHasChanged();
+    }
+
+    private async Task LoadData()
+    {
+        _plans = await DietSvc.GetAllAccessibleDietPlansAsync(_userId);
+        _allFoods = await DietSvc.GetAllAccessibleFoodsAsync(_userId);
+        if (_builderFoodId == 0 && _allFoods.Count > 0) _builderFoodId = _allFoods[0].Id;
+        if (_detailFoodId == 0 && _allFoods.Count > 0) _detailFoodId = _allFoods[0].Id;
+    }
+
+    private void SelectTab(int tab)
+    {
+        _activeTab = tab;
+    }
+
+    private void SelectCategory(string category)
+    {
+        _selectedCategory = DietService.NormalizeCategory(category);
+        _form.DietCategory = _selectedCategory;
+    }
+
+    private int GetCategoryCount(string category)
+    {
+        category = DietService.NormalizeCategory(category);
+        return _plans.Count(p => p.DietCategory == category);
+    }
+
+    private async Task OpenDetail(int id)
+    {
+        _detail = await DietSvc.GetDietPlanAsync(_userId, id);
+        _showDetailFoodPicker = false;
+        RefreshDetailStates();
+    }
+
+    private void CloseDetail()
+    {
+        _detail = null;
+        _showDetailFoodPicker = false;
+        _planFoodStates.Clear();
+    }
+
+    private void OpenBuilder()
+    {
+        _form = new DietPlanFormData { DietCategory = _selectedCategory, TargetGoal = CategoryLabel(_selectedCategory) };
+        _builderMeal = "Meal";
+        _builderGrams = 100;
+        _builderDay = 1;
+        _builderSearch = "";
+        if (_allFoods.Count > 0) _builderFoodId = _allFoods[0].Id;
+        _showBuilder = true;
+    }
+
+    private void CloseBuilder()
+    {
+        _showBuilder = false;
+    }
+
+    private void OpenDetailFoodPicker()
+    {
+        _showDetailFoodPicker = true;
+    }
+
+    private void CloseDetailFoodPicker()
+    {
+        _showDetailFoodPicker = false;
+    }
+
+    private void AddBuilderFood(int? foodId)
+    {
+        var id = foodId ?? _builderFoodId;
+        if (id == 0) return;
+        _builderFoodId = id;
+        _form.Items.Add(new DietPlanFoodFormData
+        {
+            FoodId = id,
+            DayNumber = Math.Max(1, _builderDay),
+            MealName = string.IsNullOrWhiteSpace(_builderMeal) ? "Meal" : _builderMeal.Trim(),
+            QuantityGrams = Math.Max(1, _builderGrams),
+            SortOrder = _form.Items.Count
+        });
+    }
+
+    private void RemoveBuilderFood(DietPlanFoodFormData item)
+    {
+        _form.Items.Remove(item);
+    }
+
+    private async Task CreateDietPlan()
+    {
+        var plan = await DietSvc.CreateDietPlanAsync(_userId, _form);
+        if (plan is null)
+        {
+            SetMessage("Diet plan could not be saved.", true);
+            return;
+        }
+
+        await LoadData();
+        _showBuilder = false;
+        _activeTab = 1;
+        _selectedCategory = plan.DietCategory;
+        SetMessage("Diet plan saved.", false);
+    }
+
+    private async Task CopyDetailPlan()
+    {
+        if (_detail is null) return;
+        await CopyPlan(_detail.Id);
+    }
+
+    private async Task CopyPlan(int planId)
+    {
+        var copy = await DietSvc.CopyDietPlanAsync(_userId, planId);
+        await LoadData();
+        SetMessage(copy is null ? "Diet plan could not be saved." : "Diet plan saved to your account.", copy is null);
+        if (copy is not null)
+        {
+            _activeTab = 1;
+            _selectedCategory = copy.DietCategory;
+            _detail = copy;
+            RefreshDetailStates();
+        }
+    }
+
+    private async Task CopyDay(PlanDayView day)
+    {
+        var copy = await DietSvc.CopyDietPlanDayAsync(_userId, day.PlanId, day.DayNumber);
+        await LoadData();
+        SetMessage(copy is null ? "Diet day could not be saved." : "Diet day saved to your account.", copy is null);
+        if (copy is not null)
+        {
+            _activeTab = 0;
+            _selectedCategory = copy.DietCategory;
+            _detail = copy;
+            RefreshDetailStates();
+        }
+    }
+
+    private async Task AddDetailFood(int? foodId)
+    {
+        if (_detail is null || !DetailIsEditable) return;
+        var id = foodId ?? _detailFoodId;
+        if (id == 0) return;
+        _detailFoodId = id;
+        var success = await DietSvc.AddFoodToDietPlanAsync(_userId, _detail.Id, id, _detailDay, _detailMeal, _detailGrams);
+        await RefreshDetail();
+        SetMessage(success ? "Food added to plan." : "Food could not be added to plan.", !success);
+    }
+
+    private async Task SavePlanFood(int itemId)
+    {
+        if (!DetailIsEditable) return;
+        var state = _planFoodStates[itemId];
+        var success = await DietSvc.UpdateDietPlanFoodAsync(_userId, itemId, state.DayNumber, state.MealName, state.Grams);
+        await RefreshDetail();
+        SetMessage(success ? "Food updated." : "Food could not be updated.", !success);
+    }
+
+    private async Task RemovePlanFood(int itemId)
+    {
+        if (!DetailIsEditable) return;
+        var success = await DietSvc.DeleteDietPlanFoodAsync(_userId, itemId);
+        await RefreshDetail();
+        SetMessage(success ? "Food removed." : "Food could not be removed.", !success);
+    }
+
+    private async Task RefreshDetail()
+    {
+        if (_detail is null) return;
+        _detail = await DietSvc.GetDietPlanAsync(_userId, _detail.Id);
+        await LoadData();
+        RefreshDetailStates();
+    }
+
+    private void RefreshDetailStates()
+    {
+        _planFoodStates.Clear();
+        if (_detail is null) return;
+        foreach (var item in _detail.Foods)
+        {
+            _planFoodStates[item.Id] = new PlanFoodEditState
+            {
+                DayNumber = item.DayNumber,
+                MealName = item.MealName,
+                Grams = item.QuantityGrams
+            };
+        }
+    }
+
+    private PlanFoodEditState GetPlanFoodState(DietPlanFood item)
+    {
+        if (!_planFoodStates.TryGetValue(item.Id, out var state))
+        {
+            state = new PlanFoodEditState { DayNumber = item.DayNumber, MealName = item.MealName, Grams = item.QuantityGrams };
+            _planFoodStates[item.Id] = state;
+        }
+        return state;
+    }
+
+    private bool PlanPassesFilters(DietPlan plan)
+    {
+        return (_levelFilter == "all" || string.Equals(plan.TargetLevel, _levelFilter, StringComparison.OrdinalIgnoreCase))
+            && (_goalFilter == "all" || (plan.TargetGoal?.Contains(_goalFilter, StringComparison.OrdinalIgnoreCase) ?? false));
+    }
+
+    private bool IsOwnedPlan(DietPlan plan)
+    {
+        return !plan.IsPreBuilt && plan.CreatedByUserId == _userId;
+    }
+
+    private IEnumerable<PlanDayView> ToPlanDays(DietPlan plan)
+    {
+        foreach (var group in plan.Foods.GroupBy(f => f.DayNumber).OrderBy(g => g.Key))
+        {
+            var items = group.OrderBy(i => i.SortOrder).ToList();
+            yield return new PlanDayView(
+                plan.Id,
+                group.Key,
+                plan.Name,
+                plan.Description ?? "Saved diet day.",
+                plan.DietCategory,
+                plan.IsPreBuilt,
+                items.Count,
+                items.Sum(i => Macro(i.Food.CaloriesPer100g, i.QuantityGrams)),
+                items.Sum(i => Macro(i.Food.ProteinPer100g, i.QuantityGrams)),
+                items
+            );
+        }
+    }
+
+    private void SetMessage(string message, bool isError)
+    {
+        _message = message;
+        _messageIsError = isError;
+    }
+
+    private static int ParseInt(string? value, int fallback)
+    {
+        return int.TryParse(value, out var parsed) && parsed > 0 ? parsed : fallback;
+    }
+
+    private static decimal ParseAmount(string? value, decimal fallback)
+    {
+        if (decimal.TryParse(value, NumberStyles.Any, CultureInfo.InvariantCulture, out var parsed) || decimal.TryParse(value, out parsed)) return parsed <= 0 ? fallback : parsed;
+        return fallback;
+    }
+
+    private static decimal Macro(decimal? per100g, decimal grams)
+    {
+        return Math.Round((per100g ?? 0) * grams / 100, 1, MidpointRounding.AwayFromZero);
+    }
+
+    private static decimal AverageDailyCalories(DietPlan plan)
+    {
+        var days = Math.Max(1, plan.Foods.Select(f => f.DayNumber).DefaultIfEmpty(1).Max());
+        return plan.Foods.Sum(f => Macro(f.Food.CaloriesPer100g, f.QuantityGrams)) / days;
+    }
+
+    private static decimal AverageDailyMacro(DietPlan plan, string macro)
+    {
+        var days = Math.Max(1, plan.Foods.Select(f => f.DayNumber).DefaultIfEmpty(1).Max());
+        return plan.Foods.Sum(f => macro switch
+        {
+            "protein" => Macro(f.Food.ProteinPer100g, f.QuantityGrams),
+            "carbs" => Macro(f.Food.CarbsPer100g, f.QuantityGrams),
+            "fat" => Macro(f.Food.FatPer100g, f.QuantityGrams),
+            _ => 0
+        }) / days;
+    }
+
+    private static List<string> GetNotes(DietPlan plan)
+    {
+        if (string.IsNullOrWhiteSpace(plan.Notes)) return new();
+        try
+        {
+            return System.Text.Json.JsonSerializer.Deserialize<List<string>>(plan.Notes) ?? new();
+        }
+        catch
+        {
+            return plan.Notes.Split('\n', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries).ToList();
+        }
+    }
+
+    private static string CategoryLabel(string category)
+    {
+        return DietService.NormalizeCategory(category) switch
+        {
+            "loss" => "Weight Loss",
+            "gain" => "Weight Gain",
+            _ => "Maintenance"
+        };
+    }
+
+    private static string FormatWhole(decimal value)
+    {
+        return Math.Round(value, 0, MidpointRounding.AwayFromZero).ToString("0", CultureInfo.InvariantCulture);
+    }
+
+    private static string FormatMacro(decimal value)
+    {
+        return value.ToString("0.#", CultureInfo.InvariantCulture);
+    }
+
+    private static string FormatDecimal(decimal value)
+    {
+        return value.ToString("0.##", CultureInfo.InvariantCulture);
+    }
+
+    private sealed record CategoryOption(string Key, string Label, string Description);
+    private sealed record FilterOption(string Key, string Label);
+    private sealed record PlanDayView(int PlanId, int DayNumber, string PlanName, string Description, string Category, bool IsPreBuilt, int ItemCount, decimal Calories, decimal Protein, List<DietPlanFood> Items);
+
+    private sealed class PlanFoodEditState
+    {
+        public int DayNumber { get; set; }
+        public string MealName { get; set; } = "Meal";
+        public decimal Grams { get; set; } = 100;
+    }
+}

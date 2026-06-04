@@ -76,8 +76,8 @@ else if (_detail is not null)
                             var color = colors[idx % colors.Length];
                             var open = _expandedWorkout == idx;
 
-                            <div class="structure-card" style="border-left-color:@color; border-color:@(color)30;">
-                                <div class="structure-header" @onclick="() => _expandedWorkout = _expandedWorkout == idx ? -1 : idx">
+                            <div class="structure-card" @key="w.Id" style="border-left-color:@color; border-color:@(color)30;">
+                                <div class="structure-header" @onclick="() => ToggleWorkoutStructure(idx)">
                                     <div>
                                         <span class="structure-name">@w.Name</span>
                                         <span class="structure-meta">@w.WorkoutExercises.Count exercises</span>
@@ -353,6 +353,11 @@ else
         if (_detail is null) return;
         await WorkoutService.CopyProgramToUserAsync(_detail.Id, _userId);
         try { Navigation.NavigateTo("/training"); } catch { }
+    }
+
+    private void ToggleWorkoutStructure(int index)
+    {
+        _expandedWorkout = _expandedWorkout == index ? -1 : index;
     }
 
     private static List<string> GetTags(Models.Program p)

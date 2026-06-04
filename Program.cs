@@ -86,6 +86,88 @@ using (var scope = app.Services.CreateScope())
     }
     catch { }
 
+
+
+    try
+    {
+        db.Database.ExecuteSqlRaw("ALTER TABLE Foods ADD COLUMN FoodGroup TEXT NOT NULL DEFAULT 'Other'");
+    }
+    catch { }
+
+    try
+    {
+        db.Database.ExecuteSqlRaw("ALTER TABLE FoodLogs ADD COLUMN MealTime TEXT NULL");
+    }
+    catch { }
+
+    try
+    {
+        db.Database.ExecuteSqlRaw("ALTER TABLE FoodLogs ADD COLUMN MealName TEXT NOT NULL DEFAULT 'Meal'");
+    }
+    catch { }
+
+    try
+    {
+        db.Database.ExecuteSqlRaw("ALTER TABLE FoodLogs ADD COLUMN DietScheduleId INTEGER NULL");
+    }
+    catch { }
+
+    try
+    {
+        db.Database.ExecuteSqlRaw(@"CREATE TABLE IF NOT EXISTS DietPlans (
+            Id INTEGER PRIMARY KEY AUTOINCREMENT,
+            Name TEXT NOT NULL,
+            Description TEXT NULL,
+            DietCategory TEXT NOT NULL DEFAULT 'maintenance',
+            TargetLevel TEXT NULL,
+            TargetGoal TEXT NULL,
+            DurationWeeks INTEGER NOT NULL DEFAULT 4,
+            MealsPerDay INTEGER NOT NULL DEFAULT 3,
+            DailyCaloriesTarget NUMERIC NULL,
+            DailyProteinTarget NUMERIC NULL,
+            IsPreBuilt INTEGER NOT NULL DEFAULT 0,
+            CreatedByUserId INTEGER NULL,
+            Notes TEXT NULL,
+            Tags TEXT NULL,
+            CreatedAt TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (CreatedByUserId) REFERENCES Users(Id))");
+    }
+    catch { }
+
+    try
+    {
+        db.Database.ExecuteSqlRaw(@"CREATE TABLE IF NOT EXISTS DietPlanFoods (
+            Id INTEGER PRIMARY KEY AUTOINCREMENT,
+            DietPlanId INTEGER NOT NULL,
+            FoodId INTEGER NOT NULL,
+            DayNumber INTEGER NOT NULL DEFAULT 1,
+            MealName TEXT NOT NULL DEFAULT 'Meal',
+            QuantityGrams NUMERIC NOT NULL DEFAULT 100,
+            SortOrder INTEGER NOT NULL DEFAULT 0,
+            FOREIGN KEY (DietPlanId) REFERENCES DietPlans(Id) ON DELETE CASCADE,
+            FOREIGN KEY (FoodId) REFERENCES Foods(Id) ON DELETE CASCADE)");
+    }
+    catch { }
+
+    try
+    {
+        db.Database.ExecuteSqlRaw(@"CREATE TABLE IF NOT EXISTS DietSchedules (
+            Id INTEGER PRIMARY KEY AUTOINCREMENT,
+            UserId INTEGER NOT NULL,
+            FoodId INTEGER NOT NULL,
+            DietPlanId INTEGER NULL,
+            ScheduledDate TEXT NOT NULL,
+            ScheduledTime TEXT NULL,
+            MealName TEXT NOT NULL DEFAULT 'Meal',
+            QuantityGrams NUMERIC NOT NULL DEFAULT 100,
+            Status TEXT NOT NULL DEFAULT 'planned',
+            CreatedAt TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (UserId) REFERENCES Users(Id),
+            FOREIGN KEY (FoodId) REFERENCES Foods(Id),
+            FOREIGN KEY (DietPlanId) REFERENCES DietPlans(Id))");
+    }
+    catch { }
+
     try
     {
         db.Database.ExecuteSqlRaw(@"CREATE TABLE IF NOT EXISTS UserSettings (

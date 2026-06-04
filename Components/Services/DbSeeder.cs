@@ -15,6 +15,7 @@ public static class DbSeeder
         await SeedExercisesAsync(db);
         await SeedAlternativesAsync(db);
         await SeedFoodsAsync(db);
+        await SeedDietPlansAsync(db);
         await SeedProgramsAsync(db);
         await SeedPremadeWorkoutsAsync(db);
     }
@@ -241,6 +242,7 @@ public static class DbSeeder
                 existing.CarbsPer100g = food.CarbsPer100g;
                 existing.FatPer100g = food.FatPer100g;
                 existing.DietCategory = food.DietCategory;
+                existing.FoodGroup = food.FoodGroup;
                 existing.ServingUnit = food.ServingUnit;
                 existing.ServingGrams = food.ServingGrams;
                 continue;
@@ -611,6 +613,105 @@ public static class DbSeeder
         };
     }
 
+    private static async Task SeedDietPlansAsync(AppDbContext db)
+    {
+        var existingNames = (await db.DietPlans.Select(p => p.Name).ToListAsync()).ToHashSet(StringComparer.OrdinalIgnoreCase);
+        var foodList = await db.Foods.Select(f => new { f.Id, f.Name }).ToListAsync();
+        var foods = foodList.ToDictionary(f => f.Name, f => f.Id, StringComparer.OrdinalIgnoreCase);
+
+        foreach (var plan in BuildDietPlans())
+        {
+            if (existingNames.Contains(plan.Name)) continue;
+
+            var dietPlan = new DietPlan
+            {
+                Name = plan.Name,
+                Description = plan.Description,
+                DietCategory = plan.Category,
+                TargetLevel = plan.Level,
+                TargetGoal = plan.Goal,
+                DurationWeeks = plan.DurationWeeks,
+                MealsPerDay = plan.MealsPerDay,
+                DailyCaloriesTarget = plan.Calories,
+                DailyProteinTarget = plan.Protein,
+                IsPreBuilt = true,
+                Notes = JsonList(plan.Notes),
+                Tags = JsonList(plan.Category, plan.Level, plan.Goal)
+            };
+
+            db.DietPlans.Add(dietPlan);
+            await db.SaveChangesAsync();
+
+            var sort = 0;
+            foreach (var item in plan.Items)
+            {
+                if (!foods.TryGetValue(item.Food, out var foodId)) continue;
+
+                db.DietPlanFoods.Add(new DietPlanFood
+                {
+                    DietPlanId = dietPlan.Id,
+                    FoodId = foodId,
+                    DayNumber = item.Day,
+                    MealName = item.Meal,
+                    QuantityGrams = item.Grams,
+                    SortOrder = sort++
+                });
+            }
+
+            existingNames.Add(plan.Name);
+        }
+
+        if (db.ChangeTracker.HasChanges())
+            await db.SaveChangesAsync();
+    }
+
+    private static List<DietPlanSeed> BuildDietPlans()
+    {
+        return new List<DietPlanSeed>
+        {
+            new("Lean Cut Starter", "Simple high-protein meals built around lean foods and higher-volume sides.", "loss", "Beginner", "Weight Loss", 6, 4, 1850, 150, new[] { "Keep protein consistent at each meal.", "Use vegetables to increase meal volume without heavily raising calories." }, new[] {
+                new DietPlanFoodSeed(1, "Breakfast", "Greek Yoghurt (0% fat)", 250), new DietPlanFoodSeed(1, "Breakfast", "Blueberries", 100), new DietPlanFoodSeed(1, "Lunch", "Chicken Breast (cooked)", 160), new DietPlanFoodSeed(1, "Lunch", "Mixed Vegetables", 200), new DietPlanFoodSeed(1, "Dinner", "White Fish (cod, cooked)", 180), new DietPlanFoodSeed(1, "Dinner", "Broccoli", 180), new DietPlanFoodSeed(1, "Snack", "Apple", 180),
+                new DietPlanFoodSeed(2, "Breakfast", "Egg Whites", 200), new DietPlanFoodSeed(2, "Lunch", "Tuna (canned in water)", 120), new DietPlanFoodSeed(2, "Lunch", "Wholemeal Bread", 80), new DietPlanFoodSeed(2, "Dinner", "Turkey Breast (cooked)", 170), new DietPlanFoodSeed(2, "Dinner", "Green Beans", 200), new DietPlanFoodSeed(2, "Snack", "Air Popped Popcorn", 35)
+            }),
+            new("Balanced Fat Loss", "A moderate deficit structure with lean protein, fruit, vegetables, and controlled starches.", "loss", "Intermediate", "Fat Loss", 8, 4, 2050, 165, new[] { "Best for users who train several days per week.", "Carbs are placed around training-friendly meals." }, new[] {
+                new DietPlanFoodSeed(1, "Breakfast", "Rolled Oats", 55), new DietPlanFoodSeed(1, "Breakfast", "Whey Protein Powder", 30), new DietPlanFoodSeed(1, "Lunch", "Turkey Breast (cooked)", 170), new DietPlanFoodSeed(1, "Lunch", "Brown Rice (cooked)", 150), new DietPlanFoodSeed(1, "Dinner", "Salmon Fillet (cooked)", 150), new DietPlanFoodSeed(1, "Dinner", "Asparagus", 150), new DietPlanFoodSeed(1, "Snack", "Cottage Cheese (low fat)", 150),
+                new DietPlanFoodSeed(2, "Breakfast", "Whole Eggs", 100), new DietPlanFoodSeed(2, "Lunch", "Chicken Breast (cooked)", 180), new DietPlanFoodSeed(2, "Lunch", "Sweet Potato (baked)", 170), new DietPlanFoodSeed(2, "Dinner", "Prawns (cooked)", 160), new DietPlanFoodSeed(2, "Dinner", "Quinoa (cooked)", 140), new DietPlanFoodSeed(2, "Snack", "Strawberries", 180)
+            }),
+            new("Lean Gain Builder", "Higher-calorie meals with easy-to-repeat protein and carbohydrate anchors.", "gain", "Beginner", "Weight Gain", 8, 5, 2850, 180, new[] { "Increase portions before adding new meals.", "Keep high-fat foods measured so the surplus remains controlled." }, new[] {
+                new DietPlanFoodSeed(1, "Breakfast", "Rolled Oats", 80), new DietPlanFoodSeed(1, "Breakfast", "Whole Milk", 244), new DietPlanFoodSeed(1, "Lunch", "Chicken Thigh (cooked)", 180), new DietPlanFoodSeed(1, "Lunch", "White Rice (cooked)", 250), new DietPlanFoodSeed(1, "Dinner", "Lean Beef Mince (5% fat)", 180), new DietPlanFoodSeed(1, "Dinner", "White Pasta (cooked)", 250), new DietPlanFoodSeed(1, "Snack", "Peanut Butter", 32), new DietPlanFoodSeed(1, "Snack", "Banana", 118),
+                new DietPlanFoodSeed(2, "Breakfast", "Bagel", 100), new DietPlanFoodSeed(2, "Breakfast", "Fried Egg", 100), new DietPlanFoodSeed(2, "Lunch", "Salmon Fillet (cooked)", 180), new DietPlanFoodSeed(2, "Lunch", "Brown Rice (cooked)", 240), new DietPlanFoodSeed(2, "Dinner", "Turkey Mince", 190), new DietPlanFoodSeed(2, "Dinner", "Sweet Potato (baked)", 240), new DietPlanFoodSeed(2, "Snack", "Greek Yoghurt (full fat)", 200)
+            }),
+            new("Hardgainer Surplus", "Dense foods and repeatable snacks for users who struggle to eat enough consistently.", "gain", "Intermediate", "Muscle Gain", 10, 5, 3300, 190, new[] { "Use calorie-dense foods deliberately.", "Split intake across five meals to reduce meal size pressure." }, new[] {
+                new DietPlanFoodSeed(1, "Breakfast", "Granola", 90), new DietPlanFoodSeed(1, "Breakfast", "Whole Milk", 300), new DietPlanFoodSeed(1, "Lunch", "Lean Beef Mince (5% fat)", 200), new DietPlanFoodSeed(1, "Lunch", "White Rice (cooked)", 300), new DietPlanFoodSeed(1, "Dinner", "Mackerel", 160), new DietPlanFoodSeed(1, "Dinner", "White Pasta (cooked)", 280), new DietPlanFoodSeed(1, "Snack", "Almonds", 45), new DietPlanFoodSeed(1, "Snack", "Raisins", 50),
+                new DietPlanFoodSeed(2, "Breakfast", "Whole Eggs", 150), new DietPlanFoodSeed(2, "Breakfast", "Wholemeal Bread", 80), new DietPlanFoodSeed(2, "Lunch", "Chicken Thigh (cooked)", 220), new DietPlanFoodSeed(2, "Lunch", "Quinoa (cooked)", 240), new DietPlanFoodSeed(2, "Dinner", "Pork Tenderloin", 220), new DietPlanFoodSeed(2, "Dinner", "White Potato (boiled)", 260), new DietPlanFoodSeed(2, "Snack", "Walnuts", 40)
+            }),
+            new("Maintenance Base", "Balanced meals for stable bodyweight and consistent macro tracking.", "maintenance", "Beginner", "General Health", 8, 4, 2350, 155, new[] { "Use this as a baseline before adjusting for gain or loss.", "Keep meal structure stable and adjust portions as needed." }, new[] {
+                new DietPlanFoodSeed(1, "Breakfast", "Rolled Oats", 65), new DietPlanFoodSeed(1, "Breakfast", "Skimmed Milk", 244), new DietPlanFoodSeed(1, "Lunch", "Chicken Breast (cooked)", 160), new DietPlanFoodSeed(1, "Lunch", "Brown Rice (cooked)", 200), new DietPlanFoodSeed(1, "Dinner", "Tofu (firm)", 180), new DietPlanFoodSeed(1, "Dinner", "Mixed Vegetables", 200), new DietPlanFoodSeed(1, "Snack", "Orange", 140),
+                new DietPlanFoodSeed(2, "Breakfast", "Greek Yoghurt (0% fat)", 220), new DietPlanFoodSeed(2, "Lunch", "Turkey Mince", 180), new DietPlanFoodSeed(2, "Lunch", "Whole Wheat Wrap", 70), new DietPlanFoodSeed(2, "Dinner", "Salmon Fillet (cooked)", 160), new DietPlanFoodSeed(2, "Dinner", "White Potato (boiled)", 220), new DietPlanFoodSeed(2, "Snack", "Hummus", 60), new DietPlanFoodSeed(2, "Snack", "Carrots", 120)
+            }),
+            new("Performance Maintenance", "More carbohydrates around training with enough protein to support recovery.", "maintenance", "Intermediate", "Performance", 8, 4, 2600, 170, new[] { "Best for users with stable bodyweight and regular training.", "Carbohydrate portions support harder training days." }, new[] {
+                new DietPlanFoodSeed(1, "Breakfast", "Bagel", 100), new DietPlanFoodSeed(1, "Breakfast", "Whey Protein Powder", 30), new DietPlanFoodSeed(1, "Lunch", "Pork Tenderloin", 180), new DietPlanFoodSeed(1, "Lunch", "White Pasta (cooked)", 240), new DietPlanFoodSeed(1, "Dinner", "Chicken Breast (cooked)", 180), new DietPlanFoodSeed(1, "Dinner", "Sweet Potato (baked)", 240), new DietPlanFoodSeed(1, "Snack", "Banana", 118),
+                new DietPlanFoodSeed(2, "Breakfast", "Whole Eggs", 100), new DietPlanFoodSeed(2, "Breakfast", "Wholemeal Bread", 80), new DietPlanFoodSeed(2, "Lunch", "Tempeh", 160), new DietPlanFoodSeed(2, "Lunch", "Brown Rice (cooked)", 240), new DietPlanFoodSeed(2, "Dinner", "White Fish (cod, cooked)", 200), new DietPlanFoodSeed(2, "Dinner", "Quinoa (cooked)", 220), new DietPlanFoodSeed(2, "Snack", "Blueberries", 120)
+            })
+        };
+    }
+
+    private static string GuessFoodGroup(string name)
+    {
+        var n = name.ToLowerInvariant();
+        if (n.Contains("chicken") || n.Contains("turkey") || n.Contains("beef") || n.Contains("pork")) return "Meat";
+        if (n.Contains("salmon") || n.Contains("tuna") || n.Contains("fish") || n.Contains("prawn") || n.Contains("mackerel") || n.Contains("cod")) return "Seafood";
+        if (n.Contains("egg")) return "Eggs";
+        if (n.Contains("yoghurt") || n.Contains("milk") || n.Contains("cheese")) return "Dairy";
+        if (n.Contains("broccoli") || n.Contains("spinach") || n.Contains("cauliflower") || n.Contains("beans") || n.Contains("courgette") || n.Contains("mushroom") || n.Contains("lettuce") || n.Contains("cucumber") || n.Contains("tomato") || n.Contains("vegetables") || n.Contains("asparagus") || n.Contains("carrot")) return "Vegetables";
+        if (n.Contains("apple") || n.Contains("blueberries") || n.Contains("banana") || n.Contains("orange") || n.Contains("strawberries") || n.Contains("raisins")) return "Fruit";
+        if (n.Contains("rice") || n.Contains("oats") || n.Contains("pasta") || n.Contains("bread") || n.Contains("bagel") || n.Contains("wrap") || n.Contains("potato") || n.Contains("quinoa") || n.Contains("granola")) return "Carbs";
+        if (n.Contains("lentils") || n.Contains("chickpeas") || n.Contains("tofu") || n.Contains("tempeh") || n.Contains("hummus")) return "Plant Protein";
+        if (n.Contains("peanut") || n.Contains("almonds") || n.Contains("walnuts") || n.Contains("olive") || n.Contains("avocado")) return "Fats";
+        if (n.Contains("whey")) return "Supplements";
+        return "Other";
+    }
+
     private static List<Food> BuildFoodList()
     {
         return new List<Food>
@@ -693,12 +794,18 @@ public static class DbSeeder
             CarbsPer100g = carbs,
             FatPer100g = fat,
             DietCategory = category,
+            FoodGroup = GuessFoodGroup(name),
             ServingUnit = servingUnit,
             ServingGrams = servingGrams,
             IsCustom = false,
             CreatedByUserId = null
         };
     }
+
+
+    private record DietPlanSeed(string Name, string Description, string Category, string Level, string Goal, int DurationWeeks, int MealsPerDay, decimal Calories, decimal Protein, string[] Notes, DietPlanFoodSeed[] Items);
+
+    private record DietPlanFoodSeed(int Day, string Meal, string Food, decimal Grams);
 
     private record ExerciseSeed(
         string Name, string Description, string ExerciseType, int Difficulty,

@@ -1040,3 +1040,52 @@
         width: 100%;
     }
 }
+
+.schedule-header-actions {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-wrap: wrap;
+}
+
+.week-add-row {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 6px;
+    margin-top: 6px;
+}
+
+.diet-week-item {
+    border-color: var(--accent-border);
+    background: var(--accent-faint);
+}
+
+.diet-sched-card {
+    border-color: var(--accent-border);
+    background: var(--accent-faint);
+}
+
+.diet-sched-card.st-completed {
+    border-color: var(--success-border);
+    background: var(--success-tint);
+}
+
+.diet-sched-card.st-skipped {
+    border-color: var(--danger-border);
+    background: var(--danger-tint);
+}
+
+.diet-sched-list {
+    max-height: 280px;
+}
+
+@media (max-width: 720px) {
+    .schedule-header-actions {
+        width: 100%;
+    }
+
+    .schedule-header-actions .btn-ghost,
+    .schedule-header-actions .btn-glow {
+        flex: 1;
+    }
+}

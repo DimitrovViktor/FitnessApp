@@ -1,0 +1,424 @@
+@page "/foods"
+@inject DietService DietSvc
+@inject CustomAuthStateProvider AuthState
+@inject NavigationManager Navigation
+@using System.Globalization
+
+<PageTitle>Foods - Fitness App</PageTitle>
+
+@if (_isLoading)
+{
+    <div class="loading-state"><p>Loading...</p></div>
+}
+else
+{
+    <div class="foods-page">
+        <div class="page-header">
+            <div>
+                <h1>Foods</h1>
+                <p class="page-sub">Browse foods, estimate macros, and manage custom foods.</p>
+            </div>
+            <button type="button" class="diet-action-btn" @onclick="OpenCustomModal">Add Custom Food</button>
+        </div>
+
+        <div class="diet-category-grid">
+            @foreach (var category in DietCategories)
+            {
+                var active = _selectedCategory == category.Key;
+                <button type="button" class="diet-category-card @(active ? "active" : "")" @onclick="() => SelectCategory(category.Key)">
+                    <span class="diet-category-title">@category.Label</span>
+                    <span class="diet-category-sub">@category.Description</span>
+                    <span class="diet-category-count">@GetCategoryCount(category.Key) foods</span>
+                </button>
+            }
+        </div>
+
+        <div class="search-box food-search-box">
+            <span class="search-icon" aria-hidden="true"></span>
+            <input class="search-input" placeholder="Search foods, categories, macro focus..." @bind="_search" @bind:event="oninput" />
+        </div>
+
+        <div class="filter-section">
+            <div class="filter-row">
+                <div class="filter-group">
+                    <span class="filter-label">Food Group</span>
+                    <div class="pill-row">
+                        <button type="button" class="pill-sub @(_foodGroup == "" ? "pill-sub-active" : "")" @onclick='() => _foodGroup = ""'>All</button>
+                        @foreach (var group in FoodGroups)
+                        {
+                            <button type="button" class="pill-sub @(_foodGroup == group ? "pill-sub-active" : "")" @onclick="() => _foodGroup = group">@group</button>
+                        }
+                    </div>
+                </div>
+                <div class="filter-group">
+                    <span class="filter-label">Macro Focus</span>
+                    <div class="pill-row">
+                        @foreach (var focus in MacroFilters)
+                        {
+                            <button type="button" class="pill-sub @(_macroFocus == focus.Key ? "pill-sub-active" : "")" @onclick="() => _macroFocus = focus.Key">@focus.Label</button>
+                        }
+                    </div>
+                </div>
+                <div class="filter-count">@FilteredFoods.Count foods</div>
+            </div>
+        </div>
+
+        @if (!string.IsNullOrWhiteSpace(_message))
+        {
+            <div class="diet-message @(_messageIsError ? "error" : "success")">@_message</div>
+        }
+
+        <div class="food-card-grid">
+            @if (FilteredFoods.Count == 0)
+            {
+                <div class="diet-empty grid-empty">No foods match these filters.</div>
+            }
+            else
+            {
+                @foreach (var food in FilteredFoods)
+                {
+                    <article class="food-library-card" @onclick="() => OpenFood(food)">
+                        <div class="food-card-top">
+                            <div>
+                                <h3>@food.Name</h3>
+                                <p>@food.FoodGroup · @CategoryLabel(food.DietCategory)</p>
+                            </div>
+                            <span class="diet-badge @(food.IsCustom ? "custom" : "default")">@(food.IsCustom ? "Custom" : "Default")</span>
+                        </div>
+                        <div class="food-energy-line">
+                            <span>@FormatWhole(food.CaloriesPer100g)</span>
+                            <em>kcal / 100g</em>
+                        </div>
+                        <div class="macro-row compact">
+                            <span>@FormatMacro(food.ProteinPer100g ?? 0)g protein</span>
+                            <span>@FormatMacro(food.CarbsPer100g ?? 0)g carbs</span>
+                            <span>@FormatMacro(food.FatPer100g ?? 0)g fat</span>
+                        </div>
+                    </article>
+                }
+            }
+        </div>
+    </div>
+}
+
+<Modal IsOpen="_showFoodModal" OnClose="CloseFoodModal" Size="lg">
+    @if (_selectedFood is not null)
+    {
+        <div class="food-detail-modal">
+            <div class="detail-top">
+                <div>
+                    <span class="detail-kicker">@_selectedFood.FoodGroup · @CategoryLabel(_selectedFood.DietCategory)</span>
+                    <h2>@_selectedFood.Name</h2>
+                    <p>Estimate macros by entering the amount you plan to eat.</p>
+                </div>
+                <span class="diet-badge @(_selectedFood.IsCustom ? "custom" : "default")">@(_selectedFood.IsCustom ? "Custom" : "Default")</span>
+            </div>
+
+            <div class="estimate-panel">
+                <div class="diet-field">
+                    <label>Amount in grams</label>
+                    <input type="number" min="1" step="1" @bind="_estimateGrams" />
+                </div>
+                <div class="estimate-grid">
+                    <div class="diet-stat-card"><span class="diet-stat-label">Calories</span><span class="diet-stat-value">@FormatWhole(Macro(_selectedFood.CaloriesPer100g, _estimateGrams))</span><span class="diet-stat-sub">kcal</span></div>
+                    <div class="diet-stat-card"><span class="diet-stat-label">Protein</span><span class="diet-stat-value">@FormatMacro(Macro(_selectedFood.ProteinPer100g, _estimateGrams))</span><span class="diet-stat-sub">grams</span></div>
+                    <div class="diet-stat-card"><span class="diet-stat-label">Carbs</span><span class="diet-stat-value">@FormatMacro(Macro(_selectedFood.CarbsPer100g, _estimateGrams))</span><span class="diet-stat-sub">grams</span></div>
+                    <div class="diet-stat-card"><span class="diet-stat-label">Fat</span><span class="diet-stat-value">@FormatMacro(Macro(_selectedFood.FatPer100g, _estimateGrams))</span><span class="diet-stat-sub">grams</span></div>
+                </div>
+            </div>
+
+            <div class="food-plan-panel">
+                <div class="diet-field wide">
+                    <label>Diet Plan</label>
+                    <select value="@_selectedPlanId" @onchange="SetSelectedPlan" disabled="@(UserPlans.Count == 0)">
+                        @if (UserPlans.Count == 0)
+                        {
+                            <option value="0">Create a diet plan first</option>
+                        }
+                        else
+                        {
+                            @foreach (var plan in UserPlans)
+                            {
+                                <option value="@plan.Id">@plan.Name</option>
+                            }
+                        }
+                    </select>
+                </div>
+                <div class="diet-field">
+                    <label>Day</label>
+                    <input type="number" min="1" step="1" @bind="_planDayNumber" />
+                </div>
+                <div class="diet-field">
+                    <label>Meal</label>
+                    <input type="text" @bind="_planMealName" />
+                </div>
+            </div>
+
+            <div class="modal-actions food-modal-actions">
+                <button type="button" class="btn-glow" @onclick="AddSelectedToToday">Add to Today</button>
+                <button type="button" class="btn-glow" @onclick="AddSelectedToPlan" disabled="@(UserPlans.Count == 0)">Add to Plan</button>
+            </div>
+        </div>
+    }
+</Modal>
+
+<Modal IsOpen="_showCustomModal" OnClose="CloseCustomModal" Size="lg">
+    <div class="food-detail-modal">
+        <div class="detail-top">
+            <div>
+                <span class="detail-kicker">Custom food</span>
+                <h2>Add Custom Food</h2>
+                <p>Enter macro information for one serving. The app stores the per-100g values automatically.</p>
+            </div>
+        </div>
+
+        <div class="custom-food-grid modal-grid">
+            <div class="diet-field wide">
+                <label>Name</label>
+                <input type="text" @bind="_customFood.Name" />
+            </div>
+            <div class="diet-field">
+                <label>Category</label>
+                <select @bind="_customFood.DietCategory">
+                    @foreach (var category in DietCategories)
+                    {
+                        <option value="@category.Key">@category.Label</option>
+                    }
+                </select>
+            </div>
+            <div class="diet-field">
+                <label>Food Group</label>
+                <select @bind="_customFood.FoodGroup">
+                    @foreach (var group in FoodGroups)
+                    {
+                        <option value="@group">@group</option>
+                    }
+                </select>
+            </div>
+            <div class="diet-field">
+                <label>Serving unit</label>
+                <input type="text" @bind="_customFood.ServingUnit" />
+            </div>
+            <div class="diet-field">
+                <label>Serving grams</label>
+                <input type="number" min="1" step="1" @bind="_customFood.ServingGrams" />
+            </div>
+            <div class="diet-field">
+                <label>Calories</label>
+                <input type="number" min="0" step="1" @bind="_customFood.CaloriesPerServing" />
+            </div>
+            <div class="diet-field">
+                <label>Protein</label>
+                <input type="number" min="0" step="0.1" @bind="_customFood.ProteinPerServing" />
+            </div>
+            <div class="diet-field">
+                <label>Carbs</label>
+                <input type="number" min="0" step="0.1" @bind="_customFood.CarbsPerServing" />
+            </div>
+            <div class="diet-field">
+                <label>Fat</label>
+                <input type="number" min="0" step="0.1" @bind="_customFood.FatPerServing" />
+            </div>
+        </div>
+
+        <div class="modal-actions">
+            <button type="button" class="btn-ghost" @onclick="CloseCustomModal">Cancel</button>
+            <button type="button" class="btn-glow" @onclick="CreateCustomFood">Save Food</button>
+        </div>
+    </div>
+</Modal>
+
+@code {
+    private bool _isLoading = true;
+    private int _userId;
+    private string _selectedCategory = "maintenance";
+    private string _search = "";
+    private string _foodGroup = "";
+    private string _macroFocus = "all";
+    private string? _message;
+    private bool _messageIsError;
+    private bool _showFoodModal;
+    private bool _showCustomModal;
+    private decimal _estimateGrams = 100;
+    private Food? _selectedFood;
+    private List<Food> _foods = new();
+    private List<DietPlan> _plans = new();
+    private int _selectedPlanId;
+    private int _planDayNumber = 1;
+    private string _planMealName = "Meal";
+    private CustomFoodFormData _customFood = new() { FoodGroup = "Other" };
+
+    private static readonly CategoryOption[] DietCategories =
+    {
+        new("loss", "Weight Loss", "Lower-calorie foods with lean protein, volume, and controlled fats."),
+        new("gain", "Weight Gain", "Higher-calorie foods that make surplus eating easier."),
+        new("maintenance", "Maintenance", "Balanced foods for stable body weight and everyday tracking.")
+    };
+
+    private static readonly FilterOption[] MacroFilters =
+    {
+        new("all", "All"),
+        new("protein", "High Protein"),
+        new("carb", "Higher Carb"),
+        new("fat", "Higher Fat"),
+        new("lowcal", "Lower Calorie")
+    };
+
+    private List<string> FoodGroups => _foods.Select(f => f.FoodGroup).Where(g => !string.IsNullOrWhiteSpace(g)).Distinct(StringComparer.OrdinalIgnoreCase).OrderBy(g => g).ToList();
+    private List<DietPlan> UserPlans => _plans.Where(p => !p.IsPreBuilt && p.CreatedByUserId == _userId).OrderBy(p => p.Name).ToList();
+
+    private List<Food> FilteredFoods => _foods
+        .Where(f => f.DietCategory == _selectedCategory)
+        .Where(f => string.IsNullOrWhiteSpace(_search) || f.Name.Contains(_search, StringComparison.OrdinalIgnoreCase) || f.FoodGroup.Contains(_search, StringComparison.OrdinalIgnoreCase))
+        .Where(f => string.IsNullOrWhiteSpace(_foodGroup) || f.FoodGroup.Equals(_foodGroup, StringComparison.OrdinalIgnoreCase))
+        .Where(MatchesMacroFocus)
+        .OrderBy(f => f.IsCustom ? 0 : 1)
+        .ThenBy(f => f.Name)
+        .ToList();
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!firstRender) return;
+
+        var state = await AuthState.GetAuthenticationStateAsync();
+        if (state.User.Identity is not { IsAuthenticated: true })
+        {
+            try { Navigation.NavigateTo("/login", forceLoad: true); } catch { }
+            return;
+        }
+
+        _userId = int.Parse(state.User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)!.Value);
+        await LoadFoods();
+        _isLoading = false;
+        StateHasChanged();
+    }
+
+    private async Task LoadFoods()
+    {
+        _foods = await DietSvc.GetAllAccessibleFoodsAsync(_userId);
+        _plans = await DietSvc.GetAllAccessibleDietPlansAsync(_userId);
+        if (_selectedPlanId == 0 && UserPlans.Count > 0) _selectedPlanId = UserPlans[0].Id;
+    }
+
+    private void SelectCategory(string category)
+    {
+        _selectedCategory = DietService.NormalizeCategory(category);
+        _customFood.DietCategory = _selectedCategory;
+    }
+
+    private int GetCategoryCount(string category)
+    {
+        category = DietService.NormalizeCategory(category);
+        return _foods.Count(f => f.DietCategory == category);
+    }
+
+    private void OpenFood(Food food)
+    {
+        _selectedFood = food;
+        _estimateGrams = food.ServingGrams > 0 ? food.ServingGrams : 100;
+        _planMealName = "Meal";
+        _planDayNumber = 1;
+        if (_selectedPlanId == 0 && UserPlans.Count > 0) _selectedPlanId = UserPlans[0].Id;
+        _showFoodModal = true;
+    }
+
+    private void CloseFoodModal()
+    {
+        _showFoodModal = false;
+        _selectedFood = null;
+    }
+
+    private void OpenCustomModal()
+    {
+        _customFood = new CustomFoodFormData { DietCategory = _selectedCategory, FoodGroup = _foodGroup == "" ? "Other" : _foodGroup };
+        _showCustomModal = true;
+    }
+
+    private void CloseCustomModal()
+    {
+        _showCustomModal = false;
+    }
+
+    private async Task CreateCustomFood()
+    {
+        var created = await DietSvc.CreateCustomFoodAsync(_userId, _customFood);
+        if (created is null)
+        {
+            SetMessage("Custom food could not be saved.", true);
+            return;
+        }
+
+        _selectedCategory = created.DietCategory;
+        await LoadFoods();
+        _showCustomModal = false;
+        SetMessage("Custom food saved.", false);
+    }
+
+    private async Task AddSelectedToToday()
+    {
+        if (_selectedFood is null) return;
+        var success = await DietSvc.AddFoodLogAsync(_userId, _selectedFood.Id, DateOnly.FromDateTime(DateTime.Now), TimeOnly.FromDateTime(DateTime.Now), "Meal", _estimateGrams, "grams");
+        SetMessage(success ? "Food added to today." : "Food could not be added.", !success);
+        CloseFoodModal();
+    }
+
+
+    private void SetSelectedPlan(ChangeEventArgs e)
+    {
+        if (int.TryParse(e.Value?.ToString(), out var id)) _selectedPlanId = id;
+    }
+
+    private async Task AddSelectedToPlan()
+    {
+        if (_selectedFood is null || _selectedPlanId == 0) return;
+        var success = await DietSvc.AddFoodToDietPlanAsync(_userId, _selectedPlanId, _selectedFood.Id, _planDayNumber, _planMealName, _estimateGrams);
+        await LoadFoods();
+        SetMessage(success ? "Food added to plan." : "Food could not be added to plan.", !success);
+    }
+
+    private bool MatchesMacroFocus(Food food)
+    {
+        return _macroFocus switch
+        {
+            "protein" => (food.ProteinPer100g ?? 0) >= 15,
+            "carb" => (food.CarbsPer100g ?? 0) >= 20,
+            "fat" => (food.FatPer100g ?? 0) >= 10,
+            "lowcal" => food.CaloriesPer100g <= 90,
+            _ => true
+        };
+    }
+
+    private void SetMessage(string message, bool isError)
+    {
+        _message = message;
+        _messageIsError = isError;
+    }
+
+    private static decimal Macro(decimal? per100g, decimal grams)
+    {
+        return Math.Round((per100g ?? 0) * grams / 100, 1, MidpointRounding.AwayFromZero);
+    }
+
+    private static string CategoryLabel(string category)
+    {
+        return DietService.NormalizeCategory(category) switch
+        {
+            "loss" => "Weight Loss",
+            "gain" => "Weight Gain",
+            _ => "Maintenance"
+        };
+    }
+
+    private static string FormatWhole(decimal value)
+    {
+        return Math.Round(value, 0, MidpointRounding.AwayFromZero).ToString("0", CultureInfo.InvariantCulture);
+    }
+
+    private static string FormatMacro(decimal value)
+    {
+        return value.ToString("0.#", CultureInfo.InvariantCulture);
+    }
+
+    private sealed record CategoryOption(string Key, string Label, string Description);
+    private sealed record FilterOption(string Key, string Label);
+}

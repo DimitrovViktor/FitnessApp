@@ -436,3 +436,13 @@
         padding-bottom: 12px;
     }
 }
+
+.bi-diet-plans-nav-menu {
+    -webkit-mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Cpath d='M2 2h5v5H2V2Zm7 0h5v5H9V2ZM2 9h5v5H2V9Zm7 0h5v5H9V9Z'/%3E%3C/svg%3E");
+    mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Cpath d='M2 2h5v5H2V2Zm7 0h5v5H9V2ZM2 9h5v5H2V9Zm7 0h5v5H9V9Z'/%3E%3C/svg%3E");
+}
+
+.bi-foods-nav-menu {
+    -webkit-mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Cpath d='M4 1h1v5h1V1h1v5a3 3 0 0 1-2 2.83V15H3V8.83A3 3 0 0 1 1 6V1h1v5h1V1h1v5h1V1Z'/%3E%3C/svg%3E");
+    mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Cpath d='M4 1h1v5h1V1h1v5a3 3 0 0 1-2 2.83V15H3V8.83A3 3 0 0 1 1 6V1h1v5h1V1h1v5h1V1Z'/%3E%3C/svg%3E");
+}

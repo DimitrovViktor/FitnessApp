@@ -28,6 +28,9 @@ public class AppDbContext : DbContext
     public DbSet<Food> Foods => Set<Food>();
     public DbSet<FoodPreparation> FoodPreparations => Set<FoodPreparation>();
     public DbSet<FoodLog> FoodLogs => Set<FoodLog>();
+    public DbSet<DietPlan> DietPlans => Set<DietPlan>();
+    public DbSet<DietPlanFood> DietPlanFoods => Set<DietPlanFood>();
+    public DbSet<DietSchedule> DietSchedules => Set<DietSchedule>();
     public DbSet<UserSettings> UserSettings => Set<UserSettings>();
     public DbSet<BodyMeasurement> BodyMeasurements => Set<BodyMeasurement>();
     public DbSet<PersonalRecord> PersonalRecords => Set<PersonalRecord>();
@@ -193,6 +196,7 @@ public class AppDbContext : DbContext
             e.Property(f => f.CarbsPer100g).HasPrecision(6, 2);
             e.Property(f => f.FatPer100g).HasPrecision(6, 2);
             e.Property(f => f.DietCategory).HasMaxLength(32).IsRequired();
+            e.Property(f => f.FoodGroup).HasMaxLength(64).IsRequired();
             e.Property(f => f.ServingUnit).HasMaxLength(40).IsRequired();
             e.Property(f => f.ServingGrams).HasPrecision(7, 2);
             e.HasOne(f => f.CreatedByUser).WithMany().HasForeignKey(f => f.CreatedByUserId).OnDelete(DeleteBehavior.Cascade);
@@ -210,9 +214,44 @@ public class AppDbContext : DbContext
             e.HasIndex(fl => new { fl.UserId, fl.Date });
             e.Property(fl => fl.QuantityGrams).HasPrecision(7, 2);
             e.Property(fl => fl.CaloriesConsumed).HasPrecision(8, 2);
+            e.Property(fl => fl.MealName).HasMaxLength(80).IsRequired();
             e.HasOne(fl => fl.User).WithMany(u => u.FoodLogs).HasForeignKey(fl => fl.UserId);
             e.HasOne(fl => fl.Food).WithMany(f => f.FoodLogs).HasForeignKey(fl => fl.FoodId);
             e.HasOne(fl => fl.Preparation).WithMany().HasForeignKey(fl => fl.PreparationId).OnDelete(DeleteBehavior.SetNull);
+            e.HasOne(fl => fl.DietSchedule).WithMany().HasForeignKey(fl => fl.DietScheduleId).OnDelete(DeleteBehavior.SetNull);
+        });
+
+        mb.Entity<DietPlan>(e =>
+        {
+            e.Property(dp => dp.Name).HasMaxLength(200).IsRequired();
+            e.Property(dp => dp.Description).HasMaxLength(1000);
+            e.Property(dp => dp.DietCategory).HasMaxLength(32).IsRequired();
+            e.Property(dp => dp.TargetLevel).HasMaxLength(80);
+            e.Property(dp => dp.TargetGoal).HasMaxLength(120);
+            e.Property(dp => dp.DailyCaloriesTarget).HasPrecision(8, 2);
+            e.Property(dp => dp.DailyProteinTarget).HasPrecision(8, 2);
+            e.Property(dp => dp.Notes).HasMaxLength(2000);
+            e.Property(dp => dp.Tags).HasMaxLength(1000);
+            e.HasOne(dp => dp.CreatedByUser).WithMany().HasForeignKey(dp => dp.CreatedByUserId).OnDelete(DeleteBehavior.SetNull);
+        });
+
+        mb.Entity<DietPlanFood>(e =>
+        {
+            e.Property(dpf => dpf.MealName).HasMaxLength(80).IsRequired();
+            e.Property(dpf => dpf.QuantityGrams).HasPrecision(7, 2);
+            e.HasOne(dpf => dpf.DietPlan).WithMany(dp => dp.Foods).HasForeignKey(dpf => dpf.DietPlanId);
+            e.HasOne(dpf => dpf.Food).WithMany(f => f.DietPlanFoods).HasForeignKey(dpf => dpf.FoodId);
+        });
+
+        mb.Entity<DietSchedule>(e =>
+        {
+            e.HasIndex(ds => new { ds.UserId, ds.ScheduledDate });
+            e.Property(ds => ds.MealName).HasMaxLength(80).IsRequired();
+            e.Property(ds => ds.Status).HasMaxLength(32).IsRequired();
+            e.Property(ds => ds.QuantityGrams).HasPrecision(7, 2);
+            e.HasOne(ds => ds.User).WithMany().HasForeignKey(ds => ds.UserId);
+            e.HasOne(ds => ds.Food).WithMany(f => f.DietSchedules).HasForeignKey(ds => ds.FoodId);
+            e.HasOne(ds => ds.DietPlan).WithMany(dp => dp.DietSchedules).HasForeignKey(ds => ds.DietPlanId).OnDelete(DeleteBehavior.SetNull);
         });
 
         mb.Entity<BodyMeasurement>(e =>

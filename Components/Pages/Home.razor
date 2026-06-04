@@ -2,6 +2,7 @@
 @inject CustomAuthStateProvider AuthState
 @inject ProfileService ProfileService
 @inject DashboardService DashService
+@inject DietService DietSvc
 @inject LoggingService LogService
 @inject SettingsService SettingsSvc
 @inject NavigationManager Navigation
@@ -19,10 +20,11 @@ else
         <div class="dash-header">
             <div>
                 <h1>Welcome back, <span class="accent">@_userName</span></h1>
-                <p class="dash-sub">Your training summary for today</p>
+                <p class="dash-sub">Your training and nutrition summary for today</p>
             </div>
             <div class="dash-actions">
                 <button type="button" class="btn-ghost btn-sm" @onclick="GoToSchedule">Open Schedule</button>
+                <button type="button" class="btn-ghost btn-sm" @onclick="GoToDiet">Diet</button>
                 <button type="button" class="btn-glow btn-sm" @onclick="GoToTraining">Training</button>
             </div>
         </div>
@@ -30,8 +32,8 @@ else
         <div class="stats-grid">
             <div class="stat-card"><span class="stat-label">Completed</span><span class="stat-val">@_weeklyCount</span><span class="stat-hint">This week</span></div>
             <div class="stat-card"><span class="stat-label">Streak</span><span class="stat-val">@_streak</span><span class="stat-hint">Days</span></div>
-            <div class="stat-card"><span class="stat-label">Today</span><span class="stat-val">@_todaySchedules.Count</span><span class="stat-hint">Scheduled</span></div>
-            <div class="stat-card"><span class="stat-label">Upcoming</span><span class="stat-val">@_upcomingSchedules.Count</span><span class="stat-hint">Next 7 days</span></div>
+            <div class="stat-card"><span class="stat-label">Today</span><span class="stat-val">@(_todaySchedules.Count + _todayMeals.Count)</span><span class="stat-hint">Scheduled</span></div>
+            <div class="stat-card"><span class="stat-label">Calories</span><span class="stat-val">@FormatWhole(_todayCalories)</span><span class="stat-hint">Consumed</span></div>
         </div>
 
         @if (_dueSchedule is not null && !_dueDismissed)
@@ -162,6 +164,40 @@ else
             <section class="summary-card">
                 <div class="summary-head">
                     <div>
+                        <h2>Nutrition</h2>
+                        <p>Today’s meals</p>
+                    </div>
+                    <button type="button" class="btn-ghost btn-sm" @onclick="GoToDiet">Open</button>
+                </div>
+
+                @if (_todayMeals.Count == 0 && _todayFoodLogs.Count == 0)
+                {
+                    <div class="empty-sm">No meals scheduled or logged today.</div>
+                }
+                else
+                {
+                    <div class="nutrition-list">
+                        @foreach (var meal in _todayMeals.Take(4))
+                        {
+                            <button type="button" class="nutrition-card" @onclick="GoToSchedule">
+                                <span class="nutrition-name">@meal.Food.Name</span>
+                                <span class="nutrition-meta">@(meal.ScheduledTime?.ToString("HH:mm") ?? "Any time") · @meal.MealName · @FormatDietStatus(meal.Status)</span>
+                            </button>
+                        }
+                        @foreach (var log in _todayFoodLogs.Take(4))
+                        {
+                            <button type="button" class="nutrition-card logged" @onclick="GoToDiet">
+                                <span class="nutrition-name">@log.Food.Name</span>
+                                <span class="nutrition-meta">@(log.MealTime?.ToString("HH:mm") ?? "Logged") · @FormatWhole(log.CaloriesConsumed) kcal</span>
+                            </button>
+                        }
+                    </div>
+                }
+            </section>
+
+            <section class="summary-card">
+                <div class="summary-head">
+                    <div>
                         <h2>Readiness</h2>
                         <p>Today’s notes</p>
                     </div>
@@ -223,6 +259,9 @@ else
     private List<WorkoutSchedule> _todaySchedules = new();
     private List<WorkoutSchedule> _upcomingSchedules = new();
     private List<Workout> _userWorkouts = new();
+    private List<DietSchedule> _todayMeals = new();
+    private List<FoodLog> _todayFoodLogs = new();
+    private decimal _todayCalories;
     private WorkoutSchedule? _dueSchedule;
     private WorkoutSchedule? _activeSession;
     private bool _dueDismissed;
@@ -257,6 +296,9 @@ else
         _activeSession = await DashService.GetActiveSessionAsync(_userId);
         _todaySchedules = await DashService.GetSchedulesForDateAsync(_userId, today);
         _upcomingSchedules = await DashService.GetSchedulesForRangeAsync(_userId, today.AddDays(1), today.AddDays(7), false);
+        _todayMeals = await DietSvc.GetDietSchedulesForDateAsync(_userId, today);
+        _todayFoodLogs = await DietSvc.GetFoodLogsAsync(_userId, today);
+        _todayCalories = _todayFoodLogs.Sum(l => l.CaloriesConsumed);
         var daily = await LogService.GetDailyLogAsync(_userId, today);
         _notesText = daily?.Notes;
         _energy = daily?.EnergyLevel;
@@ -331,6 +373,18 @@ else
         return date.ToString("ddd, d MMM");
     }
 
+    private static string FormatDietStatus(string status) => status switch
+    {
+        "completed" => "Logged",
+        "skipped" => "Skipped",
+        _ => "Scheduled"
+    };
+
+    private static string FormatWhole(decimal value)
+    {
+        return Math.Round(value, 0, MidpointRounding.AwayFromZero).ToString("0", System.Globalization.CultureInfo.InvariantCulture);
+    }
+
     private static string GetWorkoutKind(Workout workout)
     {
         var tags = workout.Program?.Tags ?? "";
@@ -351,6 +405,11 @@ else
     private void GoToSchedule()
     {
         try { Navigation.NavigateTo("/schedule"); } catch { }
+    }
+
+    private void GoToDiet()
+    {
+        try { Navigation.NavigateTo("/diet"); } catch { }
     }
 
     private void GoToTraining()

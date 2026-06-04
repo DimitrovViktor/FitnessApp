@@ -2,6 +2,7 @@
 @inject CustomAuthStateProvider AuthState
 @inject ProfileService ProfileService
 @inject DashboardService DashService
+@inject DietService DietSvc
 @inject WorkoutService WorkoutSvc
 @inject LoggingService LogService
 @inject SettingsService SettingsSvc
@@ -21,9 +22,9 @@ else
         <div class="schedule-header">
             <div>
                 <h1>Schedule</h1>
-                <p>Plan strength, cardio, hybrid and recovery activities in one place.</p>
+                <p>Plan training and meals in one place.</p>
             </div>
-            <button type="button" class="btn-glow btn-sm" @onclick="() => OpenScheduleModal(_selectedDate)">Schedule Activity</button>
+            <div class="schedule-header-actions"><button type="button" class="btn-ghost btn-sm" @onclick="() => OpenMealModal(_selectedDate)">Schedule Meal</button><button type="button" class="btn-glow btn-sm" @onclick="() => OpenScheduleModal(_selectedDate)">Schedule Activity</button></div>
         </div>
 
         <div class="schedule-tabs">
@@ -54,7 +55,7 @@ else
                     <div class="day-header">
                         <div>
                             <h2>@FormatSelectedDate()</h2>
-                            <p>@_selectedDateSchedules.Count scheduled · @_dayLogs.Count completed</p>
+                            <p>@_selectedDateSchedules.Count activities · @_selectedDateDietSchedules.Count meals · @_dayLogs.Count completed</p>
                         </div>
                         <div class="day-actions">
                             <button type="button" class="btn-ghost btn-sm" @onclick="PrevDay">Previous</button>
@@ -84,7 +85,7 @@ else
                     <button type="button" class="cal-nav" @onclick="PrevWeek">‹</button>
                     <div>
                         <h2>@_weekStart.ToString("d MMM") - @_weekStart.AddDays(6).ToString("d MMM yyyy")</h2>
-                        <p>@_weekSchedules.Count planned activities</p>
+                        <p>@(_weekSchedules.Count + _weekDietSchedules.Count) planned items</p>
                     </div>
                     <button type="button" class="cal-nav" @onclick="NextWeek">›</button>
                 </div>
@@ -92,15 +93,16 @@ else
                     @foreach (var day in WeekDays())
                     {
                         var schedules = _weekSchedules.Where(s => s.ScheduledDate == day).OrderBy(s => s.ScheduledTime).ToList();
+                        var dietSchedules = _weekDietSchedules.Where(s => s.ScheduledDate == day).OrderBy(s => s.ScheduledTime).ToList();
                         <div class="week-day @(day == DateOnly.FromDateTime(DateTime.Now) ? "today" : "") @(day == _selectedDate ? "selected" : "")">
                             <button type="button" class="week-day-head" @onclick="() => SelectWeekDay(day)">
                                 <span>@day.ToString("ddd")</span>
                                 <strong>@day.Day</strong>
                             </button>
                             <div class="week-day-body">
-                                @if (schedules.Count == 0)
+                                @if (schedules.Count == 0 && dietSchedules.Count == 0)
                                 {
-                                    <button type="button" class="add-mini" @onclick="() => OpenScheduleModal(day)">Add</button>
+                                    <div class="week-add-row"><button type="button" class="add-mini" @onclick="() => OpenScheduleModal(day)">Activity</button><button type="button" class="add-mini" @onclick="() => OpenMealModal(day)">Meal</button></div>
                                 }
                                 else
                                 {
@@ -112,7 +114,15 @@ else
                                             <em>@FormatScheduleStatus(s.Status)</em>
                                         </div>
                                     }
-                                    <button type="button" class="add-mini" @onclick="() => OpenScheduleModal(day)">Add</button>
+                                    @foreach (var meal in dietSchedules)
+                                    {
+                                        <div class="week-item diet-week-item">
+                                            <span>@(meal.ScheduledTime?.ToString("HH:mm") ?? "Any")</span>
+                                            <strong>@meal.Food.Name</strong>
+                                            <em>@FormatDietStatus(meal.Status)</em>
+                                        </div>
+                                    }
+                                    <div class="week-add-row"><button type="button" class="add-mini" @onclick="() => OpenScheduleModal(day)">Activity</button><button type="button" class="add-mini" @onclick="() => OpenMealModal(day)">Meal</button></div>
                                 }
                             </div>
                         </div>
@@ -146,8 +156,8 @@ else
                             var date = new DateOnly(_calDate.Year, _calDate.Month, d);
                             var isToday = date == DateOnly.FromDateTime(DateTime.Now);
                             var isSelected = date == _selectedDate;
-                            var hasSchedule = _monthSchedules.Any(s => s.ScheduledDate == date);
-                            var hasCompleted = _monthSchedules.Any(s => s.ScheduledDate == date && s.Status == ScheduleStatus.Completed);
+                            var hasSchedule = _monthSchedules.Any(s => s.ScheduledDate == date) || _monthDietSchedules.Any(s => s.ScheduledDate == date);
+                            var hasCompleted = _monthSchedules.Any(s => s.ScheduledDate == date && s.Status == ScheduleStatus.Completed) || _monthDietSchedules.Any(s => s.ScheduledDate == date && s.Status == "completed");
 
                             <div class="cal-cell @(isToday ? "today" : "") @(isSelected ? "selected" : "") @(hasSchedule ? "has-event" : "")" @onclick="() => SelectDate(date)">
                                 <span class="cal-num">@d</span>
@@ -162,11 +172,12 @@ else
                     <div class="day-header">
                         <div>
                             <h2>@FormatSelectedDate()</h2>
-                            <p>@_selectedDateSchedules.Count scheduled</p>
+                            <p>@_selectedDateSchedules.Count activities · @_selectedDateDietSchedules.Count meals</p>
                         </div>
                         <button type="button" class="btn-ghost btn-sm" @onclick="() => OpenScheduleModal(_selectedDate)">Add</button>
                     </div>
                     @RenderScheduleList(_selectedDateSchedules)
+                    @RenderDietScheduleList(_selectedDateDietSchedules)
                 </section>
             </div>
         }
@@ -260,6 +271,95 @@ else
                     </div>
                 </div>
             </section>
+
+            <section class="schedule-card diet-plan-schedule-card">
+                <div class="program-plan-grid">
+                    <div class="program-plan-form">
+                        <h2>Assign Diet Plan</h2>
+                        <p>Choose a diet plan, select eating days, then the app schedules the plan meals across the week.</p>
+
+                        <div class="mf-group">
+                            <label>Diet Plan</label>
+                            <select class="mf-input" @bind="_dietPlanId">
+                                @foreach (var plan in _dietPlans)
+                                {
+                                    <option value="@plan.Id">@plan.Name (@FormatDietCategory(plan.DietCategory))</option>
+                                }
+                            </select>
+                        </div>
+
+                        <div class="plan-row">
+                            <div class="mf-group">
+                                <label>Start Date</label>
+                                <input type="date" class="mf-input" @bind="_dietPlanStartDate" />
+                            </div>
+                            <div class="mf-group">
+                                <label>First Meal Time</label>
+                                <input type="time" class="mf-input" @bind="_dietPlanTime" />
+                            </div>
+                        </div>
+
+                        <div class="mf-group">
+                            <label>Meal Days</label>
+                            <div class="day-picker">
+                                @foreach (var day in _dayOptions)
+                                {
+                                    <button type="button" class="day-pill @(_dietPlanDays.Contains(day.Value) ? "active" : "")" @onclick="() => ToggleDietPlanDay(day.Value)">@day.Label</button>
+                                }
+                            </div>
+                        </div>
+
+                        @if (!string.IsNullOrWhiteSpace(_dietPlanMessage))
+                        {
+                            <div class="plan-message @(_dietPlanError ? "error" : "")">@_dietPlanMessage</div>
+                        }
+
+                        <button type="button" class="btn-glow" @onclick="ScheduleSelectedDietPlan" disabled="@(!CanScheduleDietPlan())">Assign Diet Plan</button>
+                    </div>
+
+                    <div class="program-plan-preview">
+                        <h2>Selected Diet Plan</h2>
+                        @if (SelectedDietPlan is null)
+                        {
+                            <div class="empty-sm">No diet plans are available yet.</div>
+                        }
+                        else
+                        {
+                            <div class="program-summary-card">
+                                <span class="program-kind">@FormatDietCategory(SelectedDietPlan.DietCategory)</span>
+                                <h3>@SelectedDietPlan.Name</h3>
+                                <p>@(SelectedDietPlan.Description ?? "No description available.")</p>
+                                <div class="program-summary-meta">
+                                    <span>@SelectedDietPlan.DurationWeeks weeks</span>
+                                    <span>@SelectedDietPlan.MealsPerDay meals/day</span>
+                                    <span>@(SelectedDietPlan.TargetLevel ?? "Any level")</span>
+                                    <span>@(SelectedDietPlan.TargetGoal ?? "General")</span>
+                                </div>
+                            </div>
+
+                            @if (SelectedDietPlan.Foods.Count == 0)
+                            {
+                                <div class="empty-sm">This diet plan has no foods yet.</div>
+                            }
+                            else
+                            {
+                                <div class="plan-workout-list">
+                                    @foreach (var item in SelectedDietPlan.Foods.OrderBy(i => i.DayNumber).ThenBy(i => i.SortOrder))
+                                    {
+                                        <div class="plan-workout-item">
+                                            <span>@item.DayNumber</span>
+                                            <div>
+                                                <strong>@item.MealName · @item.Food.Name</strong>
+                                                <em>@item.QuantityGrams.ToString("0.#")g · @FormatEnergyValue(item.Food.CaloriesPer100g * item.QuantityGrams / 100)</em>
+                                            </div>
+                                        </div>
+                                    }
+                                </div>
+                            }
+                        }
+                    </div>
+                </div>
+            </section>
         }
     </div>
 }
@@ -301,6 +401,51 @@ else
     </div>
 </Modal>
 
+<Modal IsOpen="_showMealModal" OnClose="() => _showMealModal = false" Size="sm">
+    <div class="modal-form">
+        <h2>Schedule Meal</h2>
+        @if (_schedulableFoods.Count == 0)
+        {
+            <p class="mf-desc">Add foods before scheduling meals.</p>
+            <div class="mf-actions">
+                <button type="button" class="btn-glow" @onclick="GoToFoods">Open Foods</button>
+            </div>
+        }
+        else
+        {
+            <div class="mf-group">
+                <label>Food</label>
+                <select class="mf-input" @bind="_mealFoodId">
+                    @foreach (var food in _schedulableFoods)
+                    {
+                        <option value="@food.Id">@food.Name (@food.FoodGroup)</option>
+                    }
+                </select>
+            </div>
+            <div class="mf-group">
+                <label>Date</label>
+                <input type="date" class="mf-input" @bind="_mealDate" />
+            </div>
+            <div class="mf-group">
+                <label>Time</label>
+                <input type="time" class="mf-input" @bind="_mealTime" />
+            </div>
+            <div class="mf-group">
+                <label>Meal name</label>
+                <input type="text" class="mf-input" @bind="_mealName" />
+            </div>
+            <div class="mf-group">
+                <label>Grams</label>
+                <input type="number" min="1" step="1" class="mf-input" @bind="_mealGrams" />
+            </div>
+            <div class="mf-actions">
+                <button type="button" class="btn-ghost" @onclick="() => _showMealModal = false">Cancel</button>
+                <button type="button" class="btn-glow" @onclick="ScheduleMeal">Schedule Meal</button>
+            </div>
+        }
+    </div>
+</Modal>
+
 @code {
     private string _userName = "";
     private bool _isLoading = true;
@@ -314,11 +459,16 @@ else
     private List<WorkoutSchedule> _monthSchedules = new();
     private List<WorkoutSchedule> _weekSchedules = new();
     private List<WorkoutSchedule> _selectedDateSchedules = new();
+    private List<DietSchedule> _monthDietSchedules = new();
+    private List<DietSchedule> _weekDietSchedules = new();
+    private List<DietSchedule> _selectedDateDietSchedules = new();
     private List<Workout> _userWorkouts = new();
     private List<Workout> _premadeWorkouts = new();
     private List<Workout> _schedulableWorkouts = new();
     private List<WorkoutLog> _dayLogs = new();
     private List<FitnessApp.Models.Program> _programs = new();
+    private List<Food> _schedulableFoods = new();
+    private List<DietPlan> _dietPlans = new();
     private WorkoutSchedule? _activeSession;
     private int _expandedLogId = -1;
     private string? _notesText;
@@ -330,12 +480,24 @@ else
     private int _schedWorkoutId;
     private DateTime _schedDate = DateTime.Now;
     private DateTime? _schedTime;
+    private bool _showMealModal;
+    private int _mealFoodId;
+    private DateTime _mealDate = DateTime.Now;
+    private DateTime? _mealTime = DateTime.Today.AddHours(8);
+    private string _mealName = "Meal";
+    private decimal _mealGrams = 100;
     private int _planProgramId;
     private DateTime _planStartDate = DateTime.Now;
     private DateTime? _planTime = DateTime.Today.AddHours(18);
     private HashSet<int> _planDays = new() { 1, 3, 5 };
     private string? _planMessage;
     private bool _planError;
+    private int _dietPlanId;
+    private DateTime _dietPlanStartDate = DateTime.Now;
+    private DateTime? _dietPlanTime = DateTime.Today.AddHours(8);
+    private HashSet<int> _dietPlanDays = new() { 1, 2, 3, 4, 5, 6, 0 };
+    private string? _dietPlanMessage;
+    private bool _dietPlanError;
 
     private readonly List<ScheduleTab> _tabs = new()
     {
@@ -357,6 +519,7 @@ else
     };
 
     private FitnessApp.Models.Program? SelectedProgram => _programs.FirstOrDefault(p => p.Id == _planProgramId);
+    private DietPlan? SelectedDietPlan => _dietPlans.FirstOrDefault(p => p.Id == _dietPlanId);
 
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
@@ -379,6 +542,10 @@ else
     {
         _activeSession = await DashService.GetActiveSessionAsync(_userId);
         _userWorkouts = await DashService.GetUserWorkoutsAsync(_userId);
+        _schedulableFoods = await DietSvc.GetAllAccessibleFoodsAsync(_userId);
+        if (_schedulableFoods.Count > 0 && _mealFoodId == 0) _mealFoodId = _schedulableFoods[0].Id;
+        _dietPlans = await DietSvc.GetAllAccessibleDietPlansAsync(_userId);
+        if (_dietPlans.Count > 0 && _dietPlanId == 0) _dietPlanId = _dietPlans[0].Id;
         _premadeWorkouts = await WorkoutSvc.GetPremadeWorkoutsAsync();
         _schedulableWorkouts = _userWorkouts.Concat(_premadeWorkouts).GroupBy(w => w.Id).Select(g => g.First()).OrderBy(w => GetWorkoutKind(w)).ThenBy(w => w.Name).ToList();
         if (_schedulableWorkouts.Count > 0 && _schedWorkoutId == 0) _schedWorkoutId = _schedulableWorkouts[0].Id;
@@ -394,16 +561,19 @@ else
     private async Task LoadMonth()
     {
         _monthSchedules = await DashService.GetSchedulesForMonthAsync(_userId, _calDate.Year, _calDate.Month);
+        _monthDietSchedules = await DietSvc.GetDietSchedulesForMonthAsync(_userId, _calDate.Year, _calDate.Month);
     }
 
     private async Task LoadWeek()
     {
         _weekSchedules = await DashService.GetSchedulesForRangeAsync(_userId, _weekStart, _weekStart.AddDays(6), true);
+        _weekDietSchedules = await DietSvc.GetDietSchedulesForRangeAsync(_userId, _weekStart, _weekStart.AddDays(6));
     }
 
     private async Task LoadSelectedDate()
     {
         _selectedDateSchedules = await DashService.GetSchedulesForDateAsync(_userId, _selectedDate);
+        _selectedDateDietSchedules = await DietSvc.GetDietSchedulesForDateAsync(_userId, _selectedDate);
         _dayLogs = await LogService.GetWorkoutLogsForDateAsync(_userId, _selectedDate);
         var daily = await LogService.GetDailyLogAsync(_userId, _selectedDate);
         _notesText = daily?.Notes;
@@ -496,12 +666,32 @@ else
         _showScheduleModal = true;
     }
 
+    private void OpenMealModal(DateOnly date)
+    {
+        _mealDate = date.ToDateTime(TimeOnly.MinValue);
+        _showMealModal = true;
+    }
+
     private async Task ScheduleWorkout()
     {
         var date = DateOnly.FromDateTime(_schedDate);
         TimeOnly? time = _schedTime.HasValue ? TimeOnly.FromDateTime(_schedTime.Value) : null;
         await DashService.ScheduleWorkoutIfMissingAsync(_userId, _schedWorkoutId, date, time);
         _showScheduleModal = false;
+        _selectedDate = date;
+        _weekStart = StartOfWeek(date);
+        _calDate = new DateTime(date.Year, date.Month, 1);
+        await LoadMonth();
+        await LoadWeek();
+        await LoadSelectedDate();
+    }
+
+    private async Task ScheduleMeal()
+    {
+        var date = DateOnly.FromDateTime(_mealDate);
+        TimeOnly? time = _mealTime.HasValue ? TimeOnly.FromDateTime(_mealTime.Value) : null;
+        await DietSvc.ScheduleFoodIfMissingAsync(_userId, _mealFoodId, date, time, _mealName, _mealGrams);
+        _showMealModal = false;
         _selectedDate = date;
         _weekStart = StartOfWeek(date);
         _calDate = new DateTime(date.Year, date.Month, 1);
@@ -541,6 +731,30 @@ else
     private async Task DeleteSchedule(int id)
     {
         await DashService.DeleteScheduleAsync(id, _userId);
+        await LoadMonth();
+        await LoadWeek();
+        await LoadSelectedDate();
+    }
+
+    private async Task CompleteDietSchedule(int id)
+    {
+        await DietSvc.CompleteDietScheduleAsync(_userId, id);
+        await LoadMonth();
+        await LoadWeek();
+        await LoadSelectedDate();
+    }
+
+    private async Task SkipDietSchedule(int id)
+    {
+        await DietSvc.SkipDietScheduleAsync(_userId, id);
+        await LoadMonth();
+        await LoadWeek();
+        await LoadSelectedDate();
+    }
+
+    private async Task DeleteDietSchedule(int id)
+    {
+        await DietSvc.DeleteDietScheduleAsync(_userId, id);
         await LoadMonth();
         await LoadWeek();
         await LoadSelectedDate();
@@ -619,6 +833,54 @@ else
         if (!_planDays.Add(day)) _planDays.Remove(day);
     }
 
+    private void ToggleDietPlanDay(int day)
+    {
+        if (!_dietPlanDays.Add(day)) _dietPlanDays.Remove(day);
+    }
+
+    private bool CanScheduleDietPlan()
+    {
+        return SelectedDietPlan is not null && SelectedDietPlan.Foods.Count > 0 && _dietPlanDays.Count > 0;
+    }
+
+    private async Task ScheduleSelectedDietPlan()
+    {
+        _dietPlanMessage = null;
+        _dietPlanError = false;
+        var plan = SelectedDietPlan;
+        if (plan is null)
+        {
+            _dietPlanError = true;
+            _dietPlanMessage = "Select a diet plan first.";
+            return;
+        }
+
+        if (plan.Foods.Count == 0)
+        {
+            _dietPlanError = true;
+            _dietPlanMessage = "This diet plan has no foods to schedule.";
+            return;
+        }
+
+        if (_dietPlanDays.Count == 0)
+        {
+            _dietPlanError = true;
+            _dietPlanMessage = "Select at least one meal day.";
+            return;
+        }
+
+        var start = DateOnly.FromDateTime(_dietPlanStartDate);
+        TimeOnly? time = _dietPlanTime.HasValue ? TimeOnly.FromDateTime(_dietPlanTime.Value) : null;
+        var scheduled = await DietSvc.ScheduleDietPlanAsync(_userId, plan.Id, start, time, _dietPlanDays);
+        _dietPlanMessage = $"Scheduled {scheduled} meals from {plan.Name}.";
+        _selectedDate = start;
+        _weekStart = StartOfWeek(start);
+        _calDate = new DateTime(start.Year, start.Month, 1);
+        await LoadMonth();
+        await LoadWeek();
+        await LoadSelectedDate();
+    }
+
     private IEnumerable<DateOnly> WeekDays()
     {
         for (var i = 0; i < 7; i++) yield return _weekStart.AddDays(i);
@@ -630,6 +892,7 @@ else
         builder.OpenElement(seq++, "div");
         builder.AddAttribute(seq++, "class", "selected-day-content");
         builder.AddContent(seq++, RenderScheduleSection());
+        builder.AddContent(seq++, RenderDietScheduleSection());
         builder.AddContent(seq++, RenderCompletedSection());
         builder.CloseElement();
     };
@@ -644,6 +907,20 @@ else
         builder.AddContent(seq++, "Scheduled");
         builder.CloseElement();
         builder.AddContent(seq++, RenderScheduleList(_selectedDateSchedules));
+        builder.CloseElement();
+    };
+
+
+    private RenderFragment RenderDietScheduleSection() => builder =>
+    {
+        var seq = 0;
+        builder.OpenElement(seq++, "div");
+        builder.AddAttribute(seq++, "class", "day-block");
+        builder.OpenElement(seq++, "h3");
+        builder.AddAttribute(seq++, "class", "block-title");
+        builder.AddContent(seq++, "Scheduled Meals");
+        builder.CloseElement();
+        builder.AddContent(seq++, RenderDietScheduleList(_selectedDateDietSchedules));
         builder.CloseElement();
     };
 
@@ -837,6 +1114,66 @@ else
         builder.CloseElement();
     };
 
+
+    private RenderFragment RenderDietScheduleList(IEnumerable<DietSchedule> schedules) => builder =>
+    {
+        var seq = 0;
+        var list = schedules.OrderBy(s => s.ScheduledTime).ToList();
+        if (list.Count == 0)
+        {
+            builder.OpenElement(seq++, "div");
+            builder.AddAttribute(seq++, "class", "empty-sm");
+            builder.AddContent(seq++, "No meals scheduled.");
+            builder.CloseElement();
+            return;
+        }
+
+        builder.OpenElement(seq++, "div");
+        builder.AddAttribute(seq++, "class", "sched-list diet-sched-list");
+        foreach (var meal in list)
+        {
+            builder.OpenElement(seq++, "div");
+            builder.AddAttribute(seq++, "class", $"sched-card diet-sched-card st-{meal.Status}");
+            builder.OpenElement(seq++, "div");
+            builder.AddAttribute(seq++, "class", "sched-info");
+            builder.OpenElement(seq++, "span");
+            builder.AddAttribute(seq++, "class", "sched-name");
+            builder.AddContent(seq++, meal.Food.Name);
+            builder.CloseElement();
+            builder.OpenElement(seq++, "span");
+            builder.AddAttribute(seq++, "class", "sched-time");
+            builder.AddContent(seq++, $"{(meal.ScheduledTime?.ToString("HH:mm") ?? "Any time")} · {meal.MealName} · {FormatDietStatus(meal.Status)} · {meal.QuantityGrams:0.#}g · {FormatEnergyValue(meal.Food.CaloriesPer100g * meal.QuantityGrams / 100)}");
+            builder.CloseElement();
+            builder.CloseElement();
+            builder.OpenElement(seq++, "div");
+            builder.AddAttribute(seq++, "class", "sched-actions");
+            if (meal.Status == "planned")
+            {
+                builder.OpenElement(seq++, "button");
+                builder.AddAttribute(seq++, "type", "button");
+                builder.AddAttribute(seq++, "class", "btn-glow btn-xs");
+                builder.AddAttribute(seq++, "onclick", EventCallback.Factory.Create(this, () => CompleteDietSchedule(meal.Id)));
+                builder.AddContent(seq++, "Log");
+                builder.CloseElement();
+                builder.OpenElement(seq++, "button");
+                builder.AddAttribute(seq++, "type", "button");
+                builder.AddAttribute(seq++, "class", "btn-ghost btn-xs");
+                builder.AddAttribute(seq++, "onclick", EventCallback.Factory.Create(this, () => SkipDietSchedule(meal.Id)));
+                builder.AddContent(seq++, "Skip");
+                builder.CloseElement();
+            }
+            builder.OpenElement(seq++, "button");
+            builder.AddAttribute(seq++, "type", "button");
+            builder.AddAttribute(seq++, "class", "btn-danger-xs");
+            builder.AddAttribute(seq++, "onclick", EventCallback.Factory.Create(this, () => DeleteDietSchedule(meal.Id)));
+            builder.AddContent(seq++, (MarkupString)"<span class=\"icon icon-x\" aria-hidden=\"true\"></span>");
+            builder.CloseElement();
+            builder.CloseElement();
+            builder.CloseElement();
+        }
+        builder.CloseElement();
+    };
+
     private RenderFragment RenderQuickStart() => builder =>
     {
         var seq = 0;
@@ -966,6 +1303,20 @@ else
         _ => "Scheduled"
     };
 
+    private static string FormatDietStatus(string status) => status switch
+    {
+        "completed" => "Logged",
+        "skipped" => "Skipped",
+        _ => "Scheduled"
+    };
+
+    private static string FormatDietCategory(string category) => DietService.NormalizeCategory(category) switch
+    {
+        "loss" => "Weight Loss",
+        "gain" => "Weight Gain",
+        _ => "Maintenance"
+    };
+
     private static string GetProgramType(FitnessApp.Models.Program program)
     {
         var tags = program.Tags ?? "";
@@ -997,6 +1348,11 @@ else
     private void GoToLiveWorkout()
     {
         try { Navigation.NavigateTo("/live-workout"); } catch { }
+    }
+
+    private void GoToFoods()
+    {
+        try { Navigation.NavigateTo("/foods"); } catch { }
     }
 
     private void GoToTraining()

@@ -43,11 +43,33 @@
                 </NavLink>
             </div>
 
-            <div class="nav-item px-3">
-                <NavLink class="nav-link" href="diet">
-                    <span class="bi bi-diet-nav-menu" aria-hidden="true"></span> Diet
-                </NavLink>
-            </div>
+            <button type="button" class="nav-divider nav-section-toggle @(_dietOpen ? "expanded" : "")" aria-expanded="@_dietOpen" @onclick="ToggleDiet" @onclick:stopPropagation="true">
+                <span>Diet</span>
+                <span class="bi bi-chevron-nav-menu" aria-hidden="true"></span>
+            </button>
+
+            @if (_dietOpen)
+            {
+                <div class="nav-section-items">
+                    <div class="nav-item px-3">
+                        <NavLink class="nav-link" href="diet">
+                            <span class="bi bi-diet-nav-menu" aria-hidden="true"></span> Diet
+                        </NavLink>
+                    </div>
+
+                    <div class="nav-item px-3">
+                        <NavLink class="nav-link" href="diet-plans">
+                            <span class="bi bi-diet-plans-nav-menu" aria-hidden="true"></span> Diet Plans
+                        </NavLink>
+                    </div>
+
+                    <div class="nav-item px-3">
+                        <NavLink class="nav-link" href="foods">
+                            <span class="bi bi-foods-nav-menu" aria-hidden="true"></span> Foods
+                        </NavLink>
+                    </div>
+                </div>
+            }
 
             <button type="button" class="nav-divider nav-section-toggle @(_trainingOpen ? "expanded" : "")" aria-expanded="@_trainingOpen" @onclick="ToggleTraining" @onclick:stopPropagation="true">
                 <span>Training</span>
@@ -127,6 +149,7 @@
     private bool _isAdmin;
     private bool _themesOpen;
     private bool _trainingOpen = true;
+    private bool _dietOpen = true;
     private int _userId;
     private string _currentTheme = "night";
 
@@ -160,6 +183,11 @@
     private void ToggleTraining()
     {
         _trainingOpen = !_trainingOpen;
+    }
+
+    private void ToggleDiet()
+    {
+        _dietOpen = !_dietOpen;
     }
 
     private async Task SelectTheme(string theme)
