@@ -12,6 +12,10 @@ Registration with information collection and login authentication.
 
 Calendar with activities and workout details
 
+## Schedule
+
+Activity scheduling
+
 ## Profile
 
 User information storage with editing functionality
@@ -36,8 +40,14 @@ Program descriptions with workouts, recommended schedules, muscle exercise volum
 
 Statistics about the user and their activities
 
+## Diet page 
+
+Daily food log and nutrient/calorie tracking
+
 ## To-do
 
+- Foods page - lists of different foods in categories
+- Diet Plans - premade diet plans and user's diet plans
 - User profiles - add profile system where users can search for each other and add each other as friends
-- Diet section - pick daily food and track calories
 - Social page - users can make posts to share custom workouts and make posts
+- Make UI simpler, more intuitive, less pages in navbar (merge multiple pages into one where possible)
