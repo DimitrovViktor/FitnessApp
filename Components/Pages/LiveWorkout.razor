@@ -150,9 +150,18 @@ else
                 var anyDone = les.IsSkipped || activeSets.Any(s => s.IsCompleted) || HasCompletedSets(les);
                 var statusClass = les.IsSkipped ? "ex-skipped" : (allDone ? "ex-done" : (anyDone ? "ex-partial" : (_liveState.CurrentExerciseIndex == exIdx ? "ex-current" : "")));
 
-                <div class="ex-block @statusClass">
+                <div class="ex-block @statusClass @ExerciseDragClass(exIdx)"
+                     @ondragenter="() => SetExerciseDragOver(exIdx)"
+                     @ondragover="() => SetExerciseDragOver(exIdx)"
+                     @ondragover:preventDefault="true"
+                     @ondrop="() => DropExercise(exIdx)">
                     <div class="ex-header" @onclick="() => ToggleExpand(exIdx)">
                         <div class="ex-hdr-left">
+                            <span class="exercise-drag-handle" role="button" tabindex="0" draggable="true" aria-label="Drag exercise to reorder" @onclick:stopPropagation="true" @ondragstart="() => BeginExerciseDrag(exIdx)" @ondragend="() => EndExerciseDrag()">
+                                <span></span>
+                                <span></span>
+                                <span></span>
+                            </span>
                             <span class="ex-num">@(exIdx + 1)</span>
                             <div>
                                 <span class="ex-hdr-name @(les.IsSkipped ? "text-skipped" : "")">@we.Exercise.Name</span>
@@ -180,41 +189,48 @@ else
                                     <div class="set-row @setClass">
                                         <span class="set-label">Set @(setIdx + 1)</span>
                                         <div class="set-reps-control">
-                                            <button type="button" class="reps-btn" disabled="@(setS.IsCompleted || setS.IsSkipped || setS.Reps <= 1)" @onclick="() => AdjustReps(exIdx, setIdx, -1)">-</button>
+                                            <button type="button" class="reps-btn" disabled="@(setS.IsSkipped || setS.Reps <= 1)" @onclick="() => AdjustReps(exIdx, setIdx, -1)">-</button>
                                             <input type="number" class="reps-input" min="1" step="1" value="@setS.Reps"
-                                                   disabled="@(setS.IsCompleted || setS.IsSkipped)"
+                                                   disabled="@setS.IsSkipped"
                                                    aria-label="Reps"
                                                    @onchange="(e) => SetReps(exIdx, setIdx, e)" />
                                             <span class="reps-unit">reps</span>
-                                            <button type="button" class="reps-btn" disabled="@(setS.IsCompleted || setS.IsSkipped)" @onclick="() => AdjustReps(exIdx, setIdx, 1)">+</button>
+                                            <button type="button" class="reps-btn" disabled="@setS.IsSkipped" @onclick="() => AdjustReps(exIdx, setIdx, 1)">+</button>
                                         </div>
                                         <div class="set-weight-control">
                                             <input type="number" class="weight-input" placeholder="@WeightUnitLabel" step="0.5" min="0"
-                                                   disabled="@(setS.IsCompleted || setS.IsSkipped)"
+                                                   disabled="@setS.IsSkipped"
                                                    value="@DisplayWeight(setS.WeightKg)"
                                                    @onchange="(e) => SetWeight(exIdx, setIdx, e)" />
                                         </div>
-                                        @if (setS.IsSkipped)
-                                        {
-                                            <span class="skip-label">Skipped</span>
-                                        }
-                                        else if (!setS.IsCompleted)
-                                        {
-                                            <div class="set-actions">
+                                        <div class="set-actions">
+                                            @if (setS.IsSkipped)
+                                            {
+                                                <span class="skip-label set-state-label">Skipped</span>
+                                                <button type="button" class="btn-undo-set" @onclick="() => UndoSkipSet(exIdx, setIdx)">Undo Skip</button>
+                                            }
+                                            else if (setS.IsCompleted)
+                                            {
+                                                <span class="set-check"><span class="icon icon-check" aria-label="Completed"></span></span>
+                                                <button type="button" class="btn-undo-set" @onclick="() => UndoSetCompletion(exIdx, setIdx)">Mark Undone</button>
+                                            }
+                                            else
+                                            {
                                                 <button type="button" class="btn-action btn-set-size" @onclick="() => CompleteSet(exIdx, setIdx, we.RestTimeSec ?? _restTimerDefault)">Complete</button>
                                                 <button type="button" class="btn-skip-set" @onclick="() => SkipSet(exIdx, setIdx)">Skip Set</button>
-                                            </div>
-                                        }
-                                        else
-                                        {
-                                            <span class="set-check"><span class="icon icon-check" aria-label="Completed"></span></span>
-                                        }
+                                            }
+                                            <button type="button" class="btn-remove-set" disabled="@(les.Sets.Count <= 1)" @onclick="() => RemoveSet(exIdx, setIdx)">Remove</button>
+                                        </div>
                                     </div>
                                 }
 
                                 <div class="ex-modify-row">
                                     <div class="ex-modify-left">
-                                        <button type="button" class="btn-ghost btn-sm" disabled="@(les.Sets.All(s => s.IsCompleted || s.IsSkipped))" @onclick="() => AddSet(exIdx, we)">Add Set</button>
+                                        <button type="button" class="btn-ghost btn-sm" @onclick="() => AddSet(exIdx, we)">@ExtendSetLabel(les)</button>
+                                        @if (HasCompletedSets(les))
+                                        {
+                                            <button type="button" class="btn-ghost btn-sm btn-undo-ex" @onclick="() => UndoExerciseCompletion(exIdx)">Mark Exercise Undone</button>
+                                        }
                                         @if (HasSkippedSets(les))
                                         {
                                             <button type="button" class="btn-ghost btn-sm" @onclick="() => RestoreSkippedSets(exIdx)">Restore Skipped Sets</button>
@@ -314,7 +330,7 @@ else
             <div class="fs-item"><span class="fs-val">@FormatEnergyValue(_estCalBurned)</span><span class="fs-label">Energy</span></div>
         </div>
         <div class="mf-actions">
-            <button type="button" class="btn-ghost" @onclick="() => _showFinish = false">Back</button>
+            <button type="button" class="btn-ghost" @onclick="() => _showFinish = false">Continue Session</button>
             <button type="button" class="btn-action" @onclick="ConfirmFinish">@(_completedSets > 0 ? "Save & Exit" : "Discard & Exit")</button>
         </div>
     </div>
@@ -357,6 +373,8 @@ else
     private bool _showFinish;
     private bool _showCancelConfirm;
     private bool _showAddExercise;
+    private int? _dragExerciseIndex;
+    private int? _dragOverExerciseIndex;
     private string _exerciseSearch = "";
     private int? _selectedAddExerciseId;
     private int _addExerciseSets = 3;
@@ -566,6 +584,8 @@ else
 
     private static string ExerciseSkipLabel(LiveExerciseState exercise) => HasCompletedSets(exercise) ? "Skip Rest of Exercise" : "Skip Exercise";
 
+    private static string ExtendSetLabel(LiveExerciseState exercise) => IsExerciseDone(exercise) ? "Extend Exercise" : "Add Set";
+
     private static string ShortExerciseName(string name)
     {
         const int maxLength = 18;
@@ -609,6 +629,76 @@ else
         if (index < 0 || index >= _liveState.Exercises.Count) return;
         _liveState.CurrentExerciseIndex = index;
         _liveState.ExpandedExerciseIndex = index;
+    }
+
+    private void BeginExerciseDrag(int index)
+    {
+        if (index < 0 || index >= _liveState.Exercises.Count) return;
+        _dragExerciseIndex = index;
+        _dragOverExerciseIndex = index;
+    }
+
+    private void SetExerciseDragOver(int index)
+    {
+        if (_dragExerciseIndex is null || index < 0 || index >= _liveState.Exercises.Count) return;
+        _dragOverExerciseIndex = index;
+    }
+
+    private async Task DropExercise(int targetIndex)
+    {
+        if (_dragExerciseIndex is null || targetIndex < 0 || targetIndex >= _liveState.Exercises.Count)
+        {
+            EndExerciseDrag();
+            return;
+        }
+
+        var sourceIndex = _dragExerciseIndex.Value;
+        if (sourceIndex != targetIndex)
+        {
+            MoveExercise(sourceIndex, targetIndex);
+            RecalcTotals();
+            await PersistState();
+        }
+
+        EndExerciseDrag();
+        StateHasChanged();
+    }
+
+    private void EndExerciseDrag()
+    {
+        _dragExerciseIndex = null;
+        _dragOverExerciseIndex = null;
+    }
+
+    private string ExerciseDragClass(int index)
+    {
+        if (_dragExerciseIndex == index) return "ex-dragging";
+        if (_dragOverExerciseIndex == index) return "ex-drag-over";
+        return string.Empty;
+    }
+
+    private void MoveExercise(int sourceIndex, int targetIndex)
+    {
+        if (sourceIndex < 0 || sourceIndex >= _liveState.Exercises.Count || targetIndex < 0 || targetIndex >= _liveState.Exercises.Count) return;
+
+        var currentExercise = _liveState.CurrentExerciseIndex >= 0 && _liveState.CurrentExerciseIndex < _liveState.Exercises.Count ? _liveState.Exercises[_liveState.CurrentExerciseIndex] : null;
+        var expandedExercise = _liveState.ExpandedExerciseIndex >= 0 && _liveState.ExpandedExerciseIndex < _liveState.Exercises.Count ? _liveState.Exercises[_liveState.ExpandedExerciseIndex] : null;
+        var liveExercise = _liveState.Exercises[sourceIndex];
+        var orderedExercise = _orderedExercises[sourceIndex];
+
+        _liveState.Exercises.RemoveAt(sourceIndex);
+        _orderedExercises.RemoveAt(sourceIndex);
+
+        if (targetIndex > sourceIndex) targetIndex--;
+
+        _liveState.Exercises.Insert(targetIndex, liveExercise);
+        _orderedExercises.Insert(targetIndex, orderedExercise);
+
+        _liveState.CurrentExerciseIndex = currentExercise is null ? Math.Clamp(targetIndex, 0, _liveState.Exercises.Count - 1) : _liveState.Exercises.IndexOf(currentExercise);
+        _liveState.ExpandedExerciseIndex = expandedExercise is null ? _liveState.CurrentExerciseIndex : _liveState.Exercises.IndexOf(expandedExercise);
+
+        if (_liveState.CurrentExerciseIndex < 0) _liveState.CurrentExerciseIndex = Math.Clamp(targetIndex, 0, _liveState.Exercises.Count - 1);
+        if (_liveState.ExpandedExerciseIndex < -1) _liveState.ExpandedExerciseIndex = _liveState.CurrentExerciseIndex;
     }
 
     private void RecalcCalories()
@@ -710,6 +800,8 @@ else
 
     private async void CompleteSet(int exIdx, int setIdx, int restSec)
     {
+        _liveState.Exercises[exIdx].IsSkipped = false;
+        _liveState.Exercises[exIdx].Sets[setIdx].IsSkipped = false;
         _liveState.Exercises[exIdx].Sets[setIdx].IsCompleted = true;
         RecalcTotals();
         await PersistState();
@@ -736,6 +828,7 @@ else
 
     private async void SkipSet(int exIdx, int setIdx)
     {
+        _liveState.Exercises[exIdx].Sets[setIdx].IsCompleted = false;
         _liveState.Exercises[exIdx].Sets[setIdx].IsSkipped = true;
         RecalcTotals();
 
@@ -753,6 +846,65 @@ else
             return;
         }
 
+        await PersistState();
+        StateHasChanged();
+    }
+
+    private async void UndoSetCompletion(int exIdx, int setIdx)
+    {
+        var exercise = _liveState.Exercises[exIdx];
+        exercise.IsSkipped = false;
+        exercise.Sets[setIdx].IsCompleted = false;
+        exercise.Sets[setIdx].IsSkipped = false;
+        _liveState.CurrentExerciseIndex = exIdx;
+        _liveState.ExpandedExerciseIndex = exIdx;
+        _showFinish = false;
+        RecalcTotals();
+        await PersistState();
+        StateHasChanged();
+    }
+
+    private async void UndoSkipSet(int exIdx, int setIdx)
+    {
+        var exercise = _liveState.Exercises[exIdx];
+        exercise.IsSkipped = false;
+        exercise.Sets[setIdx].IsSkipped = false;
+        exercise.Sets[setIdx].IsCompleted = false;
+        _liveState.CurrentExerciseIndex = exIdx;
+        _liveState.ExpandedExerciseIndex = exIdx;
+        _showFinish = false;
+        RecalcTotals();
+        await PersistState();
+        StateHasChanged();
+    }
+
+    private async void RemoveSet(int exIdx, int setIdx)
+    {
+        var exercise = _liveState.Exercises[exIdx];
+        if (exercise.Sets.Count <= 1 || setIdx < 0 || setIdx >= exercise.Sets.Count) return;
+
+        exercise.Sets.RemoveAt(setIdx);
+        exercise.IsSkipped = exercise.Sets.All(s => s.IsSkipped) && !HasCompletedSets(exercise);
+        _liveState.CurrentExerciseIndex = exIdx;
+        _liveState.ExpandedExerciseIndex = exIdx;
+        _showFinish = false;
+        RecalcTotals();
+        await PersistState();
+        StateHasChanged();
+    }
+
+    private async void UndoExerciseCompletion(int exIdx)
+    {
+        var exercise = _liveState.Exercises[exIdx];
+        exercise.IsSkipped = false;
+        foreach (var set in exercise.Sets.Where(s => s.IsCompleted && !s.IsSkipped))
+        {
+            set.IsCompleted = false;
+        }
+        _liveState.CurrentExerciseIndex = exIdx;
+        _liveState.ExpandedExerciseIndex = exIdx;
+        _showFinish = false;
+        RecalcTotals();
         await PersistState();
         StateHasChanged();
     }
@@ -827,6 +979,7 @@ else
     {
         var setS = _liveState.Exercises[exIdx].Sets[setIdx];
         setS.Reps = Math.Max(1, setS.Reps + delta);
+        RecalcTotals();
         await PersistState();
         StateHasChanged();
     }
@@ -839,6 +992,7 @@ else
         else
             setS.Reps = 1;
 
+        RecalcTotals();
         await PersistState();
         StateHasChanged();
     }
@@ -849,18 +1003,24 @@ else
             _liveState.Exercises[exIdx].Sets[setIdx].WeightKg = SettingsService.ToKg(val, _weightUnit);
         else
             _liveState.Exercises[exIdx].Sets[setIdx].WeightKg = null;
+        RecalcTotals();
         await PersistState();
         StateHasChanged();
     }
 
     private async void AddSet(int exIdx, WorkoutExercise we)
     {
-        var lastSet = _liveState.Exercises[exIdx].Sets.LastOrDefault();
-        _liveState.Exercises[exIdx].Sets.Add(new LiveSetState
+        var exercise = _liveState.Exercises[exIdx];
+        var lastSet = exercise.Sets.LastOrDefault();
+        exercise.IsSkipped = false;
+        exercise.Sets.Add(new LiveSetState
         {
             Reps = lastSet?.Reps ?? we.Reps,
             WeightKg = lastSet?.WeightKg
         });
+        _liveState.CurrentExerciseIndex = exIdx;
+        _liveState.ExpandedExerciseIndex = exIdx;
+        _showFinish = false;
         RecalcTotals();
         await PersistState();
         StateHasChanged();
