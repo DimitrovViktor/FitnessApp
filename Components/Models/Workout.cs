@@ -26,4 +26,8 @@ public class WorkoutExercise
     public int Reps { get; set; }
     public int SortOrder { get; set; }
     public int? RestTimeSec { get; set; }
+    public int? SupersetGroup { get; set; }
+    public int SupersetOrder { get; set; }
+    public int? SupersetRestAfterSec { get; set; }
+    public int SupersetRounds { get; set; } = 1;
 }

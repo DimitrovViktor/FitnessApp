@@ -162,3 +162,43 @@
 @media (max-width:900px) {
     .structure-exercises { max-height:220px; }
 }
+
+.structure-superset-block {
+    border: 1px solid var(--accent-border);
+    border-radius: 10px;
+    background: var(--accent-faint);
+    padding: 8px;
+    margin-bottom: 8px;
+}
+
+.structure-superset-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    padding: 4px 4px 8px;
+    border-bottom: 1px solid var(--border-faint);
+    margin-bottom: 8px;
+}
+
+.structure-superset-head span {
+    color: var(--accent);
+    font-size: 11px;
+    font-weight: 900;
+    letter-spacing: .08em;
+    text-transform: uppercase;
+}
+
+.structure-superset-head small {
+    color: var(--t3);
+    font-size: 11px;
+    font-weight: 700;
+}
+
+.structure-superset-row {
+    background: var(--s2);
+}
+
+.structure-superset-row:last-child {
+    margin-bottom: 0;
+}

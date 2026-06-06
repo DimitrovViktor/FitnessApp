@@ -23,12 +23,12 @@ else
         </div>
 
         <div class="counts-grid" role="tablist" aria-label="Admin sections">
-            @foreach (var sec in _sections)
+            @foreach (var section in _sections)
             {
-                var sectionKey = sec.Key;
+                var sectionKey = section.Key;
                 <button type="button" class="count-card @(_activeTab == sectionKey ? "active" : "")" role="tab" aria-selected="@(_activeTab == sectionKey)" @onclick="() => SwitchTab(sectionKey)">
                     <span class="count-value">@GetSectionCount(sectionKey)</span>
-                    <span class="count-label">@(sec.Label)</span>
+                    <span class="count-label">@section.Label</span>
                 </button>
             }
         </div>
@@ -183,7 +183,7 @@ else
             <div class="mf-group"><label>Sort</label><input type="number" class="mf-input" @bind="_wkForm.SortOrder" min="0" /></div>
         </div>
         <div class="mf-group"><label>Exercises</label>
-            @for (int i = 0; i < _wkForm.Exercises.Count; i++) { var idx = i; <div class="wk-ex-row"><select class="mf-input" @bind="_wkForm.Exercises[idx].ExerciseId">@foreach (var ex in _exercises) { <option value="@ex.Id">@ex.Name</option> }</select><input type="number" class="mf-input mf-sm" @bind="_wkForm.Exercises[idx].Sets" min="1" placeholder="Sets" /><input type="number" class="mf-input mf-sm" @bind="_wkForm.Exercises[idx].Reps" min="1" placeholder="Reps" /><input type="number" class="mf-input mf-sm" @bind="_wkForm.Exercises[idx].RestTimeSec" min="0" placeholder="Rest" /><button type="button" class="rm-btn" @onclick="() => _wkForm.Exercises.RemoveAt(idx)" aria-label="Remove exercise"><span class="icon icon-x" aria-hidden="true"></span></button></div> }
+            @for (int i = 0; i < _wkForm.Exercises.Count; i++) { var idx = i; <div class="wk-ex-row"><select class="mf-input" @bind="_wkForm.Exercises[idx].ExerciseId">@foreach (var ex in _exercises) { <option value="@ex.Id">@ex.Name</option> }</select><input type="number" class="mf-input mf-sm" @bind="_wkForm.Exercises[idx].Sets" min="1" placeholder="Sets" /><input type="number" class="mf-input mf-sm" @bind="_wkForm.Exercises[idx].Reps" min="1" placeholder="Reps" /><input type="number" class="mf-input mf-sm" @bind="_wkForm.Exercises[idx].RestTimeSec" min="0" placeholder="Rest" /><input type="number" class="mf-input mf-sm" @bind="_wkForm.Exercises[idx].SupersetGroup" min="1" placeholder="SS" /><input type="number" class="mf-input mf-sm" @bind="_wkForm.Exercises[idx].SupersetRounds" min="1" placeholder="SS rounds" /><input type="number" class="mf-input mf-sm" @bind="_wkForm.Exercises[idx].SupersetRestAfterSec" min="0" placeholder="SS rest sec" /><button type="button" class="rm-btn" @onclick="() => _wkForm.Exercises.RemoveAt(idx)" aria-label="Remove exercise"><span class="icon icon-x" aria-hidden="true"></span></button></div> }
             <button type="button" class="add-ex-btn" @onclick='() => _wkForm.Exercises.Add(new WorkoutExerciseEntry { ExerciseId = _exercises.FirstOrDefault()?.Id ?? 0 })'>+ Add Exercise</button>
         </div>
         <div class="mf-actions"><button type="button" class="btn-ghost" @onclick="() => _showWkModal = false">Cancel</button><button type="button" class="btn-glow" @onclick="SaveWorkout" disabled="@_isSaving">@(_isSaving ? "Saving..." : "Save")</button></div>
@@ -346,7 +346,7 @@ else
         var w = await AdminService.GetWorkoutByIdAsync(id);
         if (w is null) return;
         _editingWkId = id;
-        _wkForm = new WorkoutFormData { Name = w.Name, UserId = w.UserId, ProgramId = w.ProgramId, SortOrder = w.SortOrder, Exercises = w.WorkoutExercises.OrderBy(x => x.SortOrder).Select(x => new WorkoutExerciseEntry { ExerciseId = x.ExerciseId, Sets = x.Sets, Reps = x.Reps, RestTimeSec = x.RestTimeSec }).ToList() };
+        _wkForm = new WorkoutFormData { Name = w.Name, UserId = w.UserId, ProgramId = w.ProgramId, SortOrder = w.SortOrder, Exercises = w.WorkoutExercises.OrderBy(x => x.SortOrder).Select(x => new WorkoutExerciseEntry { ExerciseId = x.ExerciseId, Sets = x.Sets, Reps = x.Reps, RestTimeSec = x.RestTimeSec, SupersetGroup = x.SupersetGroup, SupersetOrder = x.SupersetOrder, SupersetRestAfterSec = x.SupersetRestAfterSec, SupersetRounds = Math.Max(1, x.SupersetRounds) }).ToList() };
         _showWkModal = true;
     }
 

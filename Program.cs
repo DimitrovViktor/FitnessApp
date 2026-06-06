@@ -40,6 +40,30 @@ using (var scope = app.Services.CreateScope())
 
     try
     {
+        db.Database.ExecuteSqlRaw("ALTER TABLE WorkoutExercises ADD COLUMN SupersetGroup INTEGER NULL");
+    }
+    catch { }
+
+    try
+    {
+        db.Database.ExecuteSqlRaw("ALTER TABLE WorkoutExercises ADD COLUMN SupersetOrder INTEGER NOT NULL DEFAULT 0");
+    }
+    catch { }
+
+    try
+    {
+        db.Database.ExecuteSqlRaw("ALTER TABLE WorkoutExercises ADD COLUMN SupersetRestAfterSec INTEGER NULL");
+    }
+    catch { }
+
+    try
+    {
+        db.Database.ExecuteSqlRaw("ALTER TABLE WorkoutExercises ADD COLUMN SupersetRounds INTEGER NOT NULL DEFAULT 1");
+    }
+    catch { }
+
+    try
+    {
         db.Database.ExecuteSqlRaw("ALTER TABLE WorkoutLogs ADD COLUMN Status INTEGER NOT NULL DEFAULT 0");
     }
     catch { }

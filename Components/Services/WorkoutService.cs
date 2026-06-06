@@ -136,6 +136,10 @@ public class WorkoutService
                     Sets = we.Sets,
                     Reps = we.Reps,
                     RestTimeSec = we.RestTimeSec,
+                    SupersetGroup = we.SupersetGroup,
+                    SupersetOrder = we.SupersetOrder,
+                    SupersetRestAfterSec = we.SupersetRestAfterSec,
+                    SupersetRounds = Math.Max(1, we.SupersetRounds),
                     SortOrder = we.SortOrder
                 });
             }
@@ -227,6 +231,10 @@ public class WorkoutService
                 Sets = ex.Sets,
                 Reps = ex.Reps,
                 RestTimeSec = ex.RestTimeSec,
+                SupersetGroup = ex.SupersetGroup,
+                SupersetOrder = ex.SupersetOrder,
+                SupersetRestAfterSec = ex.SupersetRestAfterSec,
+                SupersetRounds = Math.Max(1, ex.SupersetRounds),
                 SortOrder = i
             });
         }
@@ -259,6 +267,10 @@ public class WorkoutService
                 Sets = ex.Sets,
                 Reps = ex.Reps,
                 RestTimeSec = ex.RestTimeSec,
+                SupersetGroup = ex.SupersetGroup,
+                SupersetOrder = ex.SupersetOrder,
+                SupersetRestAfterSec = ex.SupersetRestAfterSec,
+                SupersetRounds = Math.Max(1, ex.SupersetRounds),
                 SortOrder = i
             });
         }
@@ -310,6 +322,10 @@ public class WorkoutService
                 Sets = we.Sets,
                 Reps = we.Reps,
                 RestTimeSec = we.RestTimeSec,
+                SupersetGroup = we.SupersetGroup,
+                SupersetOrder = we.SupersetOrder,
+                SupersetRestAfterSec = we.SupersetRestAfterSec,
+                SupersetRounds = Math.Max(1, we.SupersetRounds),
                 SortOrder = we.SortOrder
             });
         }
@@ -324,7 +340,7 @@ public class WorkoutService
         foreach (var entry in exercises)
         {
             if (entry.Exercise is null) continue;
-            total += EstimateExerciseCalories(entry.Exercise, entry.Sets, entry.Reps, entry.RestTimeSec ?? 60, userWeightKg);
+            total += EstimateExerciseCalories(entry.Exercise, entry.Sets, entry.Reps, GetEntryRestSeconds(entry), userWeightKg);
         }
         return Math.Round(total, 1);
     }
@@ -353,7 +369,7 @@ public class WorkoutService
         foreach (var entry in exercises)
         {
             if (entry.Exercise is null) continue;
-            total += EstimateExerciseMinutes(entry.Exercise, entry.Sets, entry.Reps, entry.RestTimeSec ?? 60);
+            total += EstimateExerciseMinutes(entry.Exercise, entry.Sets, entry.Reps, GetEntryRestSeconds(entry));
         }
         return Math.Round(total, 0);
     }
@@ -364,9 +380,20 @@ public class WorkoutService
         foreach (var we in exercises)
         {
             if (we.Exercise is null) continue;
-            total += EstimateExerciseMinutes(we.Exercise, we.Sets, we.Reps, we.RestTimeSec ?? 60);
+            total += EstimateExerciseMinutes(we.Exercise, we.Sets, we.Reps, GetWorkoutExerciseRestSeconds(we));
         }
         return Math.Round(total, 0);
+    }
+
+
+    private static int GetEntryRestSeconds(BuilderExerciseEntry entry)
+    {
+        return entry.SupersetGroup.HasValue ? Math.Max(0, entry.SupersetRestAfterSec ?? 0) : Math.Max(0, entry.RestTimeSec ?? 60);
+    }
+
+    private static int GetWorkoutExerciseRestSeconds(WorkoutExercise entry)
+    {
+        return entry.SupersetGroup.HasValue ? Math.Max(0, entry.SupersetRestAfterSec ?? 0) : Math.Max(0, entry.RestTimeSec ?? 60);
     }
 
     public static (int Sets, int Reps, int RestSec) GetRecommendation(PrimaryGoal? goal, ExerciseLevel level, string? exerciseType)
@@ -486,4 +513,8 @@ public class BuilderExerciseEntry
     public int Sets { get; set; } = 3;
     public int Reps { get; set; } = 10;
     public int? RestTimeSec { get; set; } = 60;
+    public int? SupersetGroup { get; set; }
+    public int SupersetOrder { get; set; }
+    public int? SupersetRestAfterSec { get; set; }
+    public int SupersetRounds { get; set; } = 1;
 }

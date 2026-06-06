@@ -31,6 +31,14 @@ public class LiveExerciseState
     public int OriginalSets { get; set; }
     public int OriginalReps { get; set; }
     public int? RestTimeSec { get; set; }
+    public int? SupersetGroup { get; set; }
+    public int SupersetOrder { get; set; }
+    public int? SupersetRestAfterSec { get; set; }
+    public int SupersetRounds { get; set; } = 1;
+    public int? OriginalSupersetGroup { get; set; }
+    public int OriginalSupersetOrder { get; set; }
+    public int? OriginalSupersetRestAfterSec { get; set; }
+    public int OriginalSupersetRounds { get; set; } = 1;
     public bool IsSessionOnly { get; set; }
     public bool IsSkipped { get; set; }
     public List<LiveSetState> Sets { get; set; } = new();

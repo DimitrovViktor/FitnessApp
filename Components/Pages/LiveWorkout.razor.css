@@ -199,3 +199,159 @@
 @media (max-width:640px) {
     .exercise-drag-handle { width:24px; height:28px; }
 }
+
+.live-superset-panel {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 130px 170px auto;
+    gap: 10px;
+    align-items: end;
+    margin-bottom: 10px;
+    padding: 12px 14px;
+    border: 1px solid var(--accent-border);
+    border-radius: 10px;
+    background: var(--accent-faint);
+}
+
+.live-superset-title {
+    display: block;
+    color: var(--accent);
+    font-size: 12px;
+    font-weight: 800;
+    letter-spacing: .06em;
+    text-transform: uppercase;
+    margin-bottom: 3px;
+}
+
+.live-superset-copy {
+    display: block;
+    color: var(--t2);
+    font-size: 12.5px;
+    font-weight: 600;
+    line-height: 1.45;
+}
+
+.live-superset-rest {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+
+.live-superset-rest span {
+    color: var(--t3);
+    font-size: 10.5px;
+    font-weight: 800;
+    letter-spacing: .08em;
+    text-transform: uppercase;
+}
+
+.live-superset-rest input {
+    width: 100%;
+    padding: 8px 10px;
+    color: var(--t1);
+    background: var(--bg);
+    border: 1px solid var(--border-input);
+    border-radius: 8px;
+    font-family: inherit;
+    font-size: 13px;
+    font-weight: 800;
+    outline: none;
+    text-align: center;
+}
+
+.live-superset-rest input:focus {
+    border-color: var(--accent);
+    background: var(--accent-dim);
+}
+
+.live-superset-rounds input {
+    background: var(--s1);
+}
+
+.add-exercise-controls {
+    grid-template-columns: minmax(0,1fr) 88px 88px 110px 128px 150px;
+}
+
+.add-field select {
+    width: 100%;
+    padding: 9px 10px;
+    font-size: 13px;
+    font-weight: 700;
+    color: var(--t1);
+    background: var(--bg);
+    border: 1px solid var(--border-input);
+    border-radius: 8px;
+    outline: none;
+    box-sizing: border-box;
+    font-family: inherit;
+}
+
+.add-field select:focus {
+    border-color: var(--accent);
+    background: var(--accent-dim);
+}
+
+.add-superset-field {
+    min-width: 0;
+}
+
+@media (max-width: 1080px) {
+    .add-exercise-controls {
+        grid-template-columns: minmax(0,1fr) repeat(3, 88px);
+    }
+
+    .add-superset-field {
+        grid-column: 1 / span 2;
+    }
+}
+
+@media (max-width: 760px) {
+    .live-superset-panel {
+        grid-template-columns: 1fr;
+        align-items: stretch;
+    }
+
+    .add-superset-field {
+        grid-column: auto;
+    }
+}
+
+.live-superset-buttons {
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 8px;
+    flex-wrap: wrap;
+}
+
+.live-superset-quick-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-wrap: wrap;
+    margin-bottom: 10px;
+    padding: 9px 12px;
+    border: 1px solid var(--border);
+    border-radius: 9px;
+    background: var(--bg-subtle);
+}
+
+.live-superset-quick-row > span {
+    color: var(--t3);
+    font-size: 10.5px;
+    font-weight: 900;
+    letter-spacing: .09em;
+    text-transform: uppercase;
+    margin-right: auto;
+}
+
+@media (max-width: 760px) {
+    .live-superset-buttons,
+    .live-superset-quick-row {
+        flex-direction: column;
+        align-items: stretch;
+    }
+
+    .live-superset-quick-row > span {
+        margin-right: 0;
+    }
+}

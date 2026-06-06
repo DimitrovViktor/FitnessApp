@@ -417,6 +417,10 @@ public class AdminService
                 Sets = ex.Sets,
                 Reps = ex.Reps,
                 RestTimeSec = ex.RestTimeSec,
+                SupersetGroup = ex.SupersetGroup,
+                SupersetOrder = ex.SupersetOrder,
+                SupersetRestAfterSec = ex.SupersetRestAfterSec,
+                SupersetRounds = Math.Max(1, ex.SupersetRounds),
                 SortOrder = i
             });
         }
@@ -450,6 +454,10 @@ public class AdminService
                 Sets = ex.Sets,
                 Reps = ex.Reps,
                 RestTimeSec = ex.RestTimeSec,
+                SupersetGroup = ex.SupersetGroup,
+                SupersetOrder = ex.SupersetOrder,
+                SupersetRestAfterSec = ex.SupersetRestAfterSec,
+                SupersetRounds = Math.Max(1, ex.SupersetRounds),
                 SortOrder = i
             });
         }
@@ -516,6 +524,10 @@ public class WorkoutExerciseEntry
     public int Sets { get; set; } = 3;
     public int Reps { get; set; } = 10;
     public int? RestTimeSec { get; set; } = 60;
+    public int? SupersetGroup { get; set; }
+    public int SupersetOrder { get; set; }
+    public int? SupersetRestAfterSec { get; set; }
+    public int SupersetRounds { get; set; } = 1;
 }
 
 public class MuscleGroupFormData

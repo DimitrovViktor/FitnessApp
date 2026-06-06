@@ -93,7 +93,7 @@ else
                         </div>
                         <div>
                             <span>Rest</span>
-                            <strong>@(currentWorkoutExercise.RestTimeSec ?? _restTimerDefault)s</strong>
+                            <strong>@FocusRestText(currentExercise, currentWorkoutExercise)</strong>
                         </div>
                     </div>
                     <div class="focus-actions">
@@ -165,7 +165,7 @@ else
                             <span class="ex-num">@(exIdx + 1)</span>
                             <div>
                                 <span class="ex-hdr-name @(les.IsSkipped ? "text-skipped" : "")">@we.Exercise.Name</span>
-                                <span class="ex-hdr-meta">@ExerciseSetSummary(les, we) · @(we.RestTimeSec ?? _restTimerDefault)s rest · @MuscleStr(we.Exercise)@(les.IsSessionOnly ? " · Session only" : "")</span>
+                                <span class="ex-hdr-meta">@ExerciseHeaderMeta(les, we)</span>
                             </div>
                         </div>
                         <span class="ex-hdr-status">
@@ -180,6 +180,36 @@ else
                         <div class="ex-body">
                             @if (!les.IsSkipped)
                             {
+                                @if (les.SupersetGroup.HasValue)
+                                {
+                                    <div class="live-superset-panel">
+                                        <div>
+                                            <span class="live-superset-title">Superset @les.SupersetGroup · Position @Math.Max(1, les.SupersetOrder)</span>
+                                            <span class="live-superset-copy">@($"{SupersetRoundCopy(les)} Exercises with fewer sets stop appearing after their last set.")</span>
+                                        </div>
+                                        <label class="live-superset-rest live-superset-rounds">
+                                            <span>Superset rounds</span>
+                                            <input type="number" min="1" max="50" step="1" value="@GetLiveSupersetRounds(les)" @onchange="(e) => SetLiveSupersetRounds(exIdx, e)" />
+                                        </label>
+                                        <label class="live-superset-rest">
+                                            <span>Rest after this exercise (seconds)</span>
+                                            <input type="number" min="0" step="5" value="@(les.SupersetRestAfterSec ?? 0)" @onchange="(e) => SetLiveSupersetRestAfter(exIdx, e)" />
+                                        </label>
+                                        <div class="live-superset-buttons">
+                                            <button type="button" class="btn-ghost btn-sm" @onclick="() => SetLiveSupersetRestAfter(exIdx, 0)">No Rest Here</button>
+                                            <button type="button" class="btn-ghost btn-sm" @onclick="() => RemoveLiveFromSuperset(exIdx)">Remove From Superset</button>
+                                        </div>
+                                    </div>
+                                }
+                                else
+                                {
+                                    <div class="live-superset-quick-row">
+                                        <span>Superset</span>
+                                        <button type="button" class="btn-ghost btn-sm" disabled="@(exIdx == 0)" @onclick="() => GroupLiveWithPrevious(exIdx)">Group With Previous</button>
+                                        <button type="button" class="btn-ghost btn-sm" @onclick="() => StartLiveSupersetAt(exIdx)">Start Superset</button>
+                                    </div>
+                                }
+
                                 @for (int si = 0; si < les.Sets.Count; si++)
                                 {
                                     var setIdx = si;
@@ -283,6 +313,24 @@ else
                 <span>Rest</span>
                 <input type="number" min="0" max="600" step="5" @bind="_addExerciseRest" />
             </label>
+            <label class="add-field add-superset-field">
+                <span>Superset</span>
+                <select @bind="_addSupersetChoice">
+                    <option value="">None</option>
+                    @foreach (var option in AvailableSupersetGroups)
+                    {
+                        <option value="@option">Superset @option</option>
+                    }
+                    <option value="new">New Superset</option>
+                </select>
+            </label>
+            @if (!string.IsNullOrEmpty(_addSupersetChoice))
+            {
+                <label class="add-field">
+                    <span>Rest after this exercise (seconds)</span>
+                    <input type="number" min="0" max="600" step="5" @bind="_addSupersetRestAfter" />
+                </label>
+            }
         </div>
 
         @if (!string.IsNullOrWhiteSpace(_addExerciseError))
@@ -380,6 +428,8 @@ else
     private int _addExerciseSets = 3;
     private int _addExerciseReps = 10;
     private int _addExerciseRest = 60;
+    private string _addSupersetChoice = "";
+    private int _addSupersetRestAfter;
     private string _addExerciseError = "";
     private string _finishTitle = "";
     private WorkoutLogStatus? _finishStatus;
@@ -397,6 +447,7 @@ else
     private int CompletedExerciseCount => _liveState.Exercises.Count(IsExerciseDone);
     private LiveExerciseState? CurrentExerciseState => _liveState.CurrentExerciseIndex >= 0 && _liveState.CurrentExerciseIndex < _liveState.Exercises.Count ? _liveState.Exercises[_liveState.CurrentExerciseIndex] : null;
     private WorkoutExercise? CurrentWorkoutExercise => _liveState.CurrentExerciseIndex >= 0 && _liveState.CurrentExerciseIndex < _orderedExercises.Count ? _orderedExercises[_liveState.CurrentExerciseIndex] : null;
+    private IEnumerable<int> AvailableSupersetGroups => _liveState.Exercises.Where(e => e.SupersetGroup.HasValue).Select(e => e.SupersetGroup!.Value).Distinct().OrderBy(x => x);
 
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
@@ -449,6 +500,8 @@ else
         else if (!RebuildOrderedExercisesFromState())
             InitializeStateFromWorkout();
 
+        NormalizeLiveSupersetOrders();
+
         if (_liveState.CurrentExerciseIndex < 0 || _liveState.CurrentExerciseIndex >= _liveState.Exercises.Count)
             _liveState.CurrentExerciseIndex = 0;
 
@@ -468,7 +521,15 @@ else
                 ExerciseId = we.ExerciseId,
                 OriginalSets = we.Sets,
                 OriginalReps = we.Reps,
-                RestTimeSec = we.RestTimeSec
+                RestTimeSec = we.RestTimeSec,
+                SupersetGroup = we.SupersetGroup,
+                SupersetOrder = we.SupersetOrder,
+                SupersetRestAfterSec = we.SupersetRestAfterSec,
+                SupersetRounds = Math.Max(1, we.SupersetRounds),
+                OriginalSupersetGroup = we.SupersetGroup,
+                OriginalSupersetOrder = we.SupersetOrder,
+                OriginalSupersetRestAfterSec = we.SupersetRestAfterSec,
+                OriginalSupersetRounds = Math.Max(1, we.SupersetRounds)
             };
             for (int i = 0; i < we.Sets; i++)
                 les.Sets.Add(new LiveSetState { Reps = we.Reps });
@@ -530,7 +591,11 @@ else
             Sets = sets,
             Reps = reps,
             SortOrder = sortOrder,
-            RestTimeSec = state.RestTimeSec ?? _restTimerDefault
+            RestTimeSec = state.RestTimeSec ?? _restTimerDefault,
+            SupersetGroup = state.SupersetGroup,
+            SupersetOrder = state.SupersetOrder,
+            SupersetRestAfterSec = state.SupersetRestAfterSec,
+            SupersetRounds = Math.Max(1, state.SupersetRounds)
         };
     }
 
@@ -606,8 +671,9 @@ else
         var exercise = CurrentExerciseState;
         if (exercise is null) return "Ready";
         var nextIndex = exercise.Sets.FindIndex(s => !s.IsCompleted && !s.IsSkipped);
-        if (nextIndex >= 0) return $"Set {nextIndex + 1} of {exercise.Sets.Count}";
-        return "Complete";
+        if (nextIndex < 0) return "Complete";
+        if (exercise.SupersetGroup.HasValue) return $"Round {nextIndex + 1} of {GetLiveSupersetRounds(exercise)} · set {nextIndex + 1} of {exercise.Sets.Count}";
+        return $"Set {nextIndex + 1} of {exercise.Sets.Count}";
     }
 
     private bool CanJumpToPreviousExercise() => _liveState.CurrentExerciseIndex > 0;
@@ -694,6 +760,8 @@ else
         _liveState.Exercises.Insert(targetIndex, liveExercise);
         _orderedExercises.Insert(targetIndex, orderedExercise);
 
+        NormalizeLiveSupersetOrders();
+
         _liveState.CurrentExerciseIndex = currentExercise is null ? Math.Clamp(targetIndex, 0, _liveState.Exercises.Count - 1) : _liveState.Exercises.IndexOf(currentExercise);
         _liveState.ExpandedExerciseIndex = expandedExercise is null ? _liveState.CurrentExerciseIndex : _liveState.Exercises.IndexOf(expandedExercise);
 
@@ -714,7 +782,7 @@ else
             if (doneSets.Count > 0)
             {
                 int avgReps = (int)Math.Round(doneSets.Average(s => s.Reps));
-                total += WorkoutService.EstimateExerciseCalories(_orderedExercises[i].Exercise, doneSets.Count, avgReps, _orderedExercises[i].RestTimeSec ?? _restTimerDefault, weight);
+                total += WorkoutService.EstimateExerciseCalories(_orderedExercises[i].Exercise, doneSets.Count, avgReps, GetEstimateRest(_orderedExercises[i], les), weight);
             }
         }
         _estCalBurned = Math.Round(total, 0);
@@ -730,6 +798,8 @@ else
     private void OpenAddExercise()
     {
         _addExerciseError = "";
+        _addSupersetChoice = "";
+        _addSupersetRestAfter = 0;
         _showAddExercise = true;
         _selectedAddExerciseId ??= FilteredAddExercises.FirstOrDefault()?.Id;
     }
@@ -738,6 +808,8 @@ else
     {
         _showAddExercise = false;
         _addExerciseError = "";
+        _addSupersetChoice = "";
+        _addSupersetRestAfter = 0;
     }
 
     private void SelectAddExercise(int exerciseId)
@@ -765,12 +837,21 @@ else
         _addExerciseReps = reps;
         _addExerciseRest = rest;
 
+        var supersetGroup = ResolveAddSupersetGroup();
+        int? supersetRestAfter = string.IsNullOrEmpty(_addSupersetChoice) ? null : Math.Clamp(_addSupersetRestAfter, 0, 600);
+
         var liveExercise = new LiveExerciseState
         {
             ExerciseId = exercise.Id,
             OriginalSets = sets,
             OriginalReps = reps,
             RestTimeSec = rest,
+            SupersetGroup = supersetGroup,
+            SupersetRestAfterSec = supersetRestAfter,
+            SupersetRounds = Math.Max(1, sets),
+            OriginalSupersetGroup = supersetGroup,
+            OriginalSupersetRestAfterSec = supersetRestAfter,
+            OriginalSupersetRounds = Math.Max(1, sets),
             IsSessionOnly = true
         };
 
@@ -779,6 +860,7 @@ else
 
         _liveState.Exercises.Add(liveExercise);
         _orderedExercises.Add(CreateSessionOnlyWorkoutExercise(exercise, liveExercise, _orderedExercises.Count));
+        NormalizeLiveSupersetOrders();
 
         var newIndex = _liveState.Exercises.Count - 1;
         _liveState.CurrentExerciseIndex = newIndex;
@@ -789,6 +871,173 @@ else
 
         _showAddExercise = false;
         _addExerciseError = "";
+        _addSupersetChoice = "";
+        _addSupersetRestAfter = 0;
+        StateHasChanged();
+    }
+
+
+    private int? ResolveAddSupersetGroup()
+    {
+        if (string.IsNullOrEmpty(_addSupersetChoice)) return null;
+        if (_addSupersetChoice == "new") return NextLiveSupersetGroup();
+        return int.TryParse(_addSupersetChoice, out var group) ? group : null;
+    }
+
+    private int NextLiveSupersetGroup() => _liveState.Exercises.Where(x => x.SupersetGroup.HasValue).Select(x => x.SupersetGroup!.Value).DefaultIfEmpty(0).Max() + 1;
+
+    private void NormalizeLiveSupersetOrders()
+    {
+        foreach (var group in _liveState.Exercises.Where(x => x.SupersetGroup.HasValue).Select(x => x.SupersetGroup!.Value).Distinct())
+        {
+            var groupExercises = _liveState.Exercises.Where(x => x.SupersetGroup == group).ToList();
+            if (groupExercises.Count == 0) continue;
+            var maxSets = groupExercises.Max(x => Math.Max(1, x.Sets.Count));
+            var currentRounds = groupExercises.Max(x => Math.Max(1, x.SupersetRounds));
+            var rounds = Math.Max(maxSets, currentRounds);
+            var order = 1;
+            foreach (var exercise in groupExercises)
+            {
+                exercise.SupersetOrder = order++;
+                exercise.SupersetRestAfterSec ??= 0;
+                exercise.SupersetRounds = rounds;
+            }
+        }
+
+        for (int i = 0; i < _liveState.Exercises.Count && i < _orderedExercises.Count; i++)
+        {
+            _orderedExercises[i].SupersetGroup = _liveState.Exercises[i].SupersetGroup;
+            _orderedExercises[i].SupersetOrder = _liveState.Exercises[i].SupersetOrder;
+            _orderedExercises[i].SupersetRestAfterSec = _liveState.Exercises[i].SupersetRestAfterSec;
+            _orderedExercises[i].SupersetRounds = Math.Max(1, _liveState.Exercises[i].SupersetRounds);
+        }
+    }
+
+
+    private string FocusRestText(LiveExerciseState exercise, WorkoutExercise workoutExercise)
+    {
+        if (exercise.SupersetGroup.HasValue) return $"after this exercise: {exercise.SupersetRestAfterSec ?? 0}s";
+        return $"{workoutExercise.RestTimeSec ?? _restTimerDefault}s";
+    }
+
+    private string ExerciseHeaderMeta(LiveExerciseState exercise, WorkoutExercise workoutExercise)
+    {
+        var parts = new List<string> { ExerciseSetSummary(exercise, workoutExercise) };
+        if (exercise.SupersetGroup.HasValue)
+            parts.Add($"Superset {exercise.SupersetGroup} · {GetLiveSupersetRounds(exercise)} rounds · rest after {exercise.SupersetRestAfterSec ?? 0} seconds");
+        else
+            parts.Add($"{workoutExercise.RestTimeSec ?? _restTimerDefault} seconds rest");
+        var muscle = MuscleStr(workoutExercise.Exercise);
+        if (!string.IsNullOrWhiteSpace(muscle)) parts.Add(muscle);
+        if (exercise.IsSessionOnly) parts.Add("Session only");
+        return string.Join(" · ", parts);
+    }
+
+    private int GetLiveSupersetRounds(LiveExerciseState exercise)
+    {
+        if (!exercise.SupersetGroup.HasValue) return Math.Max(1, exercise.Sets.Count);
+        return _liveState.Exercises
+            .Where(x => x.SupersetGroup == exercise.SupersetGroup)
+            .Select(x => Math.Max(Math.Max(1, x.Sets.Count), Math.Max(1, x.SupersetRounds)))
+            .DefaultIfEmpty(Math.Max(1, exercise.Sets.Count))
+            .Max();
+    }
+
+    private string SupersetRoundCopy(LiveExerciseState exercise)
+    {
+        var rounds = GetLiveSupersetRounds(exercise);
+        return $"This superset is planned for {rounds} rounds. This exercise is active for {exercise.Sets.Count} of {rounds} rounds.";
+    }
+
+    private async void SetLiveSupersetRounds(int exIdx, ChangeEventArgs e)
+    {
+        if (exIdx < 0 || exIdx >= _liveState.Exercises.Count) return;
+        var exercise = _liveState.Exercises[exIdx];
+        if (!exercise.SupersetGroup.HasValue) return;
+        var groupExercises = _liveState.Exercises.Where(x => x.SupersetGroup == exercise.SupersetGroup).ToList();
+        if (groupExercises.Count == 0) return;
+        var maxSets = groupExercises.Max(x => Math.Max(1, x.Sets.Count));
+        var requested = int.TryParse(e.Value?.ToString(), out var value) ? value : maxSets;
+        var rounds = Math.Clamp(Math.Max(requested, maxSets), 1, 50);
+        foreach (var groupExercise in groupExercises)
+            groupExercise.SupersetRounds = rounds;
+        NormalizeLiveSupersetOrders();
+        RecalcTotals();
+        await PersistState();
+        StateHasChanged();
+    }
+
+    private static string LiveSupersetMeta(LiveExerciseState exercise) => exercise.SupersetGroup.HasValue ? $" · Superset {exercise.SupersetGroup} · {Math.Max(1, exercise.SupersetRounds)} rounds · rest after {exercise.SupersetRestAfterSec ?? 0} seconds" : string.Empty;
+
+    private int GetRestAfterExercise(int exIdx, int defaultRest)
+    {
+        if (exIdx < 0 || exIdx >= _liveState.Exercises.Count) return 0;
+        var exercise = _liveState.Exercises[exIdx];
+        if (!exercise.SupersetGroup.HasValue) return 0;
+        return Math.Clamp(exercise.SupersetRestAfterSec ?? 0, 0, 600);
+    }
+
+
+    private async Task GroupLiveWithPrevious(int exIdx)
+    {
+        if (exIdx <= 0 || exIdx >= _liveState.Exercises.Count) return;
+        var previous = _liveState.Exercises[exIdx - 1];
+        var current = _liveState.Exercises[exIdx];
+        var group = previous.SupersetGroup ?? NextLiveSupersetGroup();
+        previous.SupersetGroup = group;
+        previous.SupersetRestAfterSec ??= 0;
+        current.SupersetGroup = group;
+        current.SupersetRestAfterSec ??= 0;
+        var rounds = Math.Max(previous.Sets.Count, current.Sets.Count);
+        previous.SupersetRounds = Math.Max(previous.SupersetRounds, rounds);
+        current.SupersetRounds = Math.Max(current.SupersetRounds, rounds);
+        NormalizeLiveSupersetOrders();
+        RecalcTotals();
+        await PersistState();
+        StateHasChanged();
+    }
+
+    private async Task StartLiveSupersetAt(int exIdx)
+    {
+        if (exIdx < 0 || exIdx >= _liveState.Exercises.Count) return;
+        var exercise = _liveState.Exercises[exIdx];
+        exercise.SupersetGroup = NextLiveSupersetGroup();
+        exercise.SupersetRestAfterSec ??= 0;
+        exercise.SupersetRounds = Math.Max(1, exercise.Sets.Count);
+        NormalizeLiveSupersetOrders();
+        RecalcTotals();
+        await PersistState();
+        StateHasChanged();
+    }
+
+    private async Task RemoveLiveFromSuperset(int exIdx)
+    {
+        if (exIdx < 0 || exIdx >= _liveState.Exercises.Count) return;
+        var exercise = _liveState.Exercises[exIdx];
+        exercise.SupersetGroup = null;
+        exercise.SupersetOrder = 0;
+        exercise.SupersetRestAfterSec = null;
+        exercise.SupersetRounds = 1;
+        NormalizeLiveSupersetOrders();
+        RecalcTotals();
+        await PersistState();
+        StateHasChanged();
+    }
+
+    private async void SetLiveSupersetRestAfter(int exIdx, ChangeEventArgs e)
+    {
+        if (int.TryParse(e.Value?.ToString(), out var seconds))
+            await SetLiveSupersetRestAfter(exIdx, seconds);
+    }
+
+    private async Task SetLiveSupersetRestAfter(int exIdx, int seconds)
+    {
+        if (exIdx < 0 || exIdx >= _liveState.Exercises.Count) return;
+        var value = Math.Clamp(seconds, 0, 600);
+        _liveState.Exercises[exIdx].SupersetRestAfterSec = value;
+        if (exIdx < _orderedExercises.Count) _orderedExercises[exIdx].SupersetRestAfterSec = value;
+        RecalcTotals();
+        await PersistState();
         StateHasChanged();
     }
 
@@ -807,21 +1056,51 @@ else
         await PersistState();
 
         var les = _liveState.Exercises[exIdx];
-        var activeSets = les.Sets.Where(s => !s.IsSkipped).ToList();
-        bool allExDone = activeSets.All(s => s.IsCompleted);
+        var restAfterExercise = les.SupersetGroup.HasValue ? GetRestAfterExercise(exIdx, restSec) : restSec;
 
-        if (allExDone)
-            AdvanceToNextExercise(exIdx);
-
-        if (IsAllDone())
+        if (les.SupersetGroup.HasValue)
         {
-            FinishWorkout();
+            var movedInsideSuperset = TryAdvanceWithinSuperset(exIdx, setIdx);
+            if (!movedInsideSuperset && IsExerciseDone(les))
+                AdvanceToNextExercise(exIdx);
+
+            if (IsAllDone())
+            {
+                FinishWorkout();
+                StateHasChanged();
+                return;
+            }
+
+            if (restAfterExercise > 0)
+                StartRest(restAfterExercise);
+
+            StateHasChanged();
             return;
         }
 
-        bool isLastActiveSet = activeSets.Last() == les.Sets[setIdx] && allExDone;
-        if (!isLastActiveSet && restSec > 0)
-            StartRest(restSec);
+        var activeSets = les.Sets.Where(s => !s.IsSkipped).ToList();
+        bool allExDone = activeSets.Count > 0 && activeSets.All(s => s.IsCompleted);
+
+        if (allExDone)
+        {
+            AdvanceToNextExercise(exIdx);
+
+            if (IsAllDone())
+            {
+                FinishWorkout();
+                StateHasChanged();
+                return;
+            }
+
+            if (restAfterExercise > 0)
+                StartRest(restAfterExercise);
+
+            StateHasChanged();
+            return;
+        }
+
+        if (restAfterExercise > 0)
+            StartRest(restAfterExercise);
 
         StateHasChanged();
     }
@@ -835,7 +1114,9 @@ else
         var les = _liveState.Exercises[exIdx];
         if (!HasCompletedSets(les) && les.Sets.All(s => s.IsSkipped))
             les.IsSkipped = true;
-        if (les.Sets.Where(s => !s.IsSkipped).All(s => s.IsCompleted))
+        if (les.SupersetGroup.HasValue)
+            TryAdvanceWithinSuperset(exIdx, setIdx);
+        else if (les.Sets.Where(s => !s.IsSkipped).All(s => s.IsCompleted))
             AdvanceToNextExercise(exIdx);
 
         if (IsAllDone())
@@ -885,6 +1166,7 @@ else
 
         exercise.Sets.RemoveAt(setIdx);
         exercise.IsSkipped = exercise.Sets.All(s => s.IsSkipped) && !HasCompletedSets(exercise);
+        NormalizeLiveSupersetOrders();
         _liveState.CurrentExerciseIndex = exIdx;
         _liveState.ExpandedExerciseIndex = exIdx;
         _showFinish = false;
@@ -1018,12 +1300,63 @@ else
             Reps = lastSet?.Reps ?? we.Reps,
             WeightKg = lastSet?.WeightKg
         });
+        NormalizeLiveSupersetOrders();
         _liveState.CurrentExerciseIndex = exIdx;
         _liveState.ExpandedExerciseIndex = exIdx;
         _showFinish = false;
         RecalcTotals();
         await PersistState();
         StateHasChanged();
+    }
+
+    private bool TryAdvanceWithinSuperset(int fromIdx, int roundIndex)
+    {
+        if (fromIdx < 0 || fromIdx >= _liveState.Exercises.Count) return false;
+        var source = _liveState.Exercises[fromIdx];
+        if (!source.SupersetGroup.HasValue) return false;
+
+        var groupIndexes = _liveState.Exercises
+            .Select((exercise, index) => new { exercise, index })
+            .Where(x => x.exercise.SupersetGroup == source.SupersetGroup)
+            .OrderBy(x => Math.Max(1, x.exercise.SupersetOrder))
+            .ThenBy(x => x.index)
+            .ToList();
+
+        var currentPosition = groupIndexes.FindIndex(x => x.index == fromIdx);
+        if (currentPosition < 0) return false;
+        var rounds = GetLiveSupersetRounds(source);
+
+        for (int i = currentPosition + 1; i < groupIndexes.Count; i++)
+        {
+            if (HasAvailableSupersetRoundSet(groupIndexes[i].index, roundIndex))
+            {
+                JumpToExercise(groupIndexes[i].index);
+                return true;
+            }
+        }
+
+        for (int round = roundIndex + 1; round < rounds; round++)
+        {
+            foreach (var item in groupIndexes)
+            {
+                if (HasAvailableSupersetRoundSet(item.index, round))
+                {
+                    JumpToExercise(item.index);
+                    return true;
+                }
+            }
+        }
+
+        return false;
+    }
+
+    private bool HasAvailableSupersetRoundSet(int exIdx, int roundIndex)
+    {
+        if (exIdx < 0 || exIdx >= _liveState.Exercises.Count || roundIndex < 0) return false;
+        var exercise = _liveState.Exercises[exIdx];
+        if (exercise.IsSkipped || roundIndex >= exercise.Sets.Count) return false;
+        var set = exercise.Sets[roundIndex];
+        return !set.IsCompleted && !set.IsSkipped;
     }
 
     private void AdvanceToNextExercise(int fromIdx)
@@ -1126,7 +1459,7 @@ else
     {
         bool anySkipped = _liveState.Exercises.Any(e => e.IsSkipped);
         bool anyIncomplete = _liveState.Exercises.Any(e => !e.IsSkipped && e.Sets.Any(s => !s.IsCompleted && !s.IsSkipped));
-        bool anyModified = _liveState.Exercises.Any(e => !e.IsSkipped && (e.IsSessionOnly || e.Sets.Count != e.OriginalSets || e.Sets.Any(s => s.Reps != e.OriginalReps || s.IsSkipped)));
+        bool anyModified = _liveState.Exercises.Any(e => !e.IsSkipped && (e.IsSessionOnly || e.Sets.Count != e.OriginalSets || e.Sets.Any(s => s.Reps != e.OriginalReps || s.IsSkipped) || e.SupersetGroup != e.OriginalSupersetGroup || e.SupersetRestAfterSec != e.OriginalSupersetRestAfterSec || e.SupersetRounds != e.OriginalSupersetRounds));
 
         if (anySkipped || anyIncomplete) return WorkoutLogStatus.Partial;
         if (anyModified) return WorkoutLogStatus.Modified;
@@ -1151,7 +1484,7 @@ else
                 status = LogStatus.Skipped;
             else if (les.IsSessionOnly && completedSets > 0)
                 status = LogStatus.Added;
-            else if (skippedSets > 0 || hasIncompleteSets || les.Sets.Count != les.OriginalSets || les.Sets.Any(s => s.Reps != les.OriginalReps))
+            else if (skippedSets > 0 || hasIncompleteSets || les.Sets.Count != les.OriginalSets || les.Sets.Any(s => s.Reps != les.OriginalReps) || les.SupersetGroup != les.OriginalSupersetGroup || les.SupersetRestAfterSec != les.OriginalSupersetRestAfterSec || les.SupersetRounds != les.OriginalSupersetRounds)
                 status = LogStatus.Modified;
 
             decimal cal = 0;
@@ -1187,6 +1520,12 @@ else
         }
 
         return entries;
+    }
+
+
+    private int GetEstimateRest(WorkoutExercise workoutExercise, LiveExerciseState liveExercise)
+    {
+        return liveExercise.SupersetGroup.HasValue ? Math.Max(0, liveExercise.SupersetRestAfterSec ?? 0) : Math.Max(0, workoutExercise.RestTimeSec ?? _restTimerDefault);
     }
 
     private string FormatElapsed()

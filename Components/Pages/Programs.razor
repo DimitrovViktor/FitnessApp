@@ -80,25 +80,52 @@ else if (_detail is not null)
                                 <div class="structure-header" @onclick="() => ToggleWorkoutStructure(idx)">
                                     <div>
                                         <span class="structure-name">@w.Name</span>
-                                        <span class="structure-meta">@w.WorkoutExercises.Count exercises</span>
+                                        <span class="structure-meta">@w.WorkoutExercises.Count exercises@ProgramSupersetSummary(w)</span>
                                     </div>
                                     <span class="structure-toggle @(open ? "open" : "")">▾</span>
                                 </div>
                                 @if (open)
                                 {
                                     <div class="structure-exercises">
-                                        @foreach (var we in w.WorkoutExercises.OrderBy(x => x.SortOrder))
+                                        @foreach (var structureGroup in BuildStructureGroups(w))
                                         {
-                                            <div class="structure-ex-row">
-                                                <div>
-                                                    <span class="sex-name">@we.Exercise.Name</span>
-                                                    <span class="sex-muscle">@MuscleStr(we.Exercise)</span>
+                                            @if (structureGroup.SupersetGroup.HasValue)
+                                            {
+                                                <div class="structure-superset-block">
+                                                    <div class="structure-superset-head">
+                                                        <span>Superset @structureGroup.SupersetGroup</span>
+                                                        <small>@structureGroup.Rounds rounds · @structureGroup.Exercises.Count exercises</small>
+                                                    </div>
+                                                    @foreach (var we in structureGroup.Exercises)
+                                                    {
+                                                        <div class="structure-ex-row structure-superset-row">
+                                                            <div>
+                                                                <span class="sex-name">@we.Exercise.Name</span>
+                                                                <span class="sex-muscle">@MuscleStr(we.Exercise)</span>
+                                                            </div>
+                                                            <div class="sex-right">
+                                                                <span class="sex-sets" style="color:@color">@we.Sets×@we.Reps</span>
+                                                                <span class="sex-rest">active @we.Sets/@structureGroup.Rounds rounds</span>
+                                                                <span class="sex-rest">rest after @(we.SupersetRestAfterSec ?? 0) seconds</span>
+                                                            </div>
+                                                        </div>
+                                                    }
                                                 </div>
-                                                <div class="sex-right">
-                                                    <span class="sex-sets" style="color:@color">@we.Sets×@we.Reps</span>
-                                                    <span class="sex-rest">rest @(we.RestTimeSec ?? 60)s</span>
+                                            }
+                                            else
+                                            {
+                                                var we = structureGroup.Exercises[0];
+                                                <div class="structure-ex-row">
+                                                    <div>
+                                                        <span class="sex-name">@we.Exercise.Name</span>
+                                                        <span class="sex-muscle">@MuscleStr(we.Exercise)</span>
+                                                    </div>
+                                                    <div class="sex-right">
+                                                        <span class="sex-sets" style="color:@color">@we.Sets×@we.Reps</span>
+                                                        <span class="sex-rest">rest @(we.RestTimeSec ?? 60)s</span>
+                                                    </div>
                                                 </div>
-                                            </div>
+                                            }
                                         }
                                     </div>
                                 }
@@ -372,6 +399,41 @@ else
         try { return JsonSerializer.Deserialize<List<string>>(p.Notes) ?? new(); } catch { return new(); }
     }
 
+    private static List<StructureGroup> BuildStructureGroups(Workout workout)
+    {
+        var groups = new List<StructureGroup>();
+        var ordered = workout.WorkoutExercises.OrderBy(x => x.SortOrder).ToList();
+        var handledSupersets = new HashSet<int>();
+
+        foreach (var exercise in ordered)
+        {
+            if (exercise.SupersetGroup.HasValue)
+            {
+                var group = exercise.SupersetGroup.Value;
+                if (handledSupersets.Contains(group)) continue;
+                handledSupersets.Add(group);
+                groups.Add(new StructureGroup
+                {
+                    SupersetGroup = group,
+                    Exercises = ordered.Where(x => x.SupersetGroup == group).OrderBy(x => x.SupersetOrder).ThenBy(x => x.SortOrder).ToList(),
+                    Rounds = ordered.Where(x => x.SupersetGroup == group).Select(x => Math.Max(Math.Max(1, x.Sets), Math.Max(1, x.SupersetRounds))).DefaultIfEmpty(1).Max()
+                });
+            }
+            else
+            {
+                groups.Add(new StructureGroup { Exercises = new List<WorkoutExercise> { exercise } });
+            }
+        }
+
+        return groups;
+    }
+
+    private static string ProgramSupersetSummary(Workout workout)
+    {
+        var count = workout.WorkoutExercises.Where(x => x.SupersetGroup.HasValue).Select(x => x.SupersetGroup!.Value).Distinct().Count();
+        return count > 0 ? $" · {count} supersets" : string.Empty;
+    }
+
     private static string MuscleStr(Exercise ex) =>
         string.Join(", ", ex.ExerciseMuscleGroups.Where(m => m.IsPrimary).Select(m => m.MuscleGroup.Name));
 
@@ -525,5 +587,12 @@ else
             $"{_detail.DaysPerWeek} training days available",
             _detail.DaysPerWeek >= 5 ? "Full gym access recommended" : "Barbell and dumbbells sufficient"
         };
+    }
+
+    private sealed class StructureGroup
+    {
+        public int? SupersetGroup { get; set; }
+        public int Rounds { get; set; } = 1;
+        public List<WorkoutExercise> Exercises { get; set; } = new();
     }
 }

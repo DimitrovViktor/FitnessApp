@@ -268,7 +268,7 @@ else
                     {
                         var idx = i;
                         var entry = _form.Exercises[idx];
-                        <div class="sel-card @(_activeExIdx == idx ? "active" : "")" @onclick="() => ActivateSelected(idx)">
+                        <div class="sel-card @(_activeExIdx == idx ? "active" : "") @(entry.SupersetGroup.HasValue ? "in-superset" : "")" @onclick="() => ActivateSelected(idx)">
                             <div class="sel-top">
                                 <div class="sel-ord">
                                     <button type="button" class="ord-btn" disabled="@(idx == 0)" @onclick:stopPropagation @onclick="() => Move(idx, -1)" aria-label="Move up"><span class="icon icon-up" aria-hidden="true"></span></button>
@@ -277,7 +277,7 @@ else
                                 </div>
                                 <div class="sel-info">
                                     <span class="sel-name">@entry.Exercise?.Name</span>
-                                    <span class="sel-meta">@(entry.Exercise is not null ? MuscleStr(entry.Exercise) : "")</span>
+                                    <span class="sel-meta">@(entry.Exercise is not null ? MuscleStr(entry.Exercise) : "")@SupersetEntryMeta(entry)</span>
                                 </div>
                                 <button type="button" class="sel-rm" @onclick:stopPropagation @onclick="() => RemoveEntry(idx)" aria-label="Remove exercise"><span class="icon icon-x" aria-hidden="true"></span></button>
                             </div>
@@ -286,6 +286,21 @@ else
                                 <div class="sf"><label>Reps</label><input type="number" @bind="entry.Reps" @bind:after="Recalc" min="1" @onclick:stopPropagation /></div>
                                 <div class="sf"><label>Rest(s)</label><input type="number" @bind="entry.RestTimeSec" @bind:after="Recalc" min="0" @onclick:stopPropagation /></div>
                                 <span class="sel-kcal">~@FormatEnergyValue(EstSingle(entry))</span>
+                            </div>
+                            <div class="superset-builder-row" @onclick:stopPropagation>
+                                @if (entry.SupersetGroup.HasValue)
+                                {
+                                    <span class="superset-pill">@SupersetLabel(entry)</span>
+                                    <div class="sf superset-rounds-field"><label>Superset rounds</label><input type="number" value="@GetSupersetRounds(entry)" min="1" @onchange="(e) => SetSupersetRounds(entry, e)" /></div>
+                                    <div class="sf superset-rest-field"><label>Rest after this exercise (seconds)</label><input type="number" @bind="entry.SupersetRestAfterSec" @bind:after="Recalc" min="0" /></div>
+                                    <span class="superset-note">This exercise runs for @entry.Sets of @GetSupersetRounds(entry) rounds.</span>
+                                    <button type="button" class="superset-btn" @onclick="() => RemoveFromSuperset(idx)">Remove From Superset</button>
+                                }
+                                else
+                                {
+                                    <button type="button" class="superset-btn" disabled="@(idx == 0)" @onclick="() => GroupWithPrevious(idx)">Group With Previous</button>
+                                    <button type="button" class="superset-btn" @onclick="() => StartSupersetAt(idx)">Start Superset</button>
+                                }
                             </div>
                         </div>
                     }
@@ -747,7 +762,13 @@ else
 
     private void RemoveEntry(int idx)
     {
-        if (idx >= 0 && idx < _form.Exercises.Count) { _form.Exercises.RemoveAt(idx); if (_activeExIdx == idx) _activeExIdx = -1; Recalc(); }
+        if (idx >= 0 && idx < _form.Exercises.Count)
+        {
+            _form.Exercises.RemoveAt(idx);
+            if (_activeExIdx == idx) _activeExIdx = -1;
+            NormalizeSupersetOrders();
+            Recalc();
+        }
     }
 
     private void Move(int idx, int dir)
@@ -755,15 +776,114 @@ else
         int n = idx + dir;
         if (n < 0 || n >= _form.Exercises.Count) return;
         (_form.Exercises[idx], _form.Exercises[n]) = (_form.Exercises[n], _form.Exercises[idx]);
+        NormalizeSupersetOrders();
+        Recalc();
     }
 
     private void ActivateSelected(int idx) => _activeExIdx = _activeExIdx == idx ? -1 : idx;
+
+    private void GroupWithPrevious(int idx)
+    {
+        if (idx <= 0 || idx >= _form.Exercises.Count) return;
+        var previous = _form.Exercises[idx - 1];
+        var current = _form.Exercises[idx];
+        var group = previous.SupersetGroup ?? NextSupersetGroup();
+        previous.SupersetGroup = group;
+        previous.SupersetRestAfterSec ??= 0;
+        current.SupersetGroup = group;
+        current.SupersetRestAfterSec ??= 0;
+        var rounds = Math.Max(previous.Sets, current.Sets);
+        previous.SupersetRounds = Math.Max(previous.SupersetRounds, rounds);
+        current.SupersetRounds = Math.Max(current.SupersetRounds, rounds);
+        NormalizeSupersetOrders(group);
+        Recalc();
+    }
+
+    private void StartSupersetAt(int idx)
+    {
+        if (idx < 0 || idx >= _form.Exercises.Count) return;
+        var entry = _form.Exercises[idx];
+        entry.SupersetGroup = NextSupersetGroup();
+        entry.SupersetRestAfterSec ??= 0;
+        entry.SupersetRounds = Math.Max(1, entry.Sets);
+        NormalizeSupersetOrders(entry.SupersetGroup);
+        Recalc();
+    }
+
+    private void RemoveFromSuperset(int idx)
+    {
+        if (idx < 0 || idx >= _form.Exercises.Count) return;
+        var group = _form.Exercises[idx].SupersetGroup;
+        _form.Exercises[idx].SupersetGroup = null;
+        _form.Exercises[idx].SupersetOrder = 0;
+        _form.Exercises[idx].SupersetRestAfterSec = null;
+        _form.Exercises[idx].SupersetRounds = 1;
+        NormalizeSupersetOrders(group);
+        Recalc();
+    }
+
+    private int NextSupersetGroup() => (_form.Exercises.Where(x => x.SupersetGroup.HasValue).Select(x => x.SupersetGroup!.Value).DefaultIfEmpty(0).Max()) + 1;
+
+    private void NormalizeSupersetOrders(int? group = null)
+    {
+        var groups = group.HasValue ? new[] { group.Value } : _form.Exercises.Where(x => x.SupersetGroup.HasValue).Select(x => x.SupersetGroup!.Value).Distinct().ToArray();
+        foreach (var supersetGroup in groups)
+        {
+            var groupEntries = _form.Exercises.Where(x => x.SupersetGroup == supersetGroup).ToList();
+            if (groupEntries.Count == 0) continue;
+            var maxSets = groupEntries.Max(x => Math.Max(1, x.Sets));
+            var currentRounds = groupEntries.Max(x => Math.Max(1, x.SupersetRounds));
+            var rounds = Math.Max(maxSets, currentRounds);
+            var order = 1;
+            foreach (var entry in groupEntries)
+            {
+                entry.SupersetOrder = order++;
+                entry.SupersetRestAfterSec ??= 0;
+                entry.SupersetRounds = rounds;
+            }
+        }
+    }
+
+    private int GetSupersetRounds(BuilderExerciseEntry entry)
+    {
+        if (!entry.SupersetGroup.HasValue) return Math.Max(1, entry.Sets);
+        var groupEntries = _form.Exercises.Where(x => x.SupersetGroup == entry.SupersetGroup).ToList();
+        if (groupEntries.Count == 0) return Math.Max(1, entry.Sets);
+        return groupEntries.Max(x => Math.Max(Math.Max(1, x.Sets), Math.Max(1, x.SupersetRounds)));
+    }
+
+    private void SetSupersetRounds(BuilderExerciseEntry entry, ChangeEventArgs e)
+    {
+        if (!entry.SupersetGroup.HasValue) return;
+        var groupEntries = _form.Exercises.Where(x => x.SupersetGroup == entry.SupersetGroup).ToList();
+        if (groupEntries.Count == 0) return;
+        var maxSets = groupEntries.Max(x => Math.Max(1, x.Sets));
+        var requested = int.TryParse(e.Value?.ToString(), out var value) ? value : maxSets;
+        var rounds = Math.Clamp(Math.Max(requested, maxSets), 1, 50);
+        foreach (var groupEntry in groupEntries)
+            groupEntry.SupersetRounds = rounds;
+        Recalc();
+    }
+
+    private static string SupersetEntryMeta(BuilderExerciseEntry entry) => entry.SupersetGroup.HasValue ? $" · Superset {entry.SupersetGroup} · {Math.Max(1, entry.SupersetRounds)} rounds · rest after {entry.SupersetRestAfterSec ?? 0}s" : string.Empty;
+
+    private static string SupersetLabel(BuilderExerciseEntry entry) => entry.SupersetGroup.HasValue ? $"Superset {entry.SupersetGroup} · position {Math.Max(1, entry.SupersetOrder)}" : string.Empty;
+
+    private static string SupersetWorkoutMeta(WorkoutExercise entry) => entry.SupersetGroup.HasValue ? $" · Superset {entry.SupersetGroup} · {Math.Max(1, entry.SupersetRounds)} rounds · rest after {entry.SupersetRestAfterSec ?? 0}s" : string.Empty;
+
+    private static string WorkoutSupersetSummary(Workout workout)
+    {
+        var count = workout.WorkoutExercises.Where(x => x.SupersetGroup.HasValue).Select(x => x.SupersetGroup!.Value).Distinct().Count();
+        return count > 0 ? $" · {count} supersets" : string.Empty;
+    }
 
     private async Task SaveWorkout()
     {
         _saving = true;
         if (string.IsNullOrWhiteSpace(_form.Name)) { _msg = "Give your workout a name."; _msgErr = true; _saving = false; return; }
         if (_form.Exercises.Count == 0) { _msg = "Add at least one exercise."; _msgErr = true; _saving = false; return; }
+
+        NormalizeSupersetOrders();
 
         if (_editId.HasValue)
         {
@@ -815,7 +935,7 @@ else
             SortOrder = _previewWorkout.SortOrder,
             Exercises = _previewWorkout.WorkoutExercises.OrderBy(x => x.SortOrder).Select(x => new BuilderExerciseEntry
             {
-                ExerciseId = x.ExerciseId, Exercise = x.Exercise, Sets = x.Sets, Reps = x.Reps, RestTimeSec = x.RestTimeSec
+                ExerciseId = x.ExerciseId, Exercise = x.Exercise, Sets = x.Sets, Reps = x.Reps, RestTimeSec = x.RestTimeSec, SupersetGroup = x.SupersetGroup, SupersetOrder = x.SupersetOrder, SupersetRestAfterSec = x.SupersetRestAfterSec, SupersetRounds = Math.Max(1, x.SupersetRounds)
             }).ToList()
         };
         _showWorkoutPreview = false;
@@ -1104,8 +1224,8 @@ else
             yield return (label, kg);
         }
     }
-    private decimal EstSingle(BuilderExerciseEntry e) => e.Exercise is not null ? WorkoutService.EstimateExerciseCalories(e.Exercise, e.Sets, e.Reps, e.RestTimeSec ?? 60, _user?.WeightKg ?? 70m) : 0;
-    private decimal EstWorkout(Workout w) => WorkoutService.EstimateWorkoutCalories(w.WorkoutExercises.Select(x => new BuilderExerciseEntry { Exercise = x.Exercise, Sets = x.Sets, Reps = x.Reps, RestTimeSec = x.RestTimeSec }).ToList(), _user?.WeightKg ?? 70m);
+    private decimal EstSingle(BuilderExerciseEntry e) => e.Exercise is not null ? WorkoutService.EstimateExerciseCalories(e.Exercise, e.Sets, e.Reps, e.SupersetGroup.HasValue ? Math.Max(0, e.SupersetRestAfterSec ?? 0) : Math.Max(0, e.RestTimeSec ?? 60), _user?.WeightKg ?? 70m) : 0;
+    private decimal EstWorkout(Workout w) => WorkoutService.EstimateWorkoutCalories(w.WorkoutExercises.Select(x => new BuilderExerciseEntry { Exercise = x.Exercise, Sets = x.Sets, Reps = x.Reps, RestTimeSec = x.RestTimeSec, SupersetGroup = x.SupersetGroup, SupersetOrder = x.SupersetOrder, SupersetRestAfterSec = x.SupersetRestAfterSec, SupersetRounds = Math.Max(1, x.SupersetRounds) }).ToList(), _user?.WeightKg ?? 70m);
 
     private sealed class ActivityItem
     {
