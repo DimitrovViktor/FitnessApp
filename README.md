@@ -2,8 +2,6 @@
 
 C# Blazor fitness appplication with custom workouts and exercise selections, calorie counting and run/walk tracking
 
-
-
 ## Authentication System + Onboarding
 
 Registration with information collection and login authentication.
@@ -24,23 +22,27 @@ User information storage with editing functionality
 
 CRUD functionality over the database
 
-## Workouts page
+## Training Section 
+
+### Workouts page
 
 Personal workout creation with exercise library, premade workouts and programs browsing
 
-## Exercise library page
+### Exercise library page
 
 Exercise descriptions, videos(through links), weight examples
 
-## Programs library page
+### Programs library page
 
 Program descriptions with workouts, recommended schedules, muscle exercise volume
 
-## Progress page
+### Progress page
 
 Statistics about the user and their activities
 
-## Diet page 
+## Diet Section 
+
+### Diet Page
 
 Daily food log and nutrient/calorie tracking
 
