@@ -46,6 +46,10 @@ Statistics about the user and their activities
 
 Daily food log and nutrient/calorie tracking
 
+### Diet Plans Page
+
+Build diet plans for different purposes
+
 ## To-do
 
 - Foods page - lists of different foods in categories
