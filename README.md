@@ -50,6 +50,10 @@ Daily food log and nutrient/calorie tracking
 
 Build diet plans for different purposes
 
+###Foods Page
+
+A list of foods sorted in categories
+
 ## To-do
 
 - Foods page - lists of different foods in categories
