@@ -73,7 +73,7 @@ else
                     <div class="diet-panel-head">
                         <div>
                             <h2>Pick Food</h2>
-                            <p>Click any food to add 100g to @_selectedDate.ToString("dddd, d MMM yyyy"). Adjust grams, time, and meal name after it is logged.</p>
+                            <p>Click any food to add 100g to @_selectedDate.ToString("dddd, d MMM yyyy"). Adjust grams, time, and meal type after it is logged.</p>
                         </div>
                         <div class="diet-date-wrap inline-date">
                             <input type="date" value="@_selectedDate.ToString("yyyy-MM-dd")" @onchange="ChangeDate" />
@@ -183,8 +183,13 @@ else
                                                 <input type="time" value="@(state.Time?.ToString("HH:mm") ?? "")" @onchange="e => state.Time = ParseTime(e.Value?.ToString())" aria-label="Meal time" />
                                             </label>
                                             <label class="log-edit-field">
-                                                <span>Meal</span>
-                                                <input type="text" value="@state.MealName" @oninput='e => state.MealName = e.Value?.ToString() ?? "Meal"' aria-label="Meal name" />
+                                                <span>Meal Type</span>
+                                                <select value="@state.MealName" @onchange="e => state.MealName = NormalizeMealType(e.Value?.ToString(), state.Time)" aria-label="Meal type">
+                                                    @foreach (var mealType in MealTypes)
+                                                    {
+                                                        <option value="@mealType">@mealType</option>
+                                                    }
+                                                </select>
                                             </label>
                                             <div class="log-edit-actions">
                                                 <span>Actions</span>
@@ -223,6 +228,17 @@ else
         new("loss", "Weight Loss", "Lower-calorie foods and plans for fat loss phases."),
         new("gain", "Weight Gain", "Higher-calorie foods and plans for surplus phases."),
         new("maintenance", "Maintenance", "Balanced foods and plans for stable body weight.")
+    };
+
+    private static readonly string[] MealTypes =
+    {
+        "Breakfast",
+        "Lunch",
+        "Dinner",
+        "Snack",
+        "Pre-workout",
+        "Post-workout",
+        "Other"
     };
 
     private List<Food> FilteredFoods => _foods
@@ -266,7 +282,7 @@ else
         _logs = await DietSvc.GetFoodLogsAsync(_userId, _selectedDate);
         _scheduledMeals = await DietSvc.GetDietSchedulesForDateAsync(_userId, _selectedDate);
         _logStates.Clear();
-        foreach (var log in _logs) _logStates[log.Id] = new LogEditState { Grams = log.QuantityGrams, Time = log.MealTime, MealName = log.MealName };
+        foreach (var log in _logs) _logStates[log.Id] = new LogEditState { Grams = log.QuantityGrams, Time = log.MealTime, MealName = NormalizeMealType(log.MealName, log.MealTime) };
     }
 
     private async Task SelectCategory(string category)
@@ -292,9 +308,9 @@ else
     private async Task AddFood(int foodId)
     {
         if (foodId == 0) return;
-        var success = await DietSvc.AddFoodLogAsync(_userId, foodId, _selectedDate, TimeOnly.FromDateTime(DateTime.Now), "Meal", 100, "grams");
+        var success = await DietSvc.AddFoodLogAsync(_userId, foodId, _selectedDate, TimeOnly.FromDateTime(DateTime.Now), GetDefaultMealType(TimeOnly.FromDateTime(DateTime.Now)), 100, "grams");
         await LoadDay();
-        SetMessage(success ? "Food added. Adjust grams, time, and meal name in Logged Food." : "Food could not be added.", !success);
+        SetMessage(success ? "Food added. Adjust grams, time, and meal type in Logged Food." : "Food could not be added.", !success);
     }
 
     private async Task SaveLog(int logId)
@@ -330,7 +346,7 @@ else
     {
         if (!_logStates.TryGetValue(logId, out var state))
         {
-            state = new LogEditState { Grams = log?.QuantityGrams ?? 100, Time = log?.MealTime, MealName = log?.MealName ?? "Meal" };
+            state = new LogEditState { Grams = log?.QuantityGrams ?? 100, Time = log?.MealTime, MealName = NormalizeMealType(log?.MealName, log?.MealTime) };
             _logStates[logId] = state;
         }
         return state;
@@ -496,6 +512,24 @@ else
         };
     }
 
+    private static string NormalizeMealType(string? value, TimeOnly? time = null)
+    {
+        if (!string.IsNullOrWhiteSpace(value) && MealTypes.Contains(value, StringComparer.OrdinalIgnoreCase))
+        {
+            return MealTypes.First(x => string.Equals(x, value, StringComparison.OrdinalIgnoreCase));
+        }
+        return time.HasValue ? GetDefaultMealType(time.Value) : "Snack";
+    }
+
+    private static string GetDefaultMealType(TimeOnly time)
+    {
+        if (time.Hour < 10) return "Breakfast";
+        if (time.Hour < 14) return "Lunch";
+        if (time.Hour < 17) return "Snack";
+        if (time.Hour < 21) return "Dinner";
+        return "Snack";
+    }
+
     private static string FormatWhole(decimal value)
     {
         return Math.Round(value, 0, MidpointRounding.AwayFromZero).ToString("0", CultureInfo.InvariantCulture);
@@ -515,7 +549,7 @@ else
     {
         public decimal Grams { get; set; } = 100;
         public TimeOnly? Time { get; set; }
-        public string MealName { get; set; } = "Meal";
+        public string MealName { get; set; } = "Snack";
     }
 
     private sealed record CategoryOption(string Key, string Label, string Description);

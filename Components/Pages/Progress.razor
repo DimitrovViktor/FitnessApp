@@ -15,162 +15,37 @@ else
 {
     <div class="progress-page">
         <div class="page-header">
-            <h1>Progress</h1>
-            <p class="page-sub">Track your performance, volume, and body over time</p>
+            <div>
+                <h1>Progress</h1>
+                <p class="page-sub">Track body changes, training performance, and diet consistency in one place</p>
+            </div>
+        </div>
+
+        <div class="progress-section-grid">
+            @foreach (var section in GetProgressSections())
+            {
+                <button type="button" class="progress-section-card @(_activeSection == section.Key ? "active" : "")" @onclick="() => _activeSection = section.Key">
+                    <span class="progress-section-title">@section.Title</span>
+                    <span class="progress-section-copy">@section.Description</span>
+                    <span class="progress-section-count">@section.Meta</span>
+                </button>
+            }
         </div>
 
         <div class="stats-grid">
-            @foreach (var (label, value, sub) in new[] {
-                ("Total Workouts", $"{_totalWorkouts}", "All time"),
-                ("Current Streak", $"{_streak}", "Days"),
-                ("Weekly Volume", FormatVolume(_weeklyVolume), $"{WeightUnitLabel} lifted"),
-                ("Avg Session", $"{_avgSession}m", "This month")
-            })
+            @foreach (var stat in GetActiveStats())
             {
                 <div class="stat-card">
-                    <span class="stat-label">@label</span>
-                    <span class="stat-val">@value</span>
-                    <span class="stat-sub">@sub</span>
+                    <span class="stat-label">@stat.Label</span>
+                    <span class="stat-val">@stat.Value</span>
+                    <span class="stat-sub">@stat.Sub</span>
                 </div>
             }
         </div>
 
-        <div class="two-col">
-            <div class="panel">
-                <div class="panel-header">
-                    <span class="panel-title">Weekly Muscle Coverage</span>
-                    <span class="panel-hint">This week</span>
-                </div>
-                <div class="legend-row">
-                    @foreach (var (key, color, label) in new[] { ("good","var(--success)","On track"), ("low","var(--accent)","Undertrained"), ("missing","#4a607a","Missing"), ("excess","var(--danger)","High volume") })
-                    {
-                        <div class="legend-item">
-                            <span class="legend-dot" style="background:@color"></span>
-                            <span class="legend-text">@label</span>
-                        </div>
-                    }
-                </div>
-                <div class="muscle-list">
-                    @foreach (var m in _muscleCoverage)
-                    {
-                        var color = m.Status switch { "good" => "var(--success)", "low" => "var(--accent)", "excess" => "var(--danger)", _ => "#4a607a" };
-                        var statusLabel = m.Status switch { "good" => "On track", "low" => "Undertrained", "excess" => "High volume", _ => "Missing" };
-                        <div class="muscle-row">
-                            <div class="muscle-labels">
-                                <span class="muscle-name">@m.Name</span>
-                                <div class="muscle-right">
-                                    <span class="muscle-sets">@m.Sets/@m.Target sets</span>
-                                    <span class="muscle-status" style="color:@color">@statusLabel</span>
-                                </div>
-                            </div>
-                            <div class="muscle-bar-bg">
-                                <div class="muscle-bar-fill" style="width:@(m.Target > 0 ? Math.Min((int)((double)m.Sets / m.Target * 100), 100) : 0)%;background:@color"></div>
-                            </div>
-                        </div>
-                    }
-                </div>
-            </div>
-
-            <div class="panel">
-                <div class="panel-header">
-                    <span class="panel-title">Weekly Energy Burn</span>
-                    <span class="panel-hint">Last @_weeklyCalories.Count weeks</span>
-                </div>
-                <div class="cal-chart">
-                    @{ var maxKcal = _weeklyCalories.Count > 0 ? _weeklyCalories.Max(w => w.Kcal) : 1; }
-                    @for (int i = 0; i < _weeklyCalories.Count; i++)
-                    {
-                        var w = _weeklyCalories[i];
-                        var h = maxKcal > 0 ? (int)((double)w.Kcal / maxKcal * 140) : 0;
-                        var isLatest = i == _weeklyCalories.Count - 1;
-                        <div class="cal-bar-col">
-                            <span class="cal-bar-val @(isLatest ? "cal-bar-latest" : "")">@FormatEnergyValue(w.Kcal)</span>
-                            <div class="cal-bar-track">
-                                <div class="cal-bar @(isLatest ? "cal-bar-active" : "")" style="height:@(h)px"></div>
-                            </div>
-                            <span class="cal-bar-label">@w.Label</span>
-                        </div>
-                    }
-                </div>
-            </div>
-        </div>
-
-        <div class="two-col">
-            <div class="panel">
-                <div class="panel-title" style="margin-bottom:16px">Personal Records</div>
-                <div class="pr-list">
-                    @for (int i = 0; i < _personalRecords.Count; i++)
-                    {
-                        var pr = _personalRecords[i];
-                        <div class="pr-row @(i % 2 == 0 ? "pr-alt" : "")">
-                            <div>
-                                <span class="pr-name">@pr.Exercise.Name</span>
-                                <span class="pr-date">@pr.Date.ToString("MMM d")</span>
-                            </div>
-                            <div class="pr-right">
-                                <span class="pr-weight">@FormatWeightValue(pr.WeightKg)</span>
-                                <span class="pr-reps">@pr.Reps reps</span>
-                            </div>
-                        </div>
-                    }
-                    @if (_personalRecords.Count == 0)
-                    {
-                        <div class="empty-text">No personal records yet. Complete workouts with tracked weight to start recording PRs.</div>
-                    }
-                </div>
-                @if (_prChartExercises.Count > 0)
-                {
-                    <div class="chart-divider"></div>
-                    <div class="chart-title">PR Progression Over Time</div>
-                    <div class="chart-container">
-                        <svg viewBox="0 0 560 220" class="chart-svg">
-                            @{ var prPad = new ChartPad(44, 10, 10, 28); }
-                            @foreach (var ex in _prChartExercises)
-                            {
-                                if (_hiddenPrSeries.Contains(ex.Name)) continue;
-                                var points = GetPrPoints(ex.Name, 560, 220, prPad);
-                                if (points.Count < 2) continue;
-                                <polyline points="@string.Join(" ", points.Select(p => $"{p.X},{p.Y}"))" fill="none" stroke="@ex.Color" stroke-width="2" stroke-linejoin="round" opacity="0.8" />
-                            }
-                            @foreach (var ex in _prChartExercises)
-                            {
-                                if (_hiddenPrSeries.Contains(ex.Name)) continue;
-                                var points = GetPrPoints(ex.Name, 560, 220, prPad);
-                                @foreach (var pt in points)
-                                {
-                                    <circle cx="@pt.X" cy="@pt.Y" r="4.5" fill="@ex.Color" stroke="var(--bg)" stroke-width="2" class="chart-point">
-                                        <title>@pt.Label</title>
-                                    </circle>
-                                }
-                            }
-                            @{ var prYLabels = GetPrYLabels(220, prPad); }
-                            @foreach (var yl in prYLabels)
-                            {
-                                @((MarkupString)$"<text x='{prPad.Left - 6}' y='{yl.Y + 4}' text-anchor='end' fill='var(--t3)' font-size='10' font-family='Inter,sans-serif'>{yl.Label}</text>")
-                                <line x1="@prPad.Left" y1="@yl.Y" x2="@(560 - prPad.Right)" y2="@yl.Y" stroke="var(--border-faint)" stroke-width="1" />
-                            }
-                            @{ var prXLabels = GetPrXLabels(560, prPad); }
-                            @foreach (var xl in prXLabels)
-                            {
-                                @((MarkupString)$"<text x='{xl.X}' y='{220 - 6}' text-anchor='middle' fill='var(--t3)' font-size='10' font-family='Inter,sans-serif'>{xl.Label}</text>")
-                            }
-                        </svg>
-                    </div>
-                    <div class="chart-legend">
-                        @foreach (var ex in _prChartExercises)
-                        {
-                            var name = ex.Name;
-                            var hidden = _hiddenPrSeries.Contains(name);
-                            <button type="button" class="legend-btn @(hidden ? "legend-hidden" : "")" @onclick="() => TogglePrSeries(name)">
-                                <span class="legend-swatch" style="background:@(hidden ? "var(--t3)" : ex.Color)"></span>
-                                @name
-                            </button>
-                        }
-                    </div>
-                }
-            </div>
-
-            <div class="right-stack">
+        @if (_activeSection == SectionBody)
+        {
+            <div class="two-col progress-body-grid">
                 <div class="panel">
                     <div class="panel-header">
                         <span class="panel-title">Body Measurements</span>
@@ -180,19 +55,24 @@ else
                         </div>
                     </div>
                     <div class="measurements-grid">
-                        @foreach (var (label, value, change, trend) in GetMeasurementDisplay())
+                        @foreach (var item in GetMeasurementDisplay())
                         {
                             <div class="meas-card">
-                                <span class="meas-label">@label</span>
-                                <span class="meas-value">@value</span>
-                                <span class="meas-change @(trend == "down" ? "meas-down" : "meas-up")">@(trend == "down" ? "Down" : "Up") @change</span>
+                                <span class="meas-label">@item.Label</span>
+                                <span class="meas-value">@item.Value</span>
+                                <span class="meas-change @(item.Trend == "down" ? "meas-down" : "meas-up")">@GetTrendLabel(item.Trend, item.Change)</span>
                             </div>
                         }
                     </div>
+                </div>
+
+                <div class="panel">
+                    <div class="panel-header">
+                        <span class="panel-title">Measurement Trend</span>
+                        <span class="panel-hint">Recent logs</span>
+                    </div>
                     @if (_chartMeasurements.Count >= 2)
                     {
-                        <div class="chart-divider"></div>
-                        <div class="chart-title">Measurements Over Time</div>
                         <div class="chart-container">
                             <svg viewBox="0 0 560 220" class="chart-svg">
                                 @{ var mPad = new ChartPad(16, 10, 10, 28); }
@@ -238,53 +118,369 @@ else
                             }
                         </div>
                     }
+                    else
+                    {
+                        <div class="empty-text">Log at least two measurements to see body trends.</div>
+                    }
+                </div>
+            </div>
+        }
+        else if (_activeSection == SectionTraining)
+        {
+            <div class="two-col equal-progress-row training-coverage-row">
+                <div class="panel equal-panel">
+                    <div class="panel-header">
+                        <span class="panel-title">Weekly Muscle Coverage</span>
+                        <span class="panel-hint">This week</span>
+                    </div>
+                    @if (HasMuscleCoverageData)
+                    {
+                        <div class="legend-row">
+                            @foreach (var legend in GetMuscleLegend())
+                            {
+                                <div class="legend-item">
+                                    <span class="legend-dot" style="background:@legend.Color"></span>
+                                    <span class="legend-text">@legend.Label</span>
+                                </div>
+                            }
+                        </div>
+                        <div class="muscle-list">
+                            @foreach (var m in _muscleCoverage)
+                            {
+                                var color = GetMuscleColor(m.Status);
+                                <div class="muscle-row">
+                                    <div class="muscle-labels">
+                                        <span class="muscle-name">@m.Name</span>
+                                        <div class="muscle-right">
+                                            <span class="muscle-sets">@m.Sets/@m.Target sets</span>
+                                            <span class="muscle-status" style="color:@color">@GetMuscleStatusLabel(m.Status)</span>
+                                        </div>
+                                    </div>
+                                    <div class="muscle-bar-bg">
+                                        <div class="muscle-bar-fill" style="width:@(m.Target > 0 ? Math.Min((int)((double)m.Sets / m.Target * 100), 100) : 0)%;background:@color"></div>
+                                    </div>
+                                </div>
+                            }
+                        </div>
+                    }
+                    else
+                    {
+                        <div class="empty-text empty-panel-message">No completed exercise sets for this week. Complete logged sets to populate weekly muscle coverage.</div>
+                    }
                 </div>
 
-                <div class="panel">
+                <div class="panel equal-panel">
+                    <div class="panel-header">
+                        <span class="panel-title">Weekly Energy Burn</span>
+                        <span class="panel-hint">Last @_weeklyCalories.Count weeks</span>
+                    </div>
+                    @if (HasWeeklyEnergyLogs)
+                    {
+                        <div class="cal-chart">
+                            @{ var maxKcal = _weeklyCalories.Count > 0 ? Math.Max(_weeklyCalories.Max(w => w.Kcal), 1) : 1; }
+                            @foreach (var w in _weeklyCalories)
+                            {
+                                var h = w.HasLogs ? (int)((double)w.Kcal / maxKcal * 140) : 0;
+                                var isLatest = w == _weeklyCalories.LastOrDefault();
+                                <div class="cal-bar-col">
+                                    <span class="cal-bar-val @(isLatest ? "cal-bar-latest" : "")">@(w.HasLogs ? FormatEnergyValue(w.Kcal) : "No log")</span>
+                                    <div class="cal-bar-track">
+                                        <div class="cal-bar @(isLatest ? "cal-bar-active" : "")" style="height:@(h)px"></div>
+                                    </div>
+                                    <span class="cal-bar-label">@w.Label</span>
+                                </div>
+                            }
+                        </div>
+                    }
+                    else
+                    {
+                        <div class="empty-text empty-panel-message">No workout energy logs yet. Complete workouts to see weekly energy burn.</div>
+                    }
+                </div>
+            </div>
+
+            <div class="two-col equal-progress-row training-records-row">
+                <div class="panel equal-panel progress-pr-panel">
+                    <div class="panel-title" style="margin-bottom:16px">Personal Records</div>
+                    <div class="pr-list">
+                        @foreach (var pr in _personalRecords)
+                        {
+                            <div class="pr-row">
+                                <div>
+                                    <span class="pr-name">@GetExerciseName(pr)</span>
+                                    <span class="pr-date">@pr.Date.ToString("MMM d")</span>
+                                </div>
+                                <div class="pr-right">
+                                    <span class="pr-weight">@FormatWeightValue(pr.WeightKg)</span>
+                                    <span class="pr-reps">@pr.Reps reps</span>
+                                </div>
+                            </div>
+                        }
+                        @if (_personalRecords.Count == 0)
+                        {
+                            <div class="empty-text">No personal records yet. Complete workouts with tracked weight to start recording PRs.</div>
+                        }
+                    </div>
+                    @if (HasPrChartData)
+                    {
+                        <div class="chart-divider"></div>
+                        <div class="chart-title">PR Progression Over Time</div>
+                        <div class="chart-container">
+                            <svg viewBox="0 0 560 220" class="chart-svg">
+                                @{ var prPad = new ChartPad(44, 10, 10, 28); }
+                                @foreach (var ex in _prChartExercises)
+                                {
+                                    if (_hiddenPrSeries.Contains(ex.Name)) continue;
+                                    var points = GetPrPoints(ex.Name, 560, 220, prPad);
+                                    if (points.Count < 2) continue;
+                                    <polyline points="@string.Join(" ", points.Select(p => $"{p.X},{p.Y}"))" fill="none" stroke="@ex.Color" stroke-width="2" stroke-linejoin="round" opacity="0.8" />
+                                }
+                                @foreach (var ex in _prChartExercises)
+                                {
+                                    if (_hiddenPrSeries.Contains(ex.Name)) continue;
+                                    var points = GetPrPoints(ex.Name, 560, 220, prPad);
+                                    @foreach (var pt in points)
+                                    {
+                                        <circle cx="@pt.X" cy="@pt.Y" r="4.5" fill="@ex.Color" stroke="var(--bg)" stroke-width="2" class="chart-point">
+                                            <title>@pt.Label</title>
+                                        </circle>
+                                    }
+                                }
+                                @{ var prYLabels = GetPrYLabels(220, prPad); }
+                                @foreach (var yl in prYLabels)
+                                {
+                                    @((MarkupString)$"<text x='{prPad.Left - 6}' y='{yl.Y + 4}' text-anchor='end' fill='var(--t3)' font-size='10' font-family='Inter,sans-serif'>{yl.Label}</text>")
+                                    <line x1="@prPad.Left" y1="@yl.Y" x2="@(560 - prPad.Right)" y2="@yl.Y" stroke="var(--border-faint)" stroke-width="1" />
+                                }
+                                @{ var prXLabels = GetPrXLabels(560, prPad); }
+                                @foreach (var xl in prXLabels)
+                                {
+                                    @((MarkupString)$"<text x='{xl.X}' y='{220 - 6}' text-anchor='middle' fill='var(--t3)' font-size='10' font-family='Inter,sans-serif'>{xl.Label}</text>")
+                                }
+                            </svg>
+                        </div>
+                        <div class="chart-legend">
+                            @foreach (var ex in _prChartExercises)
+                            {
+                                var name = ex.Name;
+                                var hidden = _hiddenPrSeries.Contains(name);
+                                <button type="button" class="legend-btn @(hidden ? "legend-hidden" : "")" @onclick="() => TogglePrSeries(name)">
+                                    <span class="legend-swatch" style="background:@(hidden ? "var(--t3)" : ex.Color)"></span>
+                                    @name
+                                </button>
+                            }
+                        </div>
+                    }
+                    else if (_personalRecords.Count > 0)
+                    {
+                        <div class="chart-divider"></div>
+                        <div class="empty-text">Log at least two personal records for the same exercise to see a progression chart.</div>
+                    }
+                </div>
+
+                <div class="panel equal-panel progress-consistency-panel">
                     <div class="panel-header">
                         <span class="panel-title">Consistency</span>
+                            <span class="panel-hint">Last 30 days</span>
+                        </div>
+                        <div class="consistency-grid">
+                            @foreach (var day in _consistency)
+                            {
+                                <div class="c-cell @(day.IsActive ? "c-active" : "")" title="@day.Date.ToString("ddd, d MMM yyyy") - @(day.IsActive ? "Active" : "Rest")">
+                                    <span class="c-tooltip">@day.Date.ToString("d MMM")<br />@(day.IsActive ? "Active" : "Rest")</span>
+                                </div>
+                            }
+                        </div>
+                        <div class="consistency-stats">
+                            <div class="cs-item">
+                                <span class="cs-label">Current streak</span>
+                                <span class="cs-val cs-success">@_streak days</span>
+                            </div>
+                            <div class="cs-item">
+                                <span class="cs-label">Best streak</span>
+                                <span class="cs-val cs-accent">@_bestStreak days</span>
+                            </div>
+                            <div class="cs-item">
+                                <span class="cs-label">Active days</span>
+                                <span class="cs-val">@ActiveDaysText(_consistency)</span>
+                            </div>
+                        </div>
+                </div>
+            </div>
+
+            @if (_suggestions.Count > 0)
+            {
+                <div class="panel progress-suggestions-panel">
+                    <div class="panel-title" style="margin-bottom:16px">Progressive Overload Suggestions</div>
+                    <div class="suggestions-grid compact">
+                        @foreach (var s in _suggestions)
+                        {
+                            <div class="sug-card">
+                                <span class="sug-type">@s.Type</span>
+                                <span class="sug-name">@s.ExerciseName</span>
+                                <span class="sug-action">Suggestion: @s.Suggestion</span>
+                                <span class="sug-reason">@s.Reason</span>
+                            </div>
+                        }
+                    </div>
+                </div>
+            }
+        }
+        else if (_activeSection == SectionDiet)
+        {
+            <div class="two-col equal-progress-row diet-nutrition-row">
+                <div class="panel equal-panel today-nutrition-panel">
+                    <div class="panel-header">
+                        <span class="panel-title">Today's Nutrition</span>
+                        <span class="panel-hint">Logged foods</span>
+                    </div>
+                    <div class="macro-grid">
+                        <div class="macro-card">
+                            <span class="macro-label">Calories</span>
+                            <span class="macro-value">@FormatCalories(_dietSummary.CaloriesToday)</span>
+                        </div>
+                        <div class="macro-card">
+                            <span class="macro-label">Protein</span>
+                            <span class="macro-value">@FormatMacro(_dietSummary.ProteinToday)</span>
+                        </div>
+                        <div class="macro-card">
+                            <span class="macro-label">Carbs</span>
+                            <span class="macro-value">@FormatMacro(_dietSummary.CarbsToday)</span>
+                        </div>
+                        <div class="macro-card">
+                            <span class="macro-label">Fat</span>
+                            <span class="macro-value">@FormatMacro(_dietSummary.FatToday)</span>
+                        </div>
+                    </div>
+                    <div class="food-log-list">
+                        @foreach (var food in _recentFoodLogs.Where(f => f.Date == DateOnly.FromDateTime(DateTime.Now)).Take(6))
+                        {
+                            <div class="food-log-row">
+                                <div>
+                                    <span class="food-log-name">@food.FoodName</span>
+                                    <span class="food-log-meta">@food.MealName · @FormatMealTime(food.MealTime) · @($"{food.Grams:F0}g")</span>
+                                </div>
+                                <div class="food-log-right">
+                                    <span>@FormatCalories(food.Calories)</span>
+                                    <span>@FormatMacro(food.Protein)</span>
+                                </div>
+                            </div>
+                        }
+                        @if (!_recentFoodLogs.Any(f => f.Date == DateOnly.FromDateTime(DateTime.Now)))
+                        {
+                            <div class="empty-text">No food logged today. Log meals from the Diet page to populate this section.</div>
+                        }
+                    </div>
+                </div>
+
+                <div class="panel equal-panel daily-calories-panel">
+                    <div class="panel-header">
+                        <span class="panel-title">Daily Logged Calories</span>
+                        <span class="panel-hint">Last 7 days</span>
+                    </div>
+                    @if (HasNutritionLogs)
+                    {
+                        <div class="chart-title">Calories by day</div>
+                        <div class="nutrition-chart">
+                            @{ var maxCalories = _weeklyNutrition.Count > 0 ? Math.Max(_weeklyNutrition.Max(d => d.Calories), 1m) : 1m; }
+                            @foreach (var day in _weeklyNutrition)
+                            {
+                                var height = day.HasLogs ? (int)Math.Round(day.Calories / maxCalories * 140) : 0;
+                                var isToday = day.Date == DateOnly.FromDateTime(DateTime.Now);
+                                <div class="nutrition-bar-col">
+                                    <span class="nutrition-bar-val @(isToday ? "nutrition-bar-latest" : "")">@(day.HasLogs ? FormatCalories(day.Calories) : "No log")</span>
+                                    <div class="nutrition-bar-track">
+                                        <div class="nutrition-bar @(isToday ? "nutrition-bar-active" : "")" style="height:@(height)px"></div>
+                                    </div>
+                                    <span class="nutrition-bar-label">@day.Label</span>
+                                </div>
+                            }
+                        </div>
+                        <div class="chart-divider"></div>
+                        <div class="chart-title">Macros by day</div>
+                        <div class="macro-trend-legend">
+                            <span><i class="macro-dot macro-protein"></i>Protein</span>
+                            <span><i class="macro-dot macro-carbs"></i>Carbs</span>
+                            <span><i class="macro-dot macro-fat"></i>Fat</span>
+                        </div>
+                        <div class="macro-trend-chart">
+                            @{ var maxMacro = GetMaxWeeklyMacro(); }
+                            @foreach (var day in _weeklyNutrition)
+                            {
+                                var isToday = day.Date == DateOnly.FromDateTime(DateTime.Now);
+                                <div class="macro-day-col @(isToday ? "macro-day-today" : "")">
+                                    <span class="macro-day-value">@(day.HasLogs ? FormatMacro(day.Protein + day.Carbs + day.Fat) : "No log")</span>
+                                    <div class="macro-day-bars">
+                                        <span class="macro-mini-bar macro-protein" style="height:@GetMacroBarHeight(day.Protein, maxMacro)px" title="Protein: @FormatMacro(day.Protein)"></span>
+                                        <span class="macro-mini-bar macro-carbs" style="height:@GetMacroBarHeight(day.Carbs, maxMacro)px" title="Carbs: @FormatMacro(day.Carbs)"></span>
+                                        <span class="macro-mini-bar macro-fat" style="height:@GetMacroBarHeight(day.Fat, maxMacro)px" title="Fat: @FormatMacro(day.Fat)"></span>
+                                    </div>
+                                    <span class="macro-day-label">@day.Label</span>
+                                </div>
+                            }
+                        </div>
+                    }
+                    else
+                    {
+                        <div class="empty-text empty-panel-message">No food logs yet. Log foods from the Diet page to see daily calories and macro graphs.</div>
+                    }
+                </div>
+            </div>
+
+            <div class="two-col equal-progress-row diet-consistency-row">
+                <div class="panel equal-panel diet-consistency-panel">
+                    <div class="panel-header">
+                        <span class="panel-title">Diet Consistency</span>
                         <span class="panel-hint">Last 30 days</span>
                     </div>
                     <div class="consistency-grid">
-                        @foreach (var day in _consistency)
+                        @foreach (var day in _dietConsistency)
                         {
-                            <div class="c-cell @(day.IsActive ? "c-active" : "")" title="@day.Date.ToString("ddd, d MMM yyyy") — @(day.IsActive ? "Active" : "Rest")">
-                                <span class="c-tooltip">@day.Date.ToString("d MMM")<br />@(day.IsActive ? "Active" : "Rest")</span>
+                            <div class="c-cell @(day.IsActive ? "c-active" : "")" title="@day.Date.ToString("ddd, d MMM yyyy") - @(day.IsActive ? "Logged" : "No log")">
+                                <span class="c-tooltip">@day.Date.ToString("d MMM")<br />@(day.IsActive ? "Logged" : "No log")</span>
                             </div>
                         }
                     </div>
                     <div class="consistency-stats">
                         <div class="cs-item">
-                            <span class="cs-label">Current streak</span>
-                            <span class="cs-val cs-success">@_streak days</span>
+                            <span class="cs-label">Logged days</span>
+                            <span class="cs-val cs-success">@ActiveDaysText(_dietConsistency)</span>
                         </div>
                         <div class="cs-item">
-                            <span class="cs-label">Best streak</span>
-                            <span class="cs-val cs-accent">@_bestStreak days</span>
+                            <span class="cs-label">Today</span>
+                            <span class="cs-val cs-accent">@_dietSummary.LoggedFoodsToday foods</span>
                         </div>
                         <div class="cs-item">
-                            <span class="cs-label">Active days</span>
-                            <span class="cs-val">@_consistency.Count(c => c.IsActive)/@_consistency.Count</span>
+                            <span class="cs-label">Scheduled</span>
+                            <span class="cs-val">@_dietSummary.ScheduledMealsToday meals</span>
                         </div>
                     </div>
                 </div>
-            </div>
-        </div>
 
-        @if (_suggestions.Count > 0)
-        {
-            <div class="panel">
-                <div class="panel-title" style="margin-bottom:16px">Progressive Overload Suggestions</div>
-                <div class="suggestions-grid">
-                    @foreach (var s in _suggestions)
-                    {
-                        <div class="sug-card">
-                            <span class="sug-type">@s.Type</span>
-                            <span class="sug-name">@s.ExerciseName</span>
-                            <span class="sug-action">Suggestion: @s.Suggestion</span>
-                            <span class="sug-reason">@s.Reason</span>
-                        </div>
-                    }
+                <div class="panel equal-panel upcoming-meals-panel">
+                    <div class="panel-header">
+                        <span class="panel-title">Upcoming Meals</span>
+                        <span class="panel-hint">Next 7 days</span>
+                    </div>
+                    <div class="food-log-list scheduled-foods">
+                        @foreach (var meal in _upcomingMeals)
+                        {
+                            <div class="food-log-row">
+                                <div>
+                                    <span class="food-log-name">@meal.FoodName</span>
+                                    <span class="food-log-meta">@meal.ScheduledDate.ToString("ddd, MMM d") · @FormatMealTime(meal.ScheduledTime) · @meal.MealName</span>
+                                </div>
+                                <div class="food-log-right">
+                                    <span>@($"{meal.QuantityGrams:F0}g")</span>
+                                    <span>@ToTitle(meal.Status)</span>
+                                </div>
+                            </div>
+                        }
+                        @if (_upcomingMeals.Count == 0)
+                        {
+                            <div class="empty-text">No meals scheduled. Add diet items from Schedule to see them here.</div>
+                        }
+                    </div>
                 </div>
             </div>
         }
@@ -328,54 +524,61 @@ else
         }
         else
         {
-            <div class="history-table">
-                <div class="history-header">
-                    <span class="history-col-date">Date</span>
-                    <span class="history-col">Weight (@WeightUnitLabel)</span>
-                    <span class="history-col">Body Fat</span>
-                    <span class="history-col">Chest</span>
-                    <span class="history-col">Waist</span>
-                    <span class="history-col-action"></span>
-                </div>
-                @foreach (var m in _allMeasurements)
-                {
-                    var mRef = m;
-                    var isEditing = _editingMeasId == m.Id;
-                    <div class="history-row">
-                        <span class="history-col-date">@m.Date.ToString("d MMM yyyy")</span>
-                        @if (isEditing)
-                        {
-                            <span class="history-col"><input type="number" step="0.1" class="history-input" @bind="EditWeightDisplay" /></span>
-                            <span class="history-col"><input type="number" step="0.1" class="history-input" @bind="_editBodyFat" /></span>
-                            <span class="history-col"><input type="number" step="0.1" class="history-input" @bind="_editChest" /></span>
-                            <span class="history-col"><input type="number" step="0.1" class="history-input" @bind="_editWaist" /></span>
-                            <span class="history-col-action">
-                                <button type="button" class="history-btn history-save" @onclick="SaveEdit" aria-label="Save"><span class="icon icon-check" aria-hidden="true"></span></button>
-                                <button type="button" class="history-btn history-cancel" @onclick="() => _editingMeasId = -1" aria-label="Cancel"><span class="icon icon-x" aria-hidden="true"></span></button>
-                            </span>
-                        }
-                        else
-                        {
-                            <span class="history-col">@FormatWeightValue(m.WeightKg)</span>
-                            <span class="history-col">@(m.BodyFatPercent.HasValue ? $"{m.BodyFatPercent:F1}%" : "—")</span>
-                            <span class="history-col">@(m.ChestCm.HasValue ? $"{m.ChestCm:F0}" : "—")</span>
-                            <span class="history-col">@(m.WaistCm.HasValue ? $"{m.WaistCm:F0}" : "—")</span>
-                            <span class="history-col-action">
-                                <button type="button" class="history-btn history-edit" @onclick="() => StartEdit(mRef)">Edit</button>
-                            </span>
-                        }
+            <div class="history-table-wrap">
+                <div class="history-table">
+                    <div class="history-header">
+                        <span class="history-col-date">Date</span>
+                        <span class="history-col">Weight (@WeightUnitLabel)</span>
+                        <span class="history-col">Body Fat</span>
+                        <span class="history-col">Chest</span>
+                        <span class="history-col">Waist</span>
+                        <span class="history-col-action"></span>
                     </div>
-                }
+                    @foreach (var m in _allMeasurements)
+                    {
+                        var mRef = m;
+                        var isEditing = _editingMeasId == m.Id;
+                        <div class="history-row">
+                            <span class="history-col-date">@m.Date.ToString("d MMM yyyy")</span>
+                            @if (isEditing)
+                            {
+                                <span class="history-col"><input type="number" step="0.1" class="history-input" @bind="EditWeightDisplay" /></span>
+                                <span class="history-col"><input type="number" step="0.1" class="history-input" @bind="_editBodyFat" /></span>
+                                <span class="history-col"><input type="number" step="0.1" class="history-input" @bind="_editChest" /></span>
+                                <span class="history-col"><input type="number" step="0.1" class="history-input" @bind="_editWaist" /></span>
+                                <span class="history-col-action">
+                                    <button type="button" class="history-btn history-save" @onclick="SaveEdit" aria-label="Save"><span class="icon icon-check" aria-hidden="true"></span></button>
+                                    <button type="button" class="history-btn history-cancel" @onclick="() => _editingMeasId = -1" aria-label="Cancel"><span class="icon icon-x" aria-hidden="true"></span></button>
+                                </span>
+                            }
+                            else
+                            {
+                                <span class="history-col">@FormatWeightValue(m.WeightKg)</span>
+                                <span class="history-col">@(m.BodyFatPercent.HasValue ? $"{m.BodyFatPercent:F1}%" : "-")</span>
+                                <span class="history-col">@(m.ChestCm.HasValue ? $"{m.ChestCm:F0}" : "-")</span>
+                                <span class="history-col">@(m.WaistCm.HasValue ? $"{m.WaistCm:F0}" : "-")</span>
+                                <span class="history-col-action">
+                                    <button type="button" class="history-btn history-edit" @onclick="() => StartEdit(mRef)">Edit</button>
+                                </span>
+                            }
+                        </div>
+                    }
+                </div>
             </div>
         }
     </div>
 </Modal>
 
 @code {
+    private const string SectionBody = "body";
+    private const string SectionTraining = "training";
+    private const string SectionDiet = "diet";
+
     private bool _isLoading = true;
     private int _userId;
     private string _weightUnit = "kg";
     private string _energyUnit = "kcal";
+    private string _activeSection = SectionBody;
 
     private int _totalWorkouts;
     private int _streak;
@@ -388,6 +591,12 @@ else
     private List<BodyMeasurement> _measurements = new();
     private List<ConsistencyDay> _consistency = new();
     private List<OverloadSuggestion> _suggestions = new();
+
+    private ProgressDietSummary _dietSummary = new();
+    private List<ProgressNutritionDay> _weeklyNutrition = new();
+    private List<ConsistencyDay> _dietConsistency = new();
+    private List<ProgressFoodLogItem> _recentFoodLogs = new();
+    private List<ProgressDietScheduleItem> _upcomingMeals = new();
 
     private List<BodyMeasurement> _chartMeasurements = new();
     private List<PersonalRecord> _allPrs = new();
@@ -439,7 +648,83 @@ else
         _suggestions = await ProgressSvc.GetOverloadSuggestionsAsync(_userId);
         _chartMeasurements = await ProgressSvc.GetMeasurementsForChartAsync(_userId);
         _allPrs = await ProgressSvc.GetAllPersonalRecordsAsync(_userId);
+        _dietSummary = await ProgressSvc.GetDietSummaryAsync(_userId);
+        _weeklyNutrition = await ProgressSvc.GetWeeklyNutritionAsync(_userId);
+        _dietConsistency = await ProgressSvc.GetDietConsistencyAsync(_userId);
+        _recentFoodLogs = await ProgressSvc.GetRecentFoodLogsAsync(_userId);
+        _upcomingMeals = await ProgressSvc.GetUpcomingDietSchedulesAsync(_userId);
         BuildChartData();
+    }
+
+    private List<ProgressSectionDisplay> GetProgressSections()
+    {
+        var latestWeight = GetMeasurementDisplay().FirstOrDefault(x => x.Label == "Weight").Value ?? "-";
+        return new()
+        {
+            new ProgressSectionDisplay(SectionBody, "Body", "Measurements, weight changes, and composition trends.", latestWeight),
+            new ProgressSectionDisplay(SectionTraining, "Training", "Volume, performance, muscle coverage, and consistency.", $"{_totalWorkouts} workouts"),
+            new ProgressSectionDisplay(SectionDiet, "Diet", "Calories, macros, food logs, and scheduled meals.", FormatCalories(_dietSummary.CaloriesToday))
+        };
+    }
+
+    private List<StatDisplay> GetActiveStats()
+    {
+        if (_activeSection == SectionBody)
+        {
+            return GetMeasurementDisplay().Select(x => new StatDisplay(x.Label, x.Value, string.IsNullOrWhiteSpace(x.Change) ? "Latest" : x.Change)).ToList();
+        }
+
+        if (_activeSection == SectionDiet)
+        {
+            return new()
+            {
+                new StatDisplay("Calories Today", FormatCalories(_dietSummary.CaloriesToday), "Logged"),
+                new StatDisplay("Protein Today", FormatMacro(_dietSummary.ProteinToday), "Logged"),
+                new StatDisplay("Meals Today", $"{_dietSummary.LoggedFoodsToday}", $"{_dietSummary.ScheduledMealsToday} scheduled"),
+                new StatDisplay("7 Day Average", FormatCalories(_dietSummary.AverageCaloriesSevenDays), "Daily intake")
+            };
+        }
+
+        return new()
+        {
+            new StatDisplay("Total Workouts", $"{_totalWorkouts}", "All time"),
+            new StatDisplay("Current Streak", $"{_streak}", "Days"),
+            new StatDisplay("Weekly Volume", FormatVolume(_weeklyVolume), $"{WeightUnitLabel} lifted"),
+            new StatDisplay("Avg Session", $"{_avgSession}m", "This month")
+        };
+    }
+
+    private List<LegendDisplay> GetMuscleLegend() => new()
+    {
+        new LegendDisplay("var(--success)", "On track"),
+        new LegendDisplay("var(--accent)", "Undertrained"),
+        new LegendDisplay("var(--t3)", "Missing"),
+        new LegendDisplay("var(--danger)", "High volume")
+    };
+
+    private bool HasMuscleCoverageData => _muscleCoverage.Any(m => m.Sets > 0);
+
+    private bool HasWeeklyEnergyLogs => _weeklyCalories.Any(w => w.HasLogs);
+
+    private bool HasNutritionLogs => _weeklyNutrition.Any(day => day.HasLogs);
+
+    private bool HasPrChartData => _prChartExercises.Any(ex => _allPrs.Count(pr => GetExerciseName(pr) == ex.Name) >= 2);
+
+    private string ActiveDaysText(List<ConsistencyDay> days) => days.Count == 0 ? "0/0" : $"{days.Count(day => day.IsActive)}/{days.Count}";
+
+    private static string GetExerciseName(PersonalRecord pr) => pr.Exercise?.Name ?? "Exercise";
+
+    private decimal GetMaxWeeklyMacro()
+    {
+        var values = _weeklyNutrition.SelectMany(day => new[] { day.Protein, day.Carbs, day.Fat }).ToList();
+        var max = values.Count == 0 ? 1m : values.Max();
+        return Math.Max(max, 1m);
+    }
+
+    private static int GetMacroBarHeight(decimal value, decimal maxValue)
+    {
+        if (value <= 0 || maxValue <= 0) return 0;
+        return Math.Clamp((int)Math.Round(value / maxValue * 72), 2, 72);
     }
 
     private void BuildChartData()
@@ -449,12 +734,13 @@ else
             new ChartSeries { Key = "weight", Label = $"Weight ({WeightUnitLabel})", Color = "#38bdf8" },
             new ChartSeries { Key = "bodyfat", Label = "Body Fat (%)", Color = "#2ab8a0" },
             new ChartSeries { Key = "chest", Label = "Chest (cm)", Color = "#a78bfa" },
-            new ChartSeries { Key = "waist", Label = "Waist (cm)", Color = "#f0c050" },
+            new ChartSeries { Key = "waist", Label = "Waist (cm)", Color = "#f0c050" }
         };
 
         var exerciseColors = new[] { "#38bdf8", "#2ab8a0", "#a78bfa", "#f0c050", "#e05c6a", "#f472b6", "#34d399", "#fb923c" };
         _prChartExercises = _allPrs
-            .Select(pr => pr.Exercise.Name)
+            .Select(GetExerciseName)
+            .Where(name => !string.IsNullOrWhiteSpace(name))
             .Distinct()
             .Select((name, i) => new ChartExercise { Name = name, Color = exerciseColors[i % exerciseColors.Length] })
             .ToList();
@@ -507,10 +793,10 @@ else
 
     private List<ChartPoint> GetPrPoints(string exerciseName, int w, int h, ChartPad pad)
     {
-        var data = _allPrs.Where(pr => pr.Exercise.Name == exerciseName).OrderBy(pr => pr.Date).ToList();
+        var data = _allPrs.Where(pr => GetExerciseName(pr) == exerciseName).OrderBy(pr => pr.Date).ToList();
         if (data.Count == 0) return new();
 
-        var allVisible = _allPrs.Where(pr => !_hiddenPrSeries.Contains(pr.Exercise.Name)).ToList();
+        var allVisible = _allPrs.Where(pr => !_hiddenPrSeries.Contains(GetExerciseName(pr))).ToList();
         if (allVisible.Count == 0) return new();
 
         var visibleValues = allVisible.Select(pr => (double)(SettingsService.FromKg(pr.WeightKg, _weightUnit) ?? pr.WeightKg)).ToList();
@@ -536,7 +822,7 @@ else
 
     private List<AxisLabel> GetPrYLabels(int h, ChartPad pad)
     {
-        var allVals = _allPrs.Where(pr => !_hiddenPrSeries.Contains(pr.Exercise.Name)).Select(pr => (double)(SettingsService.FromKg(pr.WeightKg, _weightUnit) ?? pr.WeightKg)).ToList();
+        var allVals = _allPrs.Where(pr => !_hiddenPrSeries.Contains(GetExerciseName(pr))).Select(pr => (double)(SettingsService.FromKg(pr.WeightKg, _weightUnit) ?? pr.WeightKg)).ToList();
         return BuildYLabels(allVals, h, pad);
     }
 
@@ -566,7 +852,7 @@ else
 
     private List<AxisLabel> GetPrXLabels(int w, ChartPad pad)
     {
-        var dates = _allPrs.Where(pr => !_hiddenPrSeries.Contains(pr.Exercise.Name)).Select(pr => pr.Date).Distinct().OrderBy(d => d).ToList();
+        var dates = _allPrs.Where(pr => !_hiddenPrSeries.Contains(GetExerciseName(pr))).Select(pr => pr.Date).Distinct().OrderBy(d => d).ToList();
         return BuildXLabels(dates, w, pad);
     }
 
@@ -590,6 +876,8 @@ else
     {
         await ProgressSvc.SaveMeasurementAsync(_userId, _logWeight, _logBodyFat, _logChest, _logWaist);
         _measurements = await ProgressSvc.GetRecentMeasurementsAsync(_userId);
+        _chartMeasurements = await ProgressSvc.GetMeasurementsForChartAsync(_userId);
+        BuildChartData();
         _showLogModal = false;
         _logWeight = null; _logBodyFat = null; _logChest = null; _logWaist = null;
     }
@@ -615,6 +903,8 @@ else
         await ProgressSvc.UpdateMeasurementAsync(_editingMeasId, _userId, _editWeight, _editBodyFat, _editChest, _editWaist);
         _allMeasurements = await ProgressSvc.GetAllMeasurementsAsync(_userId);
         _measurements = await ProgressSvc.GetRecentMeasurementsAsync(_userId);
+        _chartMeasurements = await ProgressSvc.GetMeasurementsForChartAsync(_userId);
+        BuildChartData();
         _editingMeasId = -1;
     }
 
@@ -622,14 +912,14 @@ else
     {
         var latest = _measurements.FirstOrDefault();
         var prev = _measurements.Count > 1 ? _measurements[1] : null;
-        if (latest is null) return new() { ("Weight", "—", "", "down"), ("Body Fat", "—", "", "down"), ("Chest", "—", "", "up"), ("Waist", "—", "", "down") };
+        if (latest is null) return new() { ("Weight", "-", "", "down"), ("Body Fat", "-", "", "down"), ("Chest", "-", "", "up"), ("Waist", "-", "", "down") };
 
         return new()
         {
             ("Weight", FormatWeightValue(latest.WeightKg), FormatWeightChange(latest.WeightKg, prev?.WeightKg), latest.WeightKg < prev?.WeightKg ? "down" : "up"),
-            ("Body Fat", latest.BodyFatPercent.HasValue ? $"{latest.BodyFatPercent:F1}%" : "—", FormatChange(latest.BodyFatPercent, prev?.BodyFatPercent, "%"), latest.BodyFatPercent < prev?.BodyFatPercent ? "down" : "up"),
-            ("Chest", latest.ChestCm.HasValue ? $"{latest.ChestCm:F0} cm" : "—", FormatChange(latest.ChestCm, prev?.ChestCm, "cm"), latest.ChestCm > prev?.ChestCm ? "up" : "down"),
-            ("Waist", latest.WaistCm.HasValue ? $"{latest.WaistCm:F0} cm" : "—", FormatChange(latest.WaistCm, prev?.WaistCm, "cm"), latest.WaistCm < prev?.WaistCm ? "down" : "up"),
+            ("Body Fat", latest.BodyFatPercent.HasValue ? $"{latest.BodyFatPercent:F1}%" : "-", FormatChange(latest.BodyFatPercent, prev?.BodyFatPercent, "%"), latest.BodyFatPercent < prev?.BodyFatPercent ? "down" : "up"),
+            ("Chest", latest.ChestCm.HasValue ? $"{latest.ChestCm:F0} cm" : "-", FormatChange(latest.ChestCm, prev?.ChestCm, "cm"), latest.ChestCm > prev?.ChestCm ? "up" : "down"),
+            ("Waist", latest.WaistCm.HasValue ? $"{latest.WaistCm:F0} cm" : "-", FormatChange(latest.WaistCm, prev?.WaistCm, "cm"), latest.WaistCm < prev?.WaistCm ? "down" : "up")
         };
     }
 
@@ -649,6 +939,28 @@ else
         var diff = current.Value - previous.Value;
         return $"{(diff >= 0 ? "+" : "")}{diff:F1} {WeightUnitLabel}";
     }
+
+    private string GetTrendLabel(string trend, string change)
+    {
+        if (string.IsNullOrWhiteSpace(change)) return "Latest";
+        return $"{(trend == "down" ? "Down" : "Up")} {change}";
+    }
+
+    private string GetMuscleColor(string status) => status switch
+    {
+        "good" => "var(--success)",
+        "low" => "var(--accent)",
+        "excess" => "var(--danger)",
+        _ => "var(--t3)"
+    };
+
+    private static string GetMuscleStatusLabel(string status) => status switch
+    {
+        "good" => "On track",
+        "low" => "Undertrained",
+        "excess" => "High volume",
+        _ => "Missing"
+    };
 
     private string FormatWeightValue(decimal? weightKg) => SettingsService.FormatWeight(weightKg, _weightUnit);
 
@@ -676,7 +988,18 @@ else
         return converted >= 1000 ? $"{converted / 1000:F1}k" : $"{converted:F0}";
     }
 
+    private static string FormatCalories(decimal calories) => calories >= 1000 ? $"{calories / 1000:F1}k kcal" : $"{calories:F0} kcal";
+
+    private static string FormatMacro(decimal value) => value >= 100 ? $"{value:F0}g" : $"{value:F1}g";
+
+    private static string FormatMealTime(TimeOnly? time) => time.HasValue ? time.Value.ToString("HH:mm") : "No time";
+
+    private static string ToTitle(string value) => string.IsNullOrWhiteSpace(value) ? "Planned" : char.ToUpperInvariant(value[0]) + value[1..].ToLowerInvariant();
+
     private record ChartPad(int Left, int Top, int Right, int Bottom);
+    private record StatDisplay(string Label, string Value, string Sub);
+    private record ProgressSectionDisplay(string Key, string Title, string Description, string Meta);
+    private record LegendDisplay(string Color, string Label);
     private class ChartPoint { public double X; public double Y; public string Label = ""; }
     private class ChartSeries { public string Key = ""; public string Label = ""; public string Color = ""; }
     private class ChartExercise { public string Name = ""; public string Color = ""; }

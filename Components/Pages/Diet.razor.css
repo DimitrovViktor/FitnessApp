@@ -841,3 +841,220 @@
     padding-top: 10px;
     border-top: 1px solid var(--border-faint);
 }
+
+.diet-log-card {
+    overflow: hidden;
+    min-width: 0;
+}
+
+.log-edit-scroller {
+    width: 100%;
+    max-width: 100%;
+    overflow-x: auto;
+    overflow-y: hidden;
+    padding: 10px 0 2px;
+    scrollbar-width: thin;
+    scrollbar-color: var(--accent-border) var(--bg-subtle);
+}
+
+.log-edit-scroller::-webkit-scrollbar {
+    height: 8px;
+}
+
+.log-edit-scroller::-webkit-scrollbar-track {
+    background: var(--bg-subtle);
+    border-radius: 999px;
+}
+
+.log-edit-scroller::-webkit-scrollbar-thumb {
+    background: var(--accent-border-strong);
+    border-radius: 999px;
+}
+
+.log-edit-row {
+    display: grid;
+    grid-template-columns: 124px 136px minmax(190px, 1fr) 124px;
+    gap: 9px;
+    align-items: end;
+    min-width: 650px;
+    margin-top: 0;
+}
+
+.log-edit-field,
+.log-edit-actions {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    min-width: 0;
+}
+
+.log-edit-field span,
+.log-edit-actions > span {
+    color: var(--t3);
+    font-size: 10.5px;
+    font-weight: 800;
+    letter-spacing: .075em;
+    line-height: 1.2;
+    text-transform: uppercase;
+    white-space: nowrap;
+}
+
+.log-edit-field input,
+.log-edit-field select {
+    width: 100%;
+    min-width: 0;
+    height: 38px;
+    padding: 8px 10px;
+    color: var(--t1);
+    background: var(--bg);
+    border: 1px solid var(--border-input);
+    border-radius: 9px;
+    font-family: inherit;
+    font-size: 13px;
+    font-weight: 700;
+    outline: none;
+    box-sizing: border-box;
+}
+
+.log-edit-field input:focus,
+.log-edit-field select:focus {
+    border-color: var(--accent);
+    box-shadow: 0 0 0 3px var(--accent-tint);
+}
+
+.log-edit-buttons {
+    display: flex;
+    align-items: center;
+    gap: 7px;
+    min-width: 0;
+}
+
+.log-edit-buttons .diet-small-btn,
+.log-edit-buttons .diet-danger-btn {
+    height: 38px;
+    padding: 0 12px;
+}
+
+.diet-log-card .macro-row {
+    min-width: 0;
+}
+
+.diet-log-card .diet-food-name,
+.diet-log-card .diet-food-serving,
+.diet-log-card .diet-food-kcal {
+    font-family: inherit;
+}
+
+@media (max-width: 780px) {
+    .diet-panel-head,
+    .diet-food-main,
+    .diet-log-main {
+        flex-direction: column;
+    }
+
+    .log-edit-row {
+        grid-template-columns: 124px 136px minmax(190px, 1fr) 124px;
+    }
+}
+
+
+.log-edit-field select {
+    appearance: none;
+    background-image: linear-gradient(45deg, transparent 50%, var(--t3) 50%), linear-gradient(135deg, var(--t3) 50%, transparent 50%);
+    background-position: calc(100% - 16px) 16px, calc(100% - 10px) 16px;
+    background-size: 6px 6px, 6px 6px;
+    background-repeat: no-repeat;
+    padding-right: 30px;
+}
+
+.log-edit-row {
+    grid-template-columns: 124px 136px 168px 124px;
+    min-width: 590px;
+}
+
+
+.diet-log-list.compact-list {
+    height: min(640px, calc(100vh - 318px));
+    min-height: 460px;
+    max-height: 640px;
+    overflow-y: auto;
+    overflow-x: hidden;
+    overscroll-behavior: contain;
+}
+
+.diet-log-list.compact-list::-webkit-scrollbar {
+    width: 8px;
+}
+
+.diet-log-list.compact-list::-webkit-scrollbar-track {
+    background: var(--bg-subtle);
+    border-radius: 999px;
+}
+
+.diet-log-list.compact-list::-webkit-scrollbar-thumb {
+    background: var(--accent-border-strong);
+    border-radius: 999px;
+}
+
+.diet-log-list.compact-list > .diet-log-card:not(.scheduled-meal-card) {
+    flex: 0 0 216px;
+    min-height: 216px;
+    height: 216px;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    box-sizing: border-box;
+    overflow: hidden;
+}
+
+.diet-log-card:not(.scheduled-meal-card) .diet-log-main {
+    flex: 0 0 auto;
+    min-height: 38px;
+}
+
+.diet-log-card:not(.scheduled-meal-card) .macro-row {
+    flex: 0 0 auto;
+    margin-top: 0;
+}
+
+.diet-log-card:not(.scheduled-meal-card) .log-edit-scroller {
+    flex: 0 0 auto;
+    margin-top: auto;
+    padding: 0 0 3px;
+}
+
+.diet-log-card:not(.scheduled-meal-card) .diet-food-serving {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    max-width: 300px;
+}
+
+.diet-log-card:not(.scheduled-meal-card) .diet-food-name,
+.diet-log-card:not(.scheduled-meal-card) .diet-food-kcal {
+    line-height: 1.25;
+}
+
+@media (max-width: 1100px) {
+    .diet-log-list.compact-list {
+        height: 520px;
+        min-height: 420px;
+    }
+}
+
+@media (max-width: 780px) {
+    .diet-log-list.compact-list {
+        height: 520px;
+        min-height: 420px;
+    }
+
+    .diet-log-list.compact-list > .diet-log-card:not(.scheduled-meal-card) {
+        flex-basis: 216px;
+        min-height: 216px;
+        height: 216px;
+    }
+
+    .diet-log-card:not(.scheduled-meal-card) .diet-food-serving {
+        max-width: 240px;
+    }
+}
