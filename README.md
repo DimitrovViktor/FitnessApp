@@ -38,7 +38,7 @@ Program descriptions with workouts, recommended schedules, muscle exercise volum
 
 ### Progress page
 
-Statistics about the user and their activities
+Statistics about the user's activities, diet, and body
 
 ## Diet Section 
 
@@ -50,7 +50,7 @@ Daily food log and nutrient/calorie tracking
 
 Build diet plans for different purposes
 
-###Foods Page
+### Foods Page
 
 A list of foods sorted in categories
 
