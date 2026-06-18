@@ -56,6 +56,10 @@ A list of foods sorted in categories
 
 ## To-do
 
+### Features and functionality
+
 - User profiles - add profile system where users can search for each other and add each other as friends
 - Social page - users can make posts to share custom workouts and make posts
+
+### UI
 - Make UI simpler, more intuitive, less pages in navbar (merge multiple pages into one where possible)
