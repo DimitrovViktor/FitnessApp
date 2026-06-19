@@ -60,6 +60,8 @@ A list of foods sorted in categories
 
 - User profiles - add profile system where users can search for each other and add each other as friends
 - Social page - users can make posts to share custom workouts and make posts
+- Add functionality to settings placeholders
 
 ### UI
+
 - Make UI simpler, more intuitive, less pages in navbar (merge multiple pages into one where possible)
