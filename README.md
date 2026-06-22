@@ -65,3 +65,4 @@ A list of foods sorted in categories
 ### UI
 
 - Make UI simpler, more intuitive, less pages in navbar (merge multiple pages into one where possible)
+- Merge main categories into pages
