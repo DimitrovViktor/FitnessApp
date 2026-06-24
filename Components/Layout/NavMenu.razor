@@ -1,3 +1,5 @@
+@implements IDisposable
+
 <div class="top-row ps-3 navbar navbar-dark">
     <div class="container-fluid">
         <a class="navbar-brand" href="dashboard">Fitness App</a>
@@ -32,89 +34,33 @@
     <nav class="nav flex-column">
         <div class="nav-main">
             <div class="nav-item px-3">
-                <NavLink class="nav-link" href="dashboard" Match="NavLinkMatch.All">
+                <a class="nav-link @(IsActive("dashboard", "schedule") ? "active" : "")" href="dashboard">
                     <span class="bi bi-house-door-fill-nav-menu" aria-hidden="true"></span> Dashboard
-                </NavLink>
+                </a>
             </div>
 
             <div class="nav-item px-3">
-                <NavLink class="nav-link" href="schedule">
-                    <span class="bi bi-schedule-nav-menu" aria-hidden="true"></span> Schedule
-                </NavLink>
+                <a class="nav-link @(IsActive("diet", "diet-plans", "foods") ? "active" : "")" href="diet">
+                    <span class="bi bi-diet-nav-menu" aria-hidden="true"></span> Diet
+                </a>
             </div>
 
-            <button type="button" class="nav-divider nav-section-toggle @(_dietOpen ? "expanded" : "")" aria-expanded="@_dietOpen" @onclick="ToggleDiet" @onclick:stopPropagation="true">
-                <span>Diet</span>
-                <span class="bi bi-chevron-nav-menu" aria-hidden="true"></span>
-            </button>
-
-            @if (_dietOpen)
-            {
-                <div class="nav-section-items">
-                    <div class="nav-item px-3">
-                        <NavLink class="nav-link" href="diet">
-                            <span class="bi bi-diet-nav-menu" aria-hidden="true"></span> Diet
-                        </NavLink>
-                    </div>
-
-                    <div class="nav-item px-3">
-                        <NavLink class="nav-link" href="diet-plans">
-                            <span class="bi bi-diet-plans-nav-menu" aria-hidden="true"></span> Diet Plans
-                        </NavLink>
-                    </div>
-
-                    <div class="nav-item px-3">
-                        <NavLink class="nav-link" href="foods">
-                            <span class="bi bi-foods-nav-menu" aria-hidden="true"></span> Foods
-                        </NavLink>
-                    </div>
-                </div>
-            }
-
-            <button type="button" class="nav-divider nav-section-toggle @(_trainingOpen ? "expanded" : "")" aria-expanded="@_trainingOpen" @onclick="ToggleTraining" @onclick:stopPropagation="true">
-                <span>Training</span>
-                <span class="bi bi-chevron-nav-menu" aria-hidden="true"></span>
-            </button>
-
-            @if (_trainingOpen)
-            {
-                <div class="nav-section-items">
-                    <div class="nav-item px-3">
-                        <NavLink class="nav-link" href="training">
-                            <span class="bi bi-workouts-nav-menu" aria-hidden="true"></span> Training
-                        </NavLink>
-                    </div>
-
-                    <div class="nav-item px-3">
-                        <NavLink class="nav-link" href="programs">
-                            <span class="bi bi-programs-nav-menu" aria-hidden="true"></span> Programs
-                        </NavLink>
-                    </div>
-
-                    <div class="nav-item px-3">
-                        <NavLink class="nav-link" href="exercises">
-                            <span class="bi bi-exercises-nav-menu" aria-hidden="true"></span> Exercises
-                        </NavLink>
-                    </div>
-
-                    <div class="nav-item px-3">
-                        <NavLink class="nav-link" href="live-workout">
-                            <span class="bi bi-live-nav-menu" aria-hidden="true"></span> Live Session
-                        </NavLink>
-                    </div>
-                </div>
-            }
+            <div class="nav-item px-3">
+                <a class="nav-link @(IsActive("training", "programs", "exercises", "live-workout") ? "active" : "")" href="training">
+                    <span class="bi bi-workouts-nav-menu" aria-hidden="true"></span> Training
+                </a>
+            </div>
 
             <div class="nav-item px-3">
-                <NavLink class="nav-link" href="progress">
+                <a class="nav-link @(IsActive("progress") ? "active" : "")" href="progress">
                     <span class="bi bi-progress-nav-menu" aria-hidden="true"></span> Progress
-                </NavLink>
+                </a>
             </div>
 
             <div class="nav-item px-3">
-                <NavLink class="nav-link" href="profile">
+                <a class="nav-link @(IsActive("profile") ? "active" : "")" href="profile">
                     <span class="bi bi-person-nav-menu" aria-hidden="true"></span> Profile
-                </NavLink>
+                </a>
             </div>
         </div>
 
@@ -148,13 +94,18 @@
 
     private bool _isAdmin;
     private bool _themesOpen;
-    private bool _trainingOpen = true;
-    private bool _dietOpen = true;
     private int _userId;
     private string _currentTheme = "night";
 
     private ThemeOption CurrentTheme => SettingsService.Themes.FirstOrDefault(t => t.Key == _currentTheme) ?? SettingsService.Themes[0];
     private string ThemeIconClass => CurrentTheme.IsLight ? "icon-sun" : "icon-moon";
+
+    private bool IsActive(params string[] paths) => HubNav.IsInGroup(Navigation, paths);
+
+    protected override void OnInitialized()
+    {
+        Navigation.LocationChanged += OnLocationChanged;
+    }
 
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
@@ -175,19 +126,14 @@
         catch { }
     }
 
+    private void OnLocationChanged(object? sender, LocationChangedEventArgs e)
+    {
+        InvokeAsync(StateHasChanged);
+    }
+
     private void ToggleThemes()
     {
         _themesOpen = !_themesOpen;
-    }
-
-    private void ToggleTraining()
-    {
-        _trainingOpen = !_trainingOpen;
-    }
-
-    private void ToggleDiet()
-    {
-        _dietOpen = !_dietOpen;
     }
 
     private async Task SelectTheme(string theme)
@@ -203,5 +149,10 @@
     {
         await AuthState.LogoutAsync();
         try { Navigation.NavigateTo("/login", forceLoad: true); } catch { }
+    }
+
+    public void Dispose()
+    {
+        Navigation.LocationChanged -= OnLocationChanged;
     }
 }

@@ -1,0 +1,58 @@
+@page "/training"
+@page "/programs"
+@page "/exercises"
+@page "/live-workout"
+@inject NavigationManager Navigation
+@implements IDisposable
+
+<div class="hub-page hub-standard">
+    <PageTabs Tabs="_tabs" ActivePath="@_current" />
+
+    @if (_current == "programs")
+    {
+        <Programs />
+    }
+    else if (_current == "exercises")
+    {
+        <Exercises />
+    }
+    else if (_current == "live-workout")
+    {
+        <LiveWorkout />
+    }
+    else
+    {
+        <Training />
+    }
+</div>
+
+@code {
+    private static readonly IReadOnlyList<NavTab> _tabs = new List<NavTab>
+    {
+        new("training", "Workouts"),
+        new("programs", "Programs"),
+        new("exercises", "Exercises"),
+        new("live-workout", "Live Session")
+    };
+
+    private string _current = "training";
+
+    protected override void OnInitialized()
+    {
+        _current = HubNav.CurrentPath(Navigation);
+        Navigation.LocationChanged += OnLocationChanged;
+    }
+
+    private void OnLocationChanged(object? sender, LocationChangedEventArgs e)
+    {
+        var next = HubNav.CurrentPath(Navigation);
+        if (next == _current) return;
+        _current = next;
+        InvokeAsync(StateHasChanged);
+    }
+
+    public void Dispose()
+    {
+        Navigation.LocationChanged -= OnLocationChanged;
+    }
+}

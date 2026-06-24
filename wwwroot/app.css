@@ -254,3 +254,12 @@ h1:focus { outline: none; }
 
 button { font-family: inherit; }
 input, textarea, select { font-family: inherit; }
+
+.hub-page { margin: 0 auto; }
+.hub-page.hub-standard { max-width: 1100px; }
+.hub-page.hub-wide { max-width: 1240px; }
+.hub-actions { display: flex; align-items: center; justify-content: flex-end; gap: 8px; flex-wrap: wrap; margin-bottom: 18px; }
+@media (max-width: 640px) {
+    .hub-actions { width: 100%; }
+    .hub-actions > button { flex: 1; }
+}

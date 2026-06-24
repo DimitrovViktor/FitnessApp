@@ -1,0 +1,12 @@
+<nav class="page-tabs" role="tablist">
+    @foreach (var tab in Tabs)
+    {
+        var active = string.Equals(tab.Path, ActivePath, StringComparison.OrdinalIgnoreCase);
+        <a class="page-tab @(active ? "active" : "")" href="@tab.Path" role="tab" aria-selected="@active">@tab.Label</a>
+    }
+</nav>
+
+@code {
+    [Parameter, EditorRequired] public IReadOnlyList<NavTab> Tabs { get; set; } = Array.Empty<NavTab>();
+    [Parameter] public string ActivePath { get; set; } = string.Empty;
+}

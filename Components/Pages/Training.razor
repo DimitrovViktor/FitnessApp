@@ -1,4 +1,3 @@
-@page "/training"
 @inject WorkoutService WorkoutService
 @inject SettingsService SettingsSvc
 @inject CustomAuthStateProvider AuthState
@@ -14,11 +13,7 @@
 else
 {
     <div class="training-page">
-        <div class="page-header">
-            <div>
-                <h1>Training</h1>
-                <p class="page-sub">Build, browse, and manage strength, cardio, and recovery activities</p>
-            </div>
+        <div class="hub-actions">
             <button type="button" class="btn-action" @onclick="OpenBuilder">+ New Training</button>
         </div>
 

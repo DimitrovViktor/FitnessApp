@@ -1,0 +1,52 @@
+@page "/diet"
+@page "/diet-plans"
+@page "/foods"
+@inject NavigationManager Navigation
+@implements IDisposable
+
+<div class="hub-page hub-wide">
+    <PageTabs Tabs="_tabs" ActivePath="@_current" />
+
+    @if (_current == "diet-plans")
+    {
+        <DietPlans />
+    }
+    else if (_current == "foods")
+    {
+        <Foods />
+    }
+    else
+    {
+        <Diet />
+    }
+</div>
+
+@code {
+    private static readonly IReadOnlyList<NavTab> _tabs = new List<NavTab>
+    {
+        new("diet", "Log Food"),
+        new("diet-plans", "Diet Plans"),
+        new("foods", "Foods")
+    };
+
+    private string _current = "diet";
+
+    protected override void OnInitialized()
+    {
+        _current = HubNav.CurrentPath(Navigation);
+        Navigation.LocationChanged += OnLocationChanged;
+    }
+
+    private void OnLocationChanged(object? sender, LocationChangedEventArgs e)
+    {
+        var next = HubNav.CurrentPath(Navigation);
+        if (next == _current) return;
+        _current = next;
+        InvokeAsync(StateHasChanged);
+    }
+
+    public void Dispose()
+    {
+        Navigation.LocationChanged -= OnLocationChanged;
+    }
+}

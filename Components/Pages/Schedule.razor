@@ -1,4 +1,3 @@
-@page "/schedule"
 @inject CustomAuthStateProvider AuthState
 @inject ProfileService ProfileService
 @inject DashboardService DashService
@@ -19,12 +18,9 @@
 else
 {
     <div class="schedule-page">
-        <div class="schedule-header">
-            <div>
-                <h1>Schedule</h1>
-                <p>Plan training and meals in one place.</p>
-            </div>
-            <div class="schedule-header-actions"><button type="button" class="btn-ghost btn-sm" @onclick="() => OpenMealModal(_selectedDate)">Schedule Meal</button><button type="button" class="btn-glow btn-sm" @onclick="() => OpenScheduleModal(_selectedDate)">Schedule Activity</button></div>
+        <div class="hub-actions">
+            <button type="button" class="btn-ghost btn-sm" @onclick="() => OpenMealModal(_selectedDate)">Schedule Meal</button>
+            <button type="button" class="btn-glow btn-sm" @onclick="() => OpenScheduleModal(_selectedDate)">Schedule Activity</button>
         </div>
 
         <div class="schedule-tabs">

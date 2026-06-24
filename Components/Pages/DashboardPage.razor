@@ -1,0 +1,46 @@
+@page "/dashboard"
+@page "/schedule"
+@inject NavigationManager Navigation
+@implements IDisposable
+
+<div class="hub-page hub-standard">
+    <PageTabs Tabs="_tabs" ActivePath="@_current" />
+
+    @if (_current == "schedule")
+    {
+        <Schedule />
+    }
+    else
+    {
+        <Home />
+    }
+</div>
+
+@code {
+    private static readonly IReadOnlyList<NavTab> _tabs = new List<NavTab>
+    {
+        new("dashboard", "Overview"),
+        new("schedule", "Schedule")
+    };
+
+    private string _current = "dashboard";
+
+    protected override void OnInitialized()
+    {
+        _current = HubNav.CurrentPath(Navigation);
+        Navigation.LocationChanged += OnLocationChanged;
+    }
+
+    private void OnLocationChanged(object? sender, LocationChangedEventArgs e)
+    {
+        var next = HubNav.CurrentPath(Navigation);
+        if (next == _current) return;
+        _current = next;
+        InvokeAsync(StateHasChanged);
+    }
+
+    public void Dispose()
+    {
+        Navigation.LocationChanged -= OnLocationChanged;
+    }
+}

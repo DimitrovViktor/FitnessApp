@@ -1,4 +1,3 @@
-@page "/dashboard"
 @inject CustomAuthStateProvider AuthState
 @inject ProfileService ProfileService
 @inject DashboardService DashService
@@ -21,11 +20,6 @@ else
             <div>
                 <h1>Welcome back, <span class="accent">@_userName</span></h1>
                 <p class="dash-sub">Your training and nutrition summary for today</p>
-            </div>
-            <div class="dash-actions">
-                <button type="button" class="btn-ghost btn-sm" @onclick="GoToSchedule">Open Schedule</button>
-                <button type="button" class="btn-ghost btn-sm" @onclick="GoToDiet">Diet</button>
-                <button type="button" class="btn-glow btn-sm" @onclick="GoToTraining">Training</button>
             </div>
         </div>
 
@@ -410,10 +404,5 @@ else
     private void GoToDiet()
     {
         try { Navigation.NavigateTo("/diet"); } catch { }
-    }
-
-    private void GoToTraining()
-    {
-        try { Navigation.NavigateTo("/training"); } catch { }
     }
 }

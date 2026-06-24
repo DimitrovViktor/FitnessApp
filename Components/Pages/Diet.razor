@@ -1,4 +1,3 @@
-@page "/diet"
 @inject DietService DietSvc
 @inject CustomAuthStateProvider AuthState
 @inject NavigationManager Navigation
@@ -13,15 +12,8 @@
 else
 {
     <div class="diet-page">
-        <div class="page-header">
-            <div>
-                <h1>Diet</h1>
-                <p class="page-sub">Plan meals, log food, browse foods, and manage diet plans.</p>
-            </div>
-            <div class="diet-header-actions">
-                <button type="button" class="btn-ghost btn-sm" @onclick='() => Navigation.NavigateTo("/schedule")'>Schedule Meals</button>
-                <button type="button" class="diet-action-btn" @onclick='() => Navigation.NavigateTo("/foods")'>Foods</button>
-            </div>
+        <div class="hub-actions">
+            <button type="button" class="btn-ghost btn-sm" @onclick='() => Navigation.NavigateTo("/schedule")'>Schedule Meals</button>
         </div>
 
         <div class="diet-category-grid">
