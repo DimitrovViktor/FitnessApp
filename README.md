@@ -38,7 +38,7 @@ Program descriptions with workouts, recommended schedules, muscle exercise volum
 
 ### Progress page
 
-Statistics about the user and their activities
+Statistics about the user's activities, diet, and body
 
 ## Diet Section 
 
@@ -50,12 +50,19 @@ Daily food log and nutrient/calorie tracking
 
 Build diet plans for different purposes
 
-###Foods Page
+### Foods Page
 
 A list of foods sorted in categories
 
 ## To-do
 
+### Features and functionality
+
 - User profiles - add profile system where users can search for each other and add each other as friends
 - Social page - users can make posts to share custom workouts and make posts
+- Add functionality to settings placeholders
+
+### UI
+
 - Make UI simpler, more intuitive, less pages in navbar (merge multiple pages into one where possible)
+- Merge main categories into pages
