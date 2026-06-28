@@ -58,11 +58,12 @@ A list of foods sorted in categories
 
 ### Features and functionality
 
-- User profiles - add profile system where users can search for each other and add each other as friends
-- Social page - users can make posts to share custom workouts and make posts
+- User profiles - add profile pictures and social features to profiles
+- Social - users can search for each other and add each other as friends
+- Direct messaging - users can directly message each other
+- Social global - users can make posts to share custom workouts, make posts, interact with others who use the app
 - Add functionality to settings placeholders
 
 ### UI
 
-- Make UI simpler, more intuitive, less pages in navbar (merge multiple pages into one where possible)
-- Merge main categories into pages
+- Make UI simpler, more intuitive
