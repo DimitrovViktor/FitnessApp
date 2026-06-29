@@ -16,12 +16,68 @@
 }
 else if (_session is null)
 {
-    <div class="loading-state">
-        <div class="no-session">
-            <h2>No active workout</h2>
-            <p>Start a workout from the dashboard.</p>
-            <button type="button" class="btn-action" @onclick='() => Navigation.NavigateTo("/dashboard")'>Go to Dashboard</button>
+    <div class="live-start">
+        <div class="live-header">
+            <div>
+                <span class="live-kicker">Live Session</span>
+                <h1>Start a workout</h1>
+                <p class="live-start-sub">Quick start one of your workouts, or search any workout to begin training right now.</p>
+            </div>
         </div>
+
+        <section class="live-start-card">
+            <div class="live-start-head">
+                <div>
+                    <h2>Quick Start</h2>
+                    <p>Jump straight into one of your workouts</p>
+                </div>
+            </div>
+            @if (_userWorkouts.Count == 0)
+            {
+                <div class="empty-picker">No workouts yet. Create one in Training, or search the library below.</div>
+            }
+            else
+            {
+                <div class="quick-start-grid">
+                    @foreach (var w in _userWorkouts.Take(6))
+                    {
+                        <button type="button" class="quick-start-card" disabled="@_starting" @onclick="() => StartWorkout(w.Id)">
+                            <span class="quick-start-name">@w.Name</span>
+                            <span class="quick-start-meta">@w.WorkoutExercises.Count ex · @w.WorkoutExercises.Sum(x => x.Sets) sets</span>
+                        </button>
+                    }
+                </div>
+            }
+        </section>
+
+        <section class="live-start-card">
+            <div class="live-start-head">
+                <div>
+                    <h2>Find a workout</h2>
+                    <p>Search your workouts and the prebuilt library</p>
+                </div>
+            </div>
+            <label class="live-search-field">
+                <span>Search workouts</span>
+                <input type="search" placeholder="Search by workout name, program, or exercise" @bind="_workoutSearch" @bind:event="oninput" />
+            </label>
+            <div class="exercise-picker-list">
+                @foreach (var item in FilteredStartWorkouts)
+                {
+                    <button type="button" class="exercise-picker-item" disabled="@_starting" @onclick="() => StartWorkout(item.Workout.Id)">
+                        <div>
+                            <strong>@item.Workout.Name</strong>
+                            <span>@StartWorkoutMeta(item.Workout)</span>
+                        </div>
+                        <span class="picker-type">@(item.IsPremade ? "Library" : "My Workout")</span>
+                    </button>
+                }
+                @if (!FilteredStartWorkouts.Any())
+                {
+                    <div class="empty-picker">No workouts match your search.</div>
+                }
+            </div>
+        </section>
     </div>
 }
 else
@@ -433,6 +489,37 @@ else
     private string _finishTitle = "";
     private WorkoutLogStatus? _finishStatus;
 
+    private List<Workout> _userWorkouts = new();
+    private List<Workout> _premadeWorkouts = new();
+    private string _workoutSearch = "";
+    private bool _starting;
+
+    private IEnumerable<(Workout Workout, bool IsPremade)> AllStartWorkouts
+    {
+        get
+        {
+            var seen = new HashSet<int>();
+            foreach (var w in _userWorkouts)
+                if (seen.Add(w.Id)) yield return (w, false);
+            foreach (var w in _premadeWorkouts)
+                if (seen.Add(w.Id)) yield return (w, true);
+        }
+    }
+
+    private IEnumerable<(Workout Workout, bool IsPremade)> FilteredStartWorkouts => AllStartWorkouts
+        .Where(x => string.IsNullOrWhiteSpace(_workoutSearch)
+            || x.Workout.Name.Contains(_workoutSearch, StringComparison.OrdinalIgnoreCase)
+            || (x.Workout.Program?.Name?.Contains(_workoutSearch, StringComparison.OrdinalIgnoreCase) ?? false)
+            || x.Workout.WorkoutExercises.Any(we => we.Exercise != null && we.Exercise.Name.Contains(_workoutSearch, StringComparison.OrdinalIgnoreCase)))
+        .Take(40);
+
+    private static string StartWorkoutMeta(Workout workout)
+    {
+        var summary = $"{workout.WorkoutExercises.Count} ex · {workout.WorkoutExercises.Sum(x => x.Sets)} sets";
+        var program = workout.Program?.Name;
+        return string.IsNullOrWhiteSpace(program) ? summary : $"{summary} · {program}";
+    }
+
     private IEnumerable<Exercise> FilteredAddExercises => _exerciseLibrary
         .Where(e => string.IsNullOrWhiteSpace(_exerciseSearch)
             || e.Name.Contains(_exerciseSearch, StringComparison.OrdinalIgnoreCase)
@@ -463,17 +550,41 @@ else
         _exerciseLibrary = await WorkoutService.GetExerciseLibraryAsync();
 
         if (_session is not null)
-        {
-            _startTime = _session.StartedAt ?? DateTime.UtcNow;
-            _orderedExercises = _session.Workout.WorkoutExercises.OrderBy(x => x.SortOrder).ToList();
-            LoadOrInitState();
-            _elapsedTimer = new System.Threading.Timer(async _ =>
-            {
-                await InvokeAsync(StateHasChanged);
-            }, null, 0, 1000);
-        }
+            BeginSessionTracking();
+        else
+            await LoadStartOptions();
 
         _isLoading = false;
+        StateHasChanged();
+    }
+
+    private void BeginSessionTracking()
+    {
+        _startTime = _session!.StartedAt ?? DateTime.UtcNow;
+        _orderedExercises = _session.Workout.WorkoutExercises.OrderBy(x => x.SortOrder).ToList();
+        LoadOrInitState();
+        _elapsedTimer?.Dispose();
+        _elapsedTimer = new System.Threading.Timer(async _ =>
+        {
+            await InvokeAsync(StateHasChanged);
+        }, null, 0, 1000);
+    }
+
+    private async Task LoadStartOptions()
+    {
+        _userWorkouts = await WorkoutService.GetUserWorkoutsAsync(_userId);
+        _premadeWorkouts = await WorkoutService.GetPremadeWorkoutsAsync();
+    }
+
+    private async Task StartWorkout(int workoutId)
+    {
+        if (_starting) return;
+        _starting = true;
+        await DashService.QuickStartWorkoutAsync(_userId, workoutId);
+        _session = await DashService.GetActiveSessionAsync(_userId);
+        if (_session is not null)
+            BeginSessionTracking();
+        _starting = false;
         StateHasChanged();
     }
 
