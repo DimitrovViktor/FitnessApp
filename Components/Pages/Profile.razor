@@ -3,6 +3,8 @@
 @inject SettingsService SettingsSvc
 @inject CustomAuthStateProvider AuthState
 @inject NavigationManager Navigation
+@inject ProfilePresenceState Presence
+@implements IDisposable
 
 <PageTitle>Profile - Fitness App</PageTitle>
 
@@ -16,14 +18,150 @@ else
 {
     <div class="profile-page">
         <div class="profile-header">
-            <h1>Personal Information</h1>
-            <p class="profile-subtitle">Manage your profile and fitness preferences</p>
+            <h1>Profile</h1>
+            <p class="profile-subtitle">Manage how you appear to others and what you share</p>
         </div>
 
         @if (!string.IsNullOrEmpty(_message))
         {
             <div class="@(_isError ? "msg-error" : "msg-success")">@_message</div>
         }
+
+        <div class="profile-section">
+            <div class="preview-head">
+                <div>
+                    <h2 class="section-title">Public Preview</h2>
+                    <p class="section-hint">This is how your profile looks to @(_previewFriends ? "friends" : "everyone"). Fields you keep private stay hidden.</p>
+                </div>
+                <div class="preview-audience">
+                    <button type="button" class="audience-btn @(!_previewFriends ? "selected" : "")" @onclick="() => _previewFriends = false">Everyone</button>
+                    <button type="button" class="audience-btn @(_previewFriends ? "selected" : "")" @onclick="() => _previewFriends = true">Friends</button>
+                </div>
+            </div>
+
+            <div class="preview-card">
+                <div class="preview-banner"></div>
+                <div class="preview-identity">
+                    <span class="preview-avatar">
+                        @if (!string.IsNullOrEmpty(_avatarData))
+                        {
+                            <img src="@_avatarData" alt="Profile picture" />
+                        }
+                        else
+                        {
+                            <span class="preview-avatar-initials">@Initials</span>
+                        }
+                        <span class="preview-status-dot status-@_status" title="@PresenceStatus.Label(_status)"></span>
+                    </span>
+                    <div class="preview-names">
+                        <span class="preview-username">@_username</span>
+                        @if (IsVisibleInPreview("name") && !string.IsNullOrWhiteSpace(_data.FullName))
+                        {
+                            <span class="preview-realname">@_data.FullName</span>
+                        }
+                        <span class="preview-status-label">@PresenceStatus.Label(_status)</span>
+                    </div>
+                </div>
+
+                @if (IsVisibleInPreview("bio") && !string.IsNullOrWhiteSpace(_data.Bio))
+                {
+                    <p class="preview-bio">@_data.Bio</p>
+                }
+
+                @{
+                    var visibleStats = GridFields.Where(f => IsVisibleInPreview(f.Key) && !string.IsNullOrEmpty(PreviewValue(f.Key))).ToList();
+                }
+                @if (visibleStats.Count > 0)
+                {
+                    <div class="preview-grid">
+                        @foreach (var field in visibleStats)
+                        {
+                            <div class="preview-stat">
+                                <span class="preview-stat-label">@field.Label</span>
+                                <span class="preview-stat-value">@PreviewValue(field.Key)</span>
+                            </div>
+                        }
+                    </div>
+                }
+
+                @if (visibleStats.Count == 0 && !(IsVisibleInPreview("name") && !string.IsNullOrWhiteSpace(_data.FullName)) && !(IsVisibleInPreview("bio") && !string.IsNullOrWhiteSpace(_data.Bio)))
+                {
+                    <p class="preview-empty">Only your username and picture are visible @(_previewFriends ? "to friends" : "to everyone") right now. Make fields public below to share more.</p>
+                }
+            </div>
+        </div>
+
+        <div class="profile-section">
+            <h2 class="section-title">Profile Picture</h2>
+            <div class="avatar-manage">
+                <span class="avatar-current">
+                    @if (!string.IsNullOrEmpty(_avatarData))
+                    {
+                        <img src="@_avatarData" alt="Profile picture" />
+                    }
+                    else
+                    {
+                        <span class="avatar-current-initials">@Initials</span>
+                    }
+                </span>
+                <div class="avatar-side">
+                    <div class="avatar-actions">
+                        <label class="avatar-upload-btn">
+                            <span>Upload photo</span>
+                            <InputFile OnChange="OnAvatarSelected" accept="image/png, image/jpeg, image/webp, image/gif" />
+                        </label>
+                        @if (!string.IsNullOrEmpty(_avatarData))
+                        {
+                            <button type="button" class="avatar-remove-btn" @onclick="RemoveAvatar">Remove</button>
+                        }
+                    </div>
+                    <p class="avatar-hint">PNG, JPG, WEBP or GIF up to 2 MB. Your picture and username are always visible to others.</p>
+                    @if (!string.IsNullOrEmpty(_avatarError))
+                    {
+                        <p class="avatar-error">@_avatarError</p>
+                    }
+                </div>
+            </div>
+        </div>
+
+        <div class="profile-section">
+            <h2 class="section-title">Status</h2>
+            <p class="section-hint">Set how you appear to other people across the app.</p>
+            <div class="status-options">
+                @foreach (var option in PresenceStatus.Options)
+                {
+                    <button type="button" class="status-pill @(_status == option.Key ? "selected" : "")" @onclick="() => SetStatus(option.Key)">
+                        <span class="status-dot status-@option.Key"></span>
+                        <span>@option.Label</span>
+                    </button>
+                }
+            </div>
+        </div>
+
+        <div class="profile-section">
+            <h2 class="section-title">Privacy &amp; Visibility</h2>
+            <p class="section-hint">Choose who can see each part of your profile. Not selected stays private by default.</p>
+            <div class="vis-list">
+                @foreach (var field in VisFields)
+                {
+                    var current = GetVisibility(field.Key);
+                    <div class="vis-row">
+                        <div class="vis-info">
+                            <span class="vis-label">@field.Label</span>
+                            <span class="vis-hint">@field.Hint</span>
+                        </div>
+                        <div class="vis-options">
+                            @foreach (var option in VisOptions)
+                            {
+                                <button type="button" class="vis-opt vis-@option.Key @(current == option.Key ? "active" : "")" @onclick="() => SetVisibility(field.Key, option.Key)">
+                                    @option.Label
+                                </button>
+                            }
+                        </div>
+                    </div>
+                }
+            </div>
+        </div>
 
         <div class="profile-section">
             <h2 class="section-title">About You</h2>
@@ -116,7 +254,7 @@ else
         </div>
 
         <div class="profile-section">
-            <h2 class="section-title">Injuries & Limitations</h2>
+            <h2 class="section-title">Injuries &amp; Limitations</h2>
 
             @if (_data.Injuries.Count == 0 && !_isEditing)
             {
@@ -167,7 +305,7 @@ else
             }
             else
             {
-                <button type="button" class="btn-edit" @onclick="StartEdit">Edit Profile</button>
+                <button type="button" class="btn-edit" @onclick="StartEdit">Edit Details</button>
             }
         </div>
     </div>
@@ -189,6 +327,72 @@ else
     private readonly string _maxDob = DateOnly.FromDateTime(DateTime.Today.AddYears(-13)).ToString("yyyy-MM-dd");
     private readonly string _minDob = DateOnly.FromDateTime(DateTime.Today.AddYears(-100)).ToString("yyyy-MM-dd");
 
+    private User? _user;
+    private ProfileSettings _settings = new();
+    private string _username = "";
+    private string _status = PresenceStatus.Online;
+    private string? _avatarData;
+    private string? _avatarError;
+    private bool _previewFriends;
+
+    private record VisField(string Key, string Label, string Hint);
+
+    private static readonly VisField[] VisFields =
+    {
+        new("name", "Display name", "Your full name"),
+        new("bio", "Bio", "The short blurb on your profile"),
+        new("level", "Fitness level", "Beginner, intermediate or advanced"),
+        new("goal", "Primary goal", "What you are training for"),
+        new("trainingDays", "Training days", "How many days a week you train"),
+        new("weight", "Weight", "Your body weight"),
+        new("height", "Height", "Your height"),
+        new("age", "Age", "Calculated from your date of birth"),
+        new("memberSince", "Member since", "When you joined"),
+        new("workouts", "Workouts", "Workouts you post publicly")
+    };
+
+    private static readonly VisField[] GridFields =
+    {
+        new("level", "Fitness level", ""),
+        new("goal", "Primary goal", ""),
+        new("trainingDays", "Training", ""),
+        new("weight", "Weight", ""),
+        new("height", "Height", ""),
+        new("age", "Age", ""),
+        new("memberSince", "Member since", "")
+    };
+
+    private static readonly (string Key, string Label)[] VisOptions =
+    {
+        ("notset", "Not selected"),
+        ("public", "Public"),
+        ("friends", "Friends only"),
+        ("private", "Private")
+    };
+
+    private string Initials
+    {
+        get
+        {
+            var source = string.IsNullOrWhiteSpace(_username) ? "?" : _username.Trim();
+            return source.Length == 0 ? "?" : source[..1].ToUpperInvariant();
+        }
+    }
+
+    private string AgeText
+    {
+        get
+        {
+            if (_data.DateOfBirth is null) return "";
+            var today = DateOnly.FromDateTime(DateTime.Today);
+            var dob = _data.DateOfBirth.Value;
+            var age = today.Year - dob.Year;
+            if (dob > today.AddYears(-age)) age--;
+            return age > 0 ? $"{age} years" : "";
+        }
+    }
+
+    private string MemberSinceText => _user is null ? "" : _user.CreatedAt.ToLocalTime().ToString("MMM yyyy");
 
     private decimal? DisplayWeight
     {
@@ -199,6 +403,11 @@ else
     private decimal MinWeight => _weightUnit == "lbs" ? 44 : 20;
 
     private decimal MaxWeight => _weightUnit == "lbs" ? 772 : 350;
+
+    protected override void OnInitialized()
+    {
+        Presence.OnChange += HandlePresenceChanged;
+    }
 
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
@@ -212,9 +421,11 @@ else
         }
 
         _userId = int.Parse(state.User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)!.Value);
+        _username = state.User.FindFirst("Username")?.Value ?? state.User.Identity.Name ?? "User";
         var settings = await SettingsSvc.GetSettingsAsync(_userId);
         _weightUnit = settings.WeightUnit;
         _equipment = await ProfileService.GetAllEquipmentAsync();
+        _settings = CloneSettings(await ProfileService.GetProfileSettingsAsync(_userId));
         await LoadProfile();
         _isLoading = false;
         StateHasChanged();
@@ -224,6 +435,11 @@ else
     {
         var user = await ProfileService.GetUserWithProfileAsync(_userId);
         if (user is null) return;
+
+        _user = user;
+        _username = user.Username;
+        _status = PresenceStatus.Normalize(user.Status);
+        _avatarData = user.AvatarData;
 
         _data = new ProfileData
         {
@@ -244,6 +460,139 @@ else
             }).ToList()
         };
         _dobString = user.DateOfBirth?.ToString("yyyy-MM-dd") ?? "";
+    }
+
+    private static ProfileSettings CloneSettings(ProfileSettings source) => new()
+    {
+        UserId = source.UserId,
+        NameVisibility = source.NameVisibility,
+        BioVisibility = source.BioVisibility,
+        LevelVisibility = source.LevelVisibility,
+        GoalVisibility = source.GoalVisibility,
+        TrainingDaysVisibility = source.TrainingDaysVisibility,
+        WeightVisibility = source.WeightVisibility,
+        HeightVisibility = source.HeightVisibility,
+        AgeVisibility = source.AgeVisibility,
+        MemberSinceVisibility = source.MemberSinceVisibility,
+        WorkoutsVisibility = source.WorkoutsVisibility
+    };
+
+    private string GetVisibility(string key) => key switch
+    {
+        "name" => _settings.NameVisibility,
+        "bio" => _settings.BioVisibility,
+        "level" => _settings.LevelVisibility,
+        "goal" => _settings.GoalVisibility,
+        "trainingDays" => _settings.TrainingDaysVisibility,
+        "weight" => _settings.WeightVisibility,
+        "height" => _settings.HeightVisibility,
+        "age" => _settings.AgeVisibility,
+        "memberSince" => _settings.MemberSinceVisibility,
+        "workouts" => _settings.WorkoutsVisibility,
+        _ => "notset"
+    };
+
+    private async Task SetVisibility(string key, string value)
+    {
+        switch (key)
+        {
+            case "name": _settings.NameVisibility = value; break;
+            case "bio": _settings.BioVisibility = value; break;
+            case "level": _settings.LevelVisibility = value; break;
+            case "goal": _settings.GoalVisibility = value; break;
+            case "trainingDays": _settings.TrainingDaysVisibility = value; break;
+            case "weight": _settings.WeightVisibility = value; break;
+            case "height": _settings.HeightVisibility = value; break;
+            case "age": _settings.AgeVisibility = value; break;
+            case "memberSince": _settings.MemberSinceVisibility = value; break;
+            case "workouts": _settings.WorkoutsVisibility = value; break;
+        }
+        await ProfileService.SaveProfileSettingsAsync(_userId, _settings);
+    }
+
+    private bool IsVisibleInPreview(string key)
+    {
+        var visibility = GetVisibility(key);
+        if (visibility == "public") return true;
+        if (_previewFriends && visibility == "friends") return true;
+        return false;
+    }
+
+    private string PreviewValue(string key) => key switch
+    {
+        "level" => _data.FitnessLevel?.ToString() ?? "",
+        "goal" => _data.PrimaryGoal.HasValue ? FormatGoal(_data.PrimaryGoal.Value) : "",
+        "trainingDays" => _data.TrainingDaysPerWeek.HasValue ? $"{_data.TrainingDaysPerWeek} days / week" : "",
+        "weight" => DisplayWeight.HasValue ? $"{DisplayWeight.Value:0.#} {_weightUnit}" : "",
+        "height" => _data.HeightCm.HasValue ? $"{_data.HeightCm.Value:0.#} cm" : "",
+        "age" => AgeText,
+        "memberSince" => MemberSinceText,
+        _ => ""
+    };
+
+    private async Task OnAvatarSelected(InputFileChangeEventArgs e)
+    {
+        _avatarError = null;
+        var file = e.File;
+        if (file is null) return;
+
+        const long maxBytes = 2 * 1024 * 1024;
+        if (file.Size > maxBytes)
+        {
+            _avatarError = "Image must be 2 MB or smaller.";
+            return;
+        }
+
+        if (string.IsNullOrEmpty(file.ContentType) || !file.ContentType.StartsWith("image/", StringComparison.OrdinalIgnoreCase))
+        {
+            _avatarError = "Please choose an image file.";
+            return;
+        }
+
+        try
+        {
+            using var stream = file.OpenReadStream(maxBytes);
+            using var ms = new MemoryStream();
+            await stream.CopyToAsync(ms);
+            var dataUri = $"data:{file.ContentType};base64,{Convert.ToBase64String(ms.ToArray())}";
+            await ProfileService.UpdateAvatarAsync(_userId, dataUri);
+            _avatarData = dataUri;
+            Presence.NotifyChanged();
+        }
+        catch
+        {
+            _avatarError = "Could not read that image. Please try another file.";
+        }
+    }
+
+    private async Task RemoveAvatar()
+    {
+        _avatarError = null;
+        await ProfileService.UpdateAvatarAsync(_userId, null);
+        _avatarData = null;
+        Presence.NotifyChanged();
+    }
+
+    private async Task SetStatus(string status)
+    {
+        _status = PresenceStatus.Normalize(status);
+        await ProfileService.UpdateStatusAsync(_userId, _status);
+        Presence.NotifyChanged();
+    }
+
+    private void HandlePresenceChanged()
+    {
+        InvokeAsync(async () =>
+        {
+            if (_userId == 0) return;
+            var user = await ProfileService.GetUserAsync(_userId);
+            if (user is not null)
+            {
+                _status = PresenceStatus.Normalize(user.Status);
+                _avatarData = user.AvatarData;
+            }
+            StateHasChanged();
+        });
     }
 
     private void StartEdit()
@@ -302,6 +651,7 @@ else
             _message = "Profile updated successfully.";
             _isError = false;
             _isEditing = false;
+            _user = await ProfileService.GetUserWithProfileAsync(_userId);
         }
         else
         {
@@ -335,4 +685,9 @@ else
         PrimaryGoal.GeneralHealth => "General Health",
         _ => goal.ToString()
     };
+
+    public void Dispose()
+    {
+        Presence.OnChange -= HandlePresenceChanged;
+    }
 }

@@ -24,6 +24,7 @@ builder.Services.AddScoped<AuthenticationStateProvider>(sp =>
     sp.GetRequiredService<CustomAuthStateProvider>());
 builder.Services.AddScoped<ProgressService>();
 builder.Services.AddScoped<DietService>();
+builder.Services.AddScoped<ProfilePresenceState>();
 
 var app = builder.Build();
 
@@ -209,6 +210,37 @@ using (var scope = app.Services.CreateScope())
             ConfirmBeforeSkip INTEGER NOT NULL DEFAULT 1,
             WorkoutReminders INTEGER NOT NULL DEFAULT 1,
             SocialVisibility TEXT NOT NULL DEFAULT 'public',
+            FOREIGN KEY (UserId) REFERENCES Users(Id))");
+    }
+    catch { }
+
+    try
+    {
+        db.Database.ExecuteSqlRaw("ALTER TABLE Users ADD COLUMN AvatarData TEXT NULL");
+    }
+    catch { }
+
+    try
+    {
+        db.Database.ExecuteSqlRaw("ALTER TABLE Users ADD COLUMN Status TEXT NOT NULL DEFAULT 'online'");
+    }
+    catch { }
+
+    try
+    {
+        db.Database.ExecuteSqlRaw(@"CREATE TABLE IF NOT EXISTS ProfileSettings (
+            Id INTEGER PRIMARY KEY AUTOINCREMENT,
+            UserId INTEGER NOT NULL UNIQUE,
+            NameVisibility TEXT NOT NULL DEFAULT 'notset',
+            BioVisibility TEXT NOT NULL DEFAULT 'notset',
+            LevelVisibility TEXT NOT NULL DEFAULT 'notset',
+            GoalVisibility TEXT NOT NULL DEFAULT 'notset',
+            TrainingDaysVisibility TEXT NOT NULL DEFAULT 'notset',
+            WeightVisibility TEXT NOT NULL DEFAULT 'notset',
+            HeightVisibility TEXT NOT NULL DEFAULT 'notset',
+            AgeVisibility TEXT NOT NULL DEFAULT 'notset',
+            MemberSinceVisibility TEXT NOT NULL DEFAULT 'notset',
+            WorkoutsVisibility TEXT NOT NULL DEFAULT 'notset',
             FOREIGN KEY (UserId) REFERENCES Users(Id))");
     }
     catch { }

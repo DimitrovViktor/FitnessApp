@@ -56,15 +56,46 @@
                     <span class="bi bi-progress-nav-menu" aria-hidden="true"></span> Progress
                 </a>
             </div>
-
-            <div class="nav-item px-3">
-                <a class="nav-link @(IsActive("profile") ? "active" : "")" href="profile">
-                    <span class="bi bi-person-nav-menu" aria-hidden="true"></span> Profile
-                </a>
-            </div>
         </div>
 
         <div class="nav-footer px-3">
+            <div class="nav-profile @(_statusMenuOpen ? "menu-open" : "")">
+                <a class="nav-profile-id @(IsActive("profile") ? "active" : "")" href="profile" title="View profile">
+                    <span class="nav-avatar">
+                        @if (!string.IsNullOrEmpty(_avatarData))
+                        {
+                            <img src="@_avatarData" alt="Profile picture" />
+                        }
+                        else
+                        {
+                            <span class="nav-avatar-initials">@Initials</span>
+                        }
+                        <span class="nav-status-dot status-@_status"></span>
+                    </span>
+                    <span class="nav-profile-meta">
+                        <span class="nav-profile-name">@_username</span>
+                        <span class="nav-profile-status">@PresenceStatus.Label(_status)</span>
+                    </span>
+                </a>
+                <div class="nav-status-control" @onclick:stopPropagation>
+                    <button type="button" class="nav-status-toggle" title="Set status" aria-label="Set status" aria-expanded="@_statusMenuOpen" @onclick="ToggleStatusMenu">
+                        <span class="bi bi-chevron-nav-menu" aria-hidden="true"></span>
+                    </button>
+                    @if (_statusMenuOpen)
+                    {
+                        <div class="nav-status-menu" role="menu">
+                            @foreach (var option in PresenceStatus.Options)
+                            {
+                                <button type="button" class="nav-status-option @(option.Key == _status ? "active" : "")" role="menuitem" @onclick="() => SetStatus(option.Key)">
+                                    <span class="status-dot status-@option.Key"></span>
+                                    <span>@option.Label</span>
+                                </button>
+                            }
+                        </div>
+                    }
+                </div>
+            </div>
+
             <div class="nav-footer-actions">
                 <button type="button" class="nav-footer-button" @onclick="HandleLogout">
                     <span class="bi bi-logout-nav-menu" aria-hidden="true"></span>
@@ -90,12 +121,27 @@
     [Inject] private CustomAuthStateProvider AuthState { get; set; } = default!;
     [Inject] private NavigationManager Navigation { get; set; } = default!;
     [Inject] private SettingsService SettingsSvc { get; set; } = default!;
+    [Inject] private ProfileService ProfileSvc { get; set; } = default!;
+    [Inject] private ProfilePresenceState Presence { get; set; } = default!;
     [Parameter] public EventCallback<string> OnThemeChanged { get; set; }
 
     private bool _isAdmin;
     private bool _themesOpen;
+    private bool _statusMenuOpen;
     private int _userId;
     private string _currentTheme = "night";
+    private string _username = "";
+    private string? _avatarData;
+    private string _status = PresenceStatus.Online;
+
+    private string Initials
+    {
+        get
+        {
+            var source = string.IsNullOrWhiteSpace(_username) ? "?" : _username.Trim();
+            return source.Length == 0 ? "?" : source[..1].ToUpperInvariant();
+        }
+    }
 
     private ThemeOption CurrentTheme => SettingsService.Themes.FirstOrDefault(t => t.Key == _currentTheme) ?? SettingsService.Themes[0];
     private string ThemeIconClass => CurrentTheme.IsLight ? "icon-sun" : "icon-moon";
@@ -105,6 +151,7 @@
     protected override void OnInitialized()
     {
         Navigation.LocationChanged += OnLocationChanged;
+        Presence.OnChange += HandlePresenceChanged;
     }
 
     protected override async Task OnAfterRenderAsync(bool firstRender)
@@ -119,6 +166,7 @@
             {
                 _userId = int.Parse(state.User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)!.Value);
                 _currentTheme = await SettingsSvc.GetThemeAsync(_userId);
+                await LoadProfileSummary();
                 await OnThemeChanged.InvokeAsync(_currentTheme);
             }
             StateHasChanged();
@@ -126,8 +174,44 @@
         catch { }
     }
 
+    private async Task LoadProfileSummary()
+    {
+        if (_userId == 0) return;
+        var user = await ProfileSvc.GetUserAsync(_userId);
+        if (user is null) return;
+        _username = user.Username;
+        _avatarData = user.AvatarData;
+        _status = PresenceStatus.Normalize(user.Status);
+    }
+
+    private void HandlePresenceChanged()
+    {
+        InvokeAsync(async () =>
+        {
+            await LoadProfileSummary();
+            StateHasChanged();
+        });
+    }
+
+    private void ToggleStatusMenu()
+    {
+        _statusMenuOpen = !_statusMenuOpen;
+    }
+
+    private async Task SetStatus(string status)
+    {
+        _status = PresenceStatus.Normalize(status);
+        _statusMenuOpen = false;
+        if (_userId > 0)
+        {
+            await ProfileSvc.UpdateStatusAsync(_userId, _status);
+            Presence.NotifyChanged();
+        }
+    }
+
     private void OnLocationChanged(object? sender, LocationChangedEventArgs e)
     {
+        _statusMenuOpen = false;
         InvokeAsync(StateHasChanged);
     }
 
@@ -154,5 +238,6 @@
     public void Dispose()
     {
         Navigation.LocationChanged -= OnLocationChanged;
+        Presence.OnChange -= HandlePresenceChanged;
     }
 }

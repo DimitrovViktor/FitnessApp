@@ -32,6 +32,7 @@ public class AppDbContext : DbContext
     public DbSet<DietPlanFood> DietPlanFoods => Set<DietPlanFood>();
     public DbSet<DietSchedule> DietSchedules => Set<DietSchedule>();
     public DbSet<UserSettings> UserSettings => Set<UserSettings>();
+    public DbSet<ProfileSettings> ProfileSettings => Set<ProfileSettings>();
     public DbSet<BodyMeasurement> BodyMeasurements => Set<BodyMeasurement>();
     public DbSet<PersonalRecord> PersonalRecords => Set<PersonalRecord>();
     public DbSet<DailyLog> DailyLogs => Set<DailyLog>();
@@ -50,6 +51,7 @@ public class AppDbContext : DbContext
             e.Property(u => u.PasswordHash).IsRequired();
             e.Property(u => u.Bio).HasMaxLength(500);
             e.Property(u => u.AvatarUrl).HasMaxLength(512);
+            e.Property(u => u.Status).HasMaxLength(16).IsRequired();
             e.Property(u => u.WeightKg).HasPrecision(5, 2);
             e.Property(u => u.HeightCm).HasPrecision(5, 2);
         });
@@ -312,6 +314,22 @@ public class AppDbContext : DbContext
             e.Property(us => us.CalendarStart).HasMaxLength(16).IsRequired();
             e.Property(us => us.SocialVisibility).HasMaxLength(16).IsRequired();
             e.HasOne(us => us.User).WithMany().HasForeignKey(us => us.UserId);
+        });
+
+        mb.Entity<ProfileSettings>(e =>
+        {
+            e.HasIndex(ps => ps.UserId).IsUnique();
+            e.Property(ps => ps.NameVisibility).HasMaxLength(16).IsRequired();
+            e.Property(ps => ps.BioVisibility).HasMaxLength(16).IsRequired();
+            e.Property(ps => ps.LevelVisibility).HasMaxLength(16).IsRequired();
+            e.Property(ps => ps.GoalVisibility).HasMaxLength(16).IsRequired();
+            e.Property(ps => ps.TrainingDaysVisibility).HasMaxLength(16).IsRequired();
+            e.Property(ps => ps.WeightVisibility).HasMaxLength(16).IsRequired();
+            e.Property(ps => ps.HeightVisibility).HasMaxLength(16).IsRequired();
+            e.Property(ps => ps.AgeVisibility).HasMaxLength(16).IsRequired();
+            e.Property(ps => ps.MemberSinceVisibility).HasMaxLength(16).IsRequired();
+            e.Property(ps => ps.WorkoutsVisibility).HasMaxLength(16).IsRequired();
+            e.HasOne(ps => ps.User).WithMany().HasForeignKey(ps => ps.UserId);
         });
     }
 }

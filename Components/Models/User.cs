@@ -17,6 +17,8 @@ public class User
     public PrimaryGoal? PrimaryGoal { get; set; }
     public int? TrainingDaysPerWeek { get; set; }
     public string? AvatarUrl { get; set; }
+    public string? AvatarData { get; set; }
+    public string Status { get; set; } = "online";
     public string? Bio { get; set; }
     public bool OnboardingCompleted { get; set; }
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;

@@ -23,6 +23,55 @@ public class ProfileService
             .FirstOrDefaultAsync(u => u.Id == userId);
     }
 
+    public async Task<User?> GetUserAsync(int userId)
+    {
+        return await _db.Users.FindAsync(userId);
+    }
+
+    public async Task UpdateAvatarAsync(int userId, string? avatarData)
+    {
+        var user = await _db.Users.FindAsync(userId);
+        if (user is null) return;
+        user.AvatarData = avatarData;
+        await _db.SaveChangesAsync();
+    }
+
+    public async Task UpdateStatusAsync(int userId, string status)
+    {
+        var user = await _db.Users.FindAsync(userId);
+        if (user is null) return;
+        user.Status = PresenceStatus.Normalize(status);
+        await _db.SaveChangesAsync();
+    }
+
+    public async Task<ProfileSettings> GetProfileSettingsAsync(int userId)
+    {
+        var settings = await _db.ProfileSettings.FirstOrDefaultAsync(p => p.UserId == userId);
+        if (settings is null)
+        {
+            settings = new ProfileSettings { UserId = userId };
+            _db.ProfileSettings.Add(settings);
+            await _db.SaveChangesAsync();
+        }
+        return settings;
+    }
+
+    public async Task SaveProfileSettingsAsync(int userId, ProfileSettings incoming)
+    {
+        var settings = await GetProfileSettingsAsync(userId);
+        settings.NameVisibility = incoming.NameVisibility;
+        settings.BioVisibility = incoming.BioVisibility;
+        settings.LevelVisibility = incoming.LevelVisibility;
+        settings.GoalVisibility = incoming.GoalVisibility;
+        settings.TrainingDaysVisibility = incoming.TrainingDaysVisibility;
+        settings.WeightVisibility = incoming.WeightVisibility;
+        settings.HeightVisibility = incoming.HeightVisibility;
+        settings.AgeVisibility = incoming.AgeVisibility;
+        settings.MemberSinceVisibility = incoming.MemberSinceVisibility;
+        settings.WorkoutsVisibility = incoming.WorkoutsVisibility;
+        await _db.SaveChangesAsync();
+    }
+
     public async Task<List<Equipment>> GetAllEquipmentAsync()
     {
         return await _db.Equipment.OrderBy(e => e.Name).ToListAsync();
