@@ -16,7 +16,7 @@ Activity scheduling
 
 ## Profile
 
-User information storage with editing functionality
+User information storage with personal and private details about user
 
 ## Admin page
 
