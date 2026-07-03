@@ -1,0 +1,46 @@
+@page "/social"
+@page "/social/global"
+@inject NavigationManager Navigation
+@implements IDisposable
+
+<div class="hub-page hub-wide">
+    <PageTabs Tabs="_tabs" ActivePath="@_current" />
+
+    @if (_current == "social/global")
+    {
+        <SocialGlobal />
+    }
+    else
+    {
+        <DirectMessages />
+    }
+</div>
+
+@code {
+    private static readonly IReadOnlyList<NavTab> _tabs = new List<NavTab>
+    {
+        new("social", "Direct Messages"),
+        new("social/global", "Global")
+    };
+
+    private string _current = "social";
+
+    protected override void OnInitialized()
+    {
+        _current = HubNav.CurrentPath(Navigation);
+        Navigation.LocationChanged += OnLocationChanged;
+    }
+
+    private void OnLocationChanged(object? sender, LocationChangedEventArgs e)
+    {
+        var next = HubNav.CurrentPath(Navigation);
+        if (next == _current) return;
+        _current = next;
+        InvokeAsync(StateHasChanged);
+    }
+
+    public void Dispose()
+    {
+        Navigation.LocationChanged -= OnLocationChanged;
+    }
+}

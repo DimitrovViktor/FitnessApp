@@ -1,0 +1,36 @@
+<span class="ua" style="width:@(Dim)px;height:@(Dim)px">
+    @if (!string.IsNullOrEmpty(AvatarData))
+    {
+        <img class="ua-img" src="@AvatarData" alt="" style="width:@(Dim)px;height:@(Dim)px" />
+    }
+    else
+    {
+        <span class="ua-initials" style="width:@(Dim)px;height:@(Dim)px;font-size:@(FontDim)px">@Initials</span>
+    }
+    @if (ShowStatus)
+    {
+        <span class="ua-dot status-@StatusKey" style="width:@(DotDim)px;height:@(DotDim)px" title="@PresenceStatus.Label(StatusKey)"></span>
+    }
+</span>
+
+@code {
+    [Parameter] public string? AvatarData { get; set; }
+    [Parameter] public string Name { get; set; } = "";
+    [Parameter] public bool ShowStatus { get; set; }
+    [Parameter] public string Status { get; set; } = "online";
+    [Parameter] public string Size { get; set; } = "md";
+
+    private string StatusKey => PresenceStatus.Normalize(Status);
+    private int Dim => Size switch { "sm" => 30, "lg" => 52, _ => 42 };
+    private int FontDim => Size switch { "sm" => 12, "lg" => 19, _ => 15 };
+    private int DotDim => Size switch { "sm" => 9, "lg" => 14, _ => 12 };
+
+    private string Initials
+    {
+        get
+        {
+            var source = string.IsNullOrWhiteSpace(Name) ? "?" : Name.Trim();
+            return source.Length == 0 ? "?" : source[..1].ToUpperInvariant();
+        }
+    }
+}

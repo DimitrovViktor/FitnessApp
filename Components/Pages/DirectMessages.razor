@@ -1,0 +1,430 @@
+@inject DirectMessageService Dm
+@inject ChatBroker Broker
+@inject CustomAuthStateProvider AuthState
+@inject NavigationManager Navigation
+@inject IJSRuntime JS
+@implements IDisposable
+
+@if (_loading)
+{
+    <div class="loading-state">
+        <p>Loading...</p>
+    </div>
+}
+else
+{
+    <div class="dm">
+        <aside class="dm-side">
+            <div class="dm-search">
+                <input type="search" class="dm-search-input" placeholder="Search people by username" value="@_search" @oninput="OnSearchInput" />
+                @if (_searchResults.Count > 0)
+                {
+                    <div class="dm-results">
+                        @foreach (var result in _searchResults)
+                        {
+                            <div class="dm-result" @onclick="() => StartConversation(result.Id)">
+                                <UserAvatar AvatarData="@result.AvatarData" Name="@result.Username" ShowStatus="true" Status="@result.Status" Size="sm" />
+                                <div class="dm-result-text">
+                                    <span class="dm-result-name">@result.Username</span>
+                                    <span class="dm-result-sub">@PresenceStatus.Label(result.Status)</span>
+                                </div>
+
+                                <div class="dm-hovercard">
+                                    <div class="dm-hovercard-head">
+                                        <UserAvatar AvatarData="@result.Profile.AvatarData" Name="@result.Username" ShowStatus="true" Status="@result.Status" Size="lg" />
+                                        <div class="dm-hovercard-id">
+                                            <span class="dm-hovercard-username">@result.Username</span>
+                                            @if (!string.IsNullOrWhiteSpace(result.Profile.DisplayName))
+                                            {
+                                                <span class="dm-hovercard-name">@result.Profile.DisplayName</span>
+                                            }
+                                            <span class="dm-hovercard-status">@PresenceStatus.Label(result.Status)</span>
+                                        </div>
+                                    </div>
+                                    @if (!string.IsNullOrWhiteSpace(result.Profile.Bio))
+                                    {
+                                        <p class="dm-hovercard-bio">@result.Profile.Bio</p>
+                                    }
+                                    @if (result.Profile.Stats.Count > 0)
+                                    {
+                                        <div class="dm-hovercard-stats">
+                                            @foreach (var stat in result.Profile.Stats)
+                                            {
+                                                <div class="dm-hovercard-stat">
+                                                    <span class="dm-hovercard-stat-label">@stat.Label</span>
+                                                    <span class="dm-hovercard-stat-value">@stat.Value</span>
+                                                </div>
+                                            }
+                                        </div>
+                                    }
+                                    else if (string.IsNullOrWhiteSpace(result.Profile.Bio) && string.IsNullOrWhiteSpace(result.Profile.DisplayName))
+                                    {
+                                        <p class="dm-hovercard-empty">This member keeps their profile private.</p>
+                                    }
+                                </div>
+                            </div>
+                        }
+                    </div>
+                }
+            </div>
+
+            <div class="dm-conversations">
+                @if (_conversations.Count == 0)
+                {
+                    <p class="dm-empty-list">No conversations yet. Search a username above to start chatting.</p>
+                }
+                else
+                {
+                    @foreach (var convo in _conversations)
+                    {
+                        <div class="dm-convo @(convo.Id == _activeConversationId ? "active" : "")" @onclick="() => OpenConversation(convo)">
+                            <UserAvatar AvatarData="@convo.OtherAvatarData" Name="@convo.OtherUsername" ShowStatus="true" Status="@convo.OtherStatus" Size="md" />
+                            <div class="dm-convo-text">
+                                <span class="dm-convo-name">@convo.OtherUsername</span>
+                                <span class="dm-convo-preview">@(string.IsNullOrEmpty(convo.LastMessagePreview) ? "Say hello" : convo.LastMessagePreview)</span>
+                            </div>
+                            @if (convo.UnreadCount > 0)
+                            {
+                                <span class="dm-badge">@convo.UnreadCount</span>
+                            }
+                        </div>
+                    }
+                }
+            </div>
+        </aside>
+
+        <section class="dm-main">
+            @if (_activeConversationId is null || _activeOther is null)
+            {
+                <div class="dm-placeholder">
+                    <span class="dm-placeholder-icon" aria-hidden="true"></span>
+                    <h2>Your messages</h2>
+                    <p>Search for someone by their username to start a direct message. Hover a result to peek at their public profile.</p>
+                </div>
+            }
+            else
+            {
+                <header class="dm-chat-head">
+                    <UserAvatar AvatarData="@_activeOther.OtherAvatarData" Name="@_activeOther.OtherUsername" ShowStatus="true" Status="@_activeOther.OtherStatus" Size="md" />
+                    <div class="dm-chat-head-text">
+                        <span class="dm-chat-head-name">@_activeOther.OtherUsername</span>
+                        <span class="dm-chat-head-status">@PresenceStatus.Label(_activeOther.OtherStatus)</span>
+                    </div>
+                </header>
+
+                <div class="dm-messages" @ref="_messagesRef">
+                    @if (_messages.Count == 0)
+                    {
+                        <div class="dm-thread-empty">This is the start of your conversation with @_activeOther.OtherUsername.</div>
+                    }
+                    @foreach (var message in _messages)
+                    {
+                        var mine = message.SenderId == _userId;
+                        <div class="dm-msg @(mine ? "mine" : "theirs")">
+                            <div class="dm-bubble">
+                                @if (!string.IsNullOrEmpty(message.AttachmentData))
+                                {
+                                    @if (message.IsImage)
+                                    {
+                                        <a class="dm-image" href="@message.AttachmentData" target="_blank" rel="noopener">
+                                            <img src="@message.AttachmentData" alt="@message.AttachmentName" />
+                                        </a>
+                                    }
+                                    else
+                                    {
+                                        <a class="dm-file" href="@message.AttachmentData" download="@message.AttachmentName">
+                                            <span class="dm-file-icon" aria-hidden="true"></span>
+                                            <span class="dm-file-meta">
+                                                <span class="dm-file-name">@message.AttachmentName</span>
+                                                <span class="dm-file-size">@FormatSize(message.AttachmentSize)</span>
+                                            </span>
+                                        </a>
+                                    }
+                                }
+                                @if (!string.IsNullOrEmpty(message.Content))
+                                {
+                                    <span class="dm-text">@message.Content</span>
+                                }
+                                <span class="dm-time">@FormatTime(message.CreatedAt)</span>
+                            </div>
+                        </div>
+                    }
+                </div>
+
+                <div class="dm-composer">
+                    @if (_pendingAttachment is not null)
+                    {
+                        <div class="dm-attach-preview">
+                            @if (_pendingAttachment.IsImage)
+                            {
+                                <img class="dm-attach-thumb" src="@_pendingAttachment.Data" alt="@_pendingAttachment.Name" />
+                            }
+                            else
+                            {
+                                <span class="dm-attach-fileicon" aria-hidden="true"></span>
+                            }
+                            <div class="dm-attach-meta">
+                                <span class="dm-attach-name">@_pendingAttachment.Name</span>
+                                <span class="dm-attach-size">@FormatSize(_pendingAttachment.Size)</span>
+                            </div>
+                            <button type="button" class="dm-attach-remove" @onclick="RemoveAttachment" aria-label="Remove attachment">Remove</button>
+                        </div>
+                    }
+                    @if (!string.IsNullOrEmpty(_attachmentError))
+                    {
+                        <p class="dm-attach-error">@_attachmentError</p>
+                    }
+                    <div class="dm-composer-row">
+                        <label class="dm-attach-btn" title="Attach image or file" aria-label="Attach image or file">
+                            <span class="dm-attach-btn-icon" aria-hidden="true"></span>
+                            <InputFile OnChange="OnAttachmentSelected" accept="image/*,.pdf,.txt,.zip,.csv,.doc,.docx,.xls,.xlsx" />
+                        </label>
+                        <textarea @ref="_composerRef" class="dm-input" rows="1" placeholder="Message @_activeOther.OtherUsername" value="@_draft" @oninput="OnDraftInput"></textarea>
+                        <button type="button" class="dm-send" @onclick="SendMessage" disabled="@(_sending || (string.IsNullOrWhiteSpace(_draft) && _pendingAttachment is null))">Send</button>
+                    </div>
+                </div>
+            }
+        </section>
+    </div>
+}
+
+@code {
+    private bool _loading = true;
+    private int _userId;
+    private string _username = "";
+
+    private List<ConversationDto> _conversations = new();
+    private string _search = "";
+    private List<UserSearchResult> _searchResults = new();
+
+    private int? _activeConversationId;
+    private ConversationDto? _activeOther;
+    private List<ChatMessageDto> _messages = new();
+
+    private string _draft = "";
+    private AttachmentInput? _pendingAttachment;
+    private string? _attachmentError;
+    private bool _sending;
+
+    private bool _scrollPending;
+    private ElementReference _messagesRef;
+    private ElementReference _composerRef;
+    private DotNetObjectReference<DirectMessages>? _dotNetRef;
+    private int? _boundComposerConversation;
+    private IDisposable? _subscription;
+
+    private const long MaxAttachmentBytes = 5 * 1024 * 1024;
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender)
+        {
+            var state = await AuthState.GetAuthenticationStateAsync();
+            if (state.User.Identity is not { IsAuthenticated: true })
+            {
+                try { Navigation.NavigateTo("/login", forceLoad: true); } catch { }
+                return;
+            }
+
+            _userId = int.Parse(state.User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)!.Value);
+            _username = state.User.FindFirst("Username")?.Value ?? state.User.Identity.Name ?? "User";
+            _conversations = await Dm.GetConversationsAsync(_userId);
+            _subscription = Broker.Subscribe(_userId, OnBrokerEvent);
+            _loading = false;
+            StateHasChanged();
+            return;
+        }
+
+        if (_activeConversationId is not null && _boundComposerConversation != _activeConversationId)
+        {
+            _boundComposerConversation = _activeConversationId;
+            _dotNetRef ??= DotNetObjectReference.Create(this);
+            try { await JS.InvokeVoidAsync("chatComposerInit", _composerRef, _dotNetRef); } catch { }
+        }
+
+        if (_scrollPending && _activeConversationId is not null)
+        {
+            _scrollPending = false;
+            try { await JS.InvokeVoidAsync("chatScrollToBottom", _messagesRef); } catch { }
+        }
+    }
+
+    [JSInvokable]
+    public async Task ComposerSend(string currentText)
+    {
+        _draft = currentText;
+        await SendMessage();
+        StateHasChanged();
+    }
+
+    private async Task OnSearchInput(ChangeEventArgs e)
+    {
+        _search = e?.Value?.ToString() ?? "";
+        if (_search.Trim().Length == 0)
+        {
+            _searchResults = new();
+            return;
+        }
+        _searchResults = await Dm.SearchUsersAsync(_userId, _search);
+    }
+
+    private void OnDraftInput(ChangeEventArgs e) => _draft = e?.Value?.ToString() ?? "";
+
+    private async Task StartConversation(int otherId)
+    {
+        var convo = await Dm.GetOrCreateConversationAsync(_userId, otherId);
+        if (convo is null) return;
+
+        _search = "";
+        _searchResults = new();
+
+        var existing = _conversations.FirstOrDefault(c => c.Id == convo.Id);
+        if (existing is null)
+            _conversations = _conversations.Prepend(convo).ToList();
+        else
+            convo = existing;
+
+        await OpenConversation(convo);
+    }
+
+    private async Task OpenConversation(ConversationDto convo)
+    {
+        _activeConversationId = convo.Id;
+        _activeOther = convo;
+        _messages = await Dm.GetMessagesAsync(_userId, convo.Id);
+        await Dm.MarkReadAsync(_userId, convo.Id);
+        _conversations = _conversations.Select(c => c.Id == convo.Id ? c with { UnreadCount = 0 } : c).ToList();
+        _scrollPending = true;
+    }
+
+    private async Task SendMessage()
+    {
+        if (_sending || _activeConversationId is null || _activeOther is null) return;
+
+        var text = _draft?.Trim() ?? "";
+        if (text.Length == 0 && _pendingAttachment is null) return;
+
+        var conversationId = _activeConversationId.Value;
+        var otherId = _activeOther.OtherUserId;
+        var attachment = _pendingAttachment;
+
+        _sending = true;
+        _draft = "";
+        _pendingAttachment = null;
+        _attachmentError = null;
+        StateHasChanged();
+
+        var dto = await Dm.SendMessageAsync(_userId, conversationId, text, attachment);
+        _sending = false;
+
+        if (dto is null) return;
+        Broker.Publish(new ChatEvent(conversationId, _userId, otherId, dto));
+    }
+
+    private async Task OnAttachmentSelected(InputFileChangeEventArgs e)
+    {
+        _attachmentError = null;
+        var file = e.File;
+        if (file is null) return;
+
+        if (file.Size > MaxAttachmentBytes)
+        {
+            _attachmentError = "Files must be 5 MB or smaller.";
+            return;
+        }
+
+        try
+        {
+            using var stream = file.OpenReadStream(MaxAttachmentBytes);
+            using var ms = new MemoryStream();
+            await stream.CopyToAsync(ms);
+            var contentType = string.IsNullOrEmpty(file.ContentType) ? "application/octet-stream" : file.ContentType;
+            _pendingAttachment = new AttachmentInput
+            {
+                Data = $"data:{contentType};base64,{Convert.ToBase64String(ms.ToArray())}",
+                Name = file.Name,
+                Type = contentType,
+                IsImage = contentType.StartsWith("image/", StringComparison.OrdinalIgnoreCase),
+                Size = file.Size
+            };
+        }
+        catch
+        {
+            _attachmentError = "Could not read that file. Please try another.";
+        }
+    }
+
+    private void RemoveAttachment()
+    {
+        _pendingAttachment = null;
+        _attachmentError = null;
+    }
+
+    private void OnBrokerEvent(ChatEvent message)
+    {
+        _ = InvokeAsync(async () =>
+        {
+            await ApplyIncomingAsync(message);
+            StateHasChanged();
+        });
+    }
+
+    private async Task ApplyIncomingAsync(ChatEvent message)
+    {
+        var isActive = _activeConversationId == message.ConversationId;
+        var fromMe = message.Message.SenderId == _userId;
+
+        if (isActive)
+        {
+            if (_messages.All(m => m.Id != message.Message.Id))
+            {
+                _messages.Add(message.Message);
+                _scrollPending = true;
+            }
+            if (!fromMe)
+                await Dm.MarkReadAsync(_userId, message.ConversationId);
+        }
+
+        var convo = _conversations.FirstOrDefault(c => c.Id == message.ConversationId);
+        if (convo is null)
+        {
+            _conversations = await Dm.GetConversationsAsync(_userId);
+            return;
+        }
+
+        var unread = convo.UnreadCount;
+        if (isActive) unread = 0;
+        else if (!fromMe) unread += 1;
+
+        var updated = convo with
+        {
+            LastMessagePreview = PreviewFor(message.Message),
+            LastMessageAt = message.Message.CreatedAt,
+            UnreadCount = unread
+        };
+        _conversations = _conversations.Where(c => c.Id != convo.Id).Prepend(updated).ToList();
+    }
+
+    private static string PreviewFor(ChatMessageDto message)
+    {
+        if (!string.IsNullOrWhiteSpace(message.Content)) return message.Content!;
+        if (message.IsImage) return "Photo";
+        return string.IsNullOrWhiteSpace(message.AttachmentName) ? "Attachment" : message.AttachmentName!;
+    }
+
+    private static string FormatTime(DateTime utc) => utc.ToLocalTime().ToString("HH:mm");
+
+    private static string FormatSize(long bytes)
+    {
+        if (bytes <= 0) return "";
+        if (bytes < 1024) return $"{bytes} B";
+        if (bytes < 1024 * 1024) return $"{bytes / 1024d:0.#} KB";
+        return $"{bytes / (1024d * 1024d):0.#} MB";
+    }
+
+    public void Dispose()
+    {
+        _subscription?.Dispose();
+        _dotNetRef?.Dispose();
+    }
+}

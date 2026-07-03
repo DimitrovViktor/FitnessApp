@@ -295,8 +295,8 @@ public static class DbSeeder
         var exerciseList = await db.Exercises.Select(e => new { e.Id, e.Name }).ToListAsync();
         var programList = await db.Programs.Select(p => new { p.Id, p.Name }).ToListAsync();
 
-        var exercises = exerciseList.ToDictionary(e => e.Name, e => e.Id, StringComparer.OrdinalIgnoreCase);
-        var programs = programList.ToDictionary(p => p.Name, p => p.Id, StringComparer.OrdinalIgnoreCase);
+        var exercises = BuildNameIdMap(exerciseList, e => e.Name, e => e.Id);
+        var programs = BuildNameIdMap(programList, p => p.Name, p => p.Id);
 
         var workouts = new List<(string Program, string Name, int Sort, (string Ex, int Sets, int Reps, int RestSec)[] Items)>
         {
@@ -546,6 +546,14 @@ public static class DbSeeder
     }
 
     private static string JsonList(params string[] items) => System.Text.Json.JsonSerializer.Serialize(items);
+
+    private static Dictionary<string, int> BuildNameIdMap<T>(IEnumerable<T> items, Func<T, string> nameSelector, Func<T, int> idSelector)
+    {
+        var map = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
+        foreach (var item in items)
+            map.TryAdd(nameSelector(item), idSelector(item));
+        return map;
+    }
 
     private static List<ExerciseSeed> BuildExerciseList()
     {

@@ -25,6 +25,8 @@ builder.Services.AddScoped<AuthenticationStateProvider>(sp =>
 builder.Services.AddScoped<ProgressService>();
 builder.Services.AddScoped<DietService>();
 builder.Services.AddScoped<ProfilePresenceState>();
+builder.Services.AddScoped<DirectMessageService>();
+builder.Services.AddSingleton<ChatBroker>();
 
 var app = builder.Build();
 
@@ -242,6 +244,50 @@ using (var scope = app.Services.CreateScope())
             MemberSinceVisibility TEXT NOT NULL DEFAULT 'notset',
             WorkoutsVisibility TEXT NOT NULL DEFAULT 'notset',
             FOREIGN KEY (UserId) REFERENCES Users(Id))");
+    }
+    catch { }
+
+    try
+    {
+        db.Database.ExecuteSqlRaw(@"CREATE TABLE IF NOT EXISTS Conversations (
+            Id INTEGER PRIMARY KEY AUTOINCREMENT,
+            User1Id INTEGER NOT NULL,
+            User2Id INTEGER NOT NULL,
+            CreatedAt TEXT NOT NULL,
+            LastMessageAt TEXT NOT NULL,
+            FOREIGN KEY (User1Id) REFERENCES Users(Id),
+            FOREIGN KEY (User2Id) REFERENCES Users(Id))");
+    }
+    catch { }
+
+    try
+    {
+        db.Database.ExecuteSqlRaw("CREATE UNIQUE INDEX IF NOT EXISTS IX_Conversations_User1Id_User2Id ON Conversations (User1Id, User2Id)");
+    }
+    catch { }
+
+    try
+    {
+        db.Database.ExecuteSqlRaw(@"CREATE TABLE IF NOT EXISTS DirectMessages (
+            Id INTEGER PRIMARY KEY AUTOINCREMENT,
+            ConversationId INTEGER NOT NULL,
+            SenderId INTEGER NOT NULL,
+            Content TEXT NULL,
+            AttachmentData TEXT NULL,
+            AttachmentName TEXT NULL,
+            AttachmentType TEXT NULL,
+            IsImage INTEGER NOT NULL DEFAULT 0,
+            AttachmentSize INTEGER NOT NULL DEFAULT 0,
+            IsRead INTEGER NOT NULL DEFAULT 0,
+            CreatedAt TEXT NOT NULL,
+            FOREIGN KEY (ConversationId) REFERENCES Conversations(Id),
+            FOREIGN KEY (SenderId) REFERENCES Users(Id))");
+    }
+    catch { }
+
+    try
+    {
+        db.Database.ExecuteSqlRaw("CREATE INDEX IF NOT EXISTS IX_DirectMessages_ConversationId_CreatedAt ON DirectMessages (ConversationId, CreatedAt)");
     }
     catch { }
 

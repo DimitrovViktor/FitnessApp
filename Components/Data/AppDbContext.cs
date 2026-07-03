@@ -33,6 +33,8 @@ public class AppDbContext : DbContext
     public DbSet<DietSchedule> DietSchedules => Set<DietSchedule>();
     public DbSet<UserSettings> UserSettings => Set<UserSettings>();
     public DbSet<ProfileSettings> ProfileSettings => Set<ProfileSettings>();
+    public DbSet<Conversation> Conversations => Set<Conversation>();
+    public DbSet<DirectMessage> DirectMessages => Set<DirectMessage>();
     public DbSet<BodyMeasurement> BodyMeasurements => Set<BodyMeasurement>();
     public DbSet<PersonalRecord> PersonalRecords => Set<PersonalRecord>();
     public DbSet<DailyLog> DailyLogs => Set<DailyLog>();
@@ -330,6 +332,23 @@ public class AppDbContext : DbContext
             e.Property(ps => ps.MemberSinceVisibility).HasMaxLength(16).IsRequired();
             e.Property(ps => ps.WorkoutsVisibility).HasMaxLength(16).IsRequired();
             e.HasOne(ps => ps.User).WithMany().HasForeignKey(ps => ps.UserId);
+        });
+
+        mb.Entity<Conversation>(e =>
+        {
+            e.HasIndex(c => new { c.User1Id, c.User2Id }).IsUnique();
+            e.HasOne(c => c.User1).WithMany().HasForeignKey(c => c.User1Id).OnDelete(DeleteBehavior.Restrict);
+            e.HasOne(c => c.User2).WithMany().HasForeignKey(c => c.User2Id).OnDelete(DeleteBehavior.Restrict);
+        });
+
+        mb.Entity<DirectMessage>(e =>
+        {
+            e.HasIndex(m => new { m.ConversationId, m.CreatedAt });
+            e.Property(m => m.Content).HasMaxLength(4000);
+            e.Property(m => m.AttachmentName).HasMaxLength(255);
+            e.Property(m => m.AttachmentType).HasMaxLength(120);
+            e.HasOne(m => m.Conversation).WithMany(c => c.Messages).HasForeignKey(m => m.ConversationId);
+            e.HasOne(m => m.Sender).WithMany().HasForeignKey(m => m.SenderId).OnDelete(DeleteBehavior.Restrict);
         });
     }
 }
