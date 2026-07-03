@@ -58,8 +58,6 @@ A list of foods sorted in categories
 
 ### Features and functionality
 
-- Social - users can search for each other and add each other as friends
-- Direct messaging - users can directly message each other
 - Social global - users can make posts to share custom workouts, make posts, interact with others who use the app
 - Add functionality to settings placeholders
 
