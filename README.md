@@ -54,6 +54,12 @@ Build diet plans for different purposes
 
 A list of foods sorted in categories
 
+## Social Section
+
+### Direct Messages
+
+Users can message each other
+
 ## To-do
 
 ### Features and functionality
