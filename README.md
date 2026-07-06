@@ -70,3 +70,4 @@ Users can message each other
 ### UI
 
 - Make UI simpler, more intuitive
+- Improve UI for mobile users
