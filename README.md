@@ -58,7 +58,7 @@ A list of foods sorted in categories
 
 ### Direct Messages
 
-Users can message each other
+Users can message each other and attach images/files
 
 ## To-do
 
