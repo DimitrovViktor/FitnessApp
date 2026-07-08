@@ -64,6 +64,7 @@ Users can message each other and attach images/files
 
 ### Features and functionality
 
+- add edit/delete functionality to direct messages
 - Social global - users can make posts to share custom workouts, make posts, interact with others who use the app
 - Add functionality to settings placeholders
 
