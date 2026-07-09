@@ -54,13 +54,21 @@ Build diet plans for different purposes
 
 A list of foods sorted in categories
 
+## Social Section
+
+### Direct Messages
+
+Users can message each other and attach images/files
+
 ## To-do
 
 ### Features and functionality
 
+- add edit/delete functionality to direct messages
 - Social global - users can make posts to share custom workouts, make posts, interact with others who use the app
 - Add functionality to settings placeholders
 
 ### UI
 
 - Make UI simpler, more intuitive
+- Improve UI for mobile users
