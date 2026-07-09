@@ -345,6 +345,7 @@
 }
 
 .dm-msg {
+    position: relative;
     display: flex;
     max-width: 78%;
 }
@@ -474,11 +475,160 @@
     opacity: .75;
 }
 
-.dm-time {
+.dm-meta {
+    display: flex;
+    align-items: center;
+    gap: 6px;
     align-self: flex-end;
+}
+
+.dm-time {
     font-size: 10px;
     font-weight: 600;
     opacity: .7;
+}
+
+.dm-edited {
+    font-size: 10px;
+    font-weight: 600;
+    font-style: italic;
+    opacity: .6;
+}
+
+.dm-deleted {
+    font-size: 13px;
+    font-style: italic;
+    opacity: .7;
+}
+
+.dm-bubble.selectable {
+    cursor: pointer;
+}
+
+.dm-actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 6px;
+    margin-top: 2px;
+    padding-top: 8px;
+}
+
+.dm-msg.mine .dm-actions {
+    border-top: 1px solid rgba(255, 255, 255, .25);
+}
+
+.dm-msg.theirs .dm-actions {
+    border-top: 1px solid var(--border);
+}
+
+.dm-action {
+    border: none;
+    font-family: inherit;
+    font-size: 11px;
+    font-weight: 700;
+    padding: 4px 10px;
+    border-radius: 7px;
+    cursor: pointer;
+    transition: background .12s ease, color .12s ease;
+}
+
+.dm-msg.mine .dm-action {
+    background: rgba(255, 255, 255, .22);
+    color: var(--on-accent);
+}
+
+.dm-msg.mine .dm-action:hover {
+    background: rgba(255, 255, 255, .34);
+}
+
+.dm-msg.theirs .dm-action {
+    background: var(--bg-subtle);
+    color: var(--t2);
+    border: 1px solid var(--border);
+}
+
+.dm-msg.theirs .dm-action:hover {
+    color: var(--t1);
+    border-color: var(--border-hover);
+}
+
+.dm-msg.mine .dm-action-danger:hover {
+    background: var(--danger);
+    color: var(--on-accent);
+}
+
+.dm-msg.theirs .dm-action-danger:hover {
+    color: var(--danger);
+    border-color: var(--danger);
+}
+
+.dm-edit {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    min-width: 240px;
+}
+
+.dm-edit-input {
+    width: 100%;
+    box-sizing: border-box;
+    resize: vertical;
+    min-height: 46px;
+    max-height: 180px;
+    padding: 8px 10px;
+    font-family: inherit;
+    font-size: 13.5px;
+    line-height: 1.45;
+    color: var(--t1);
+    background: var(--bg);
+    border: 1px solid var(--border-input);
+    border-radius: 9px;
+    outline: none;
+}
+
+.dm-edit-input:focus {
+    border-color: var(--accent);
+}
+
+.dm-edit-actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 6px;
+}
+
+.dm-edit-cancel,
+.dm-edit-save {
+    border: none;
+    font-family: inherit;
+    font-size: 12px;
+    font-weight: 700;
+    padding: 5px 12px;
+    border-radius: 8px;
+    cursor: pointer;
+}
+
+.dm-edit-cancel {
+    background: var(--bg-subtle);
+    color: var(--t2);
+    border: 1px solid var(--border);
+}
+
+.dm-edit-cancel:hover {
+    color: var(--t1);
+}
+
+.dm-edit-save {
+    background: var(--accent);
+    color: var(--on-accent);
+}
+
+.dm-edit-save:hover {
+    opacity: .9;
+}
+
+.dm-edit-save:disabled {
+    opacity: .5;
+    cursor: not-allowed;
 }
 
 .dm-composer {

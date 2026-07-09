@@ -120,32 +120,67 @@ else
                     @foreach (var message in _messages)
                     {
                         var mine = message.SenderId == _userId;
+                        var selectable = mine && !message.IsDeleted && _editingMessageId != message.Id;
                         <div class="dm-msg @(mine ? "mine" : "theirs")">
-                            <div class="dm-bubble">
-                                @if (!string.IsNullOrEmpty(message.AttachmentData))
+                            <div class="dm-bubble @(selectable ? "selectable" : "")" @onclick="() => ToggleActions(message.Id, selectable)">
+                                @if (message.IsDeleted)
                                 {
-                                    @if (message.IsImage)
+                                    <span class="dm-deleted">This message was deleted</span>
+                                    <span class="dm-meta"><span class="dm-time">@FormatTime(message.CreatedAt)</span></span>
+                                }
+                                else if (_editingMessageId == message.Id)
+                                {
+                                    <div class="dm-edit">
+                                        <textarea class="dm-edit-input" value="@_editDraft" @oninput="OnEditInput" @onkeydown="HandleEditKeyDown"></textarea>
+                                        <div class="dm-edit-actions">
+                                            <button type="button" class="dm-edit-cancel" @onclick="CancelEdit" @onclick:stopPropagation="true">Cancel</button>
+                                            <button type="button" class="dm-edit-save" @onclick="SaveEdit" @onclick:stopPropagation="true" disabled="@(string.IsNullOrWhiteSpace(_editDraft))">Save</button>
+                                        </div>
+                                    </div>
+                                }
+                                else
+                                {
+                                    @if (!string.IsNullOrEmpty(message.AttachmentData))
                                     {
-                                        <a class="dm-image" href="@message.AttachmentData" target="_blank" rel="noopener">
-                                            <img src="@message.AttachmentData" alt="@message.AttachmentName" />
-                                        </a>
+                                        @if (message.IsImage)
+                                        {
+                                            <a class="dm-image" href="@message.AttachmentData" target="_blank" rel="noopener" @onclick:stopPropagation="true">
+                                                <img src="@message.AttachmentData" alt="@message.AttachmentName" />
+                                            </a>
+                                        }
+                                        else
+                                        {
+                                            <a class="dm-file" href="@message.AttachmentData" download="@message.AttachmentName" @onclick:stopPropagation="true">
+                                                <span class="dm-file-icon" aria-hidden="true"></span>
+                                                <span class="dm-file-meta">
+                                                    <span class="dm-file-name">@message.AttachmentName</span>
+                                                    <span class="dm-file-size">@FormatSize(message.AttachmentSize)</span>
+                                                </span>
+                                            </a>
+                                        }
                                     }
-                                    else
+                                    @if (!string.IsNullOrEmpty(message.Content))
                                     {
-                                        <a class="dm-file" href="@message.AttachmentData" download="@message.AttachmentName">
-                                            <span class="dm-file-icon" aria-hidden="true"></span>
-                                            <span class="dm-file-meta">
-                                                <span class="dm-file-name">@message.AttachmentName</span>
-                                                <span class="dm-file-size">@FormatSize(message.AttachmentSize)</span>
-                                            </span>
-                                        </a>
+                                        <span class="dm-text">@message.Content</span>
+                                    }
+                                    <span class="dm-meta">
+                                        <span class="dm-time">@FormatTime(message.CreatedAt)</span>
+                                        @if (message.IsEdited)
+                                        {
+                                            <span class="dm-edited">edited</span>
+                                        }
+                                    </span>
+                                    @if (selectable && _selectedMessageId == message.Id)
+                                    {
+                                        <div class="dm-actions">
+                                            @if (!string.IsNullOrEmpty(message.Content))
+                                            {
+                                                <button type="button" class="dm-action" @onclick="() => StartEdit(message)" @onclick:stopPropagation="true">Edit</button>
+                                            }
+                                            <button type="button" class="dm-action dm-action-danger" @onclick="() => DeleteMessage(message.Id)" @onclick:stopPropagation="true">Delete</button>
+                                        </div>
                                     }
                                 }
-                                @if (!string.IsNullOrEmpty(message.Content))
-                                {
-                                    <span class="dm-text">@message.Content</span>
-                                }
-                                <span class="dm-time">@FormatTime(message.CreatedAt)</span>
                             </div>
                         </div>
                     }
@@ -205,6 +240,10 @@ else
     private AttachmentInput? _pendingAttachment;
     private string? _attachmentError;
     private bool _sending;
+
+    private int? _editingMessageId;
+    private string _editDraft = "";
+    private int? _selectedMessageId;
 
     private bool _scrollPending;
     private ElementReference _messagesRef;
@@ -291,6 +330,9 @@ else
     {
         _activeConversationId = convo.Id;
         _activeOther = convo;
+        _selectedMessageId = null;
+        _editingMessageId = null;
+        _editDraft = "";
         _messages = await Dm.GetMessagesAsync(_userId, convo.Id);
         await Dm.MarkReadAsync(_userId, convo.Id);
         _conversations = _conversations.Select(c => c.Id == convo.Id ? c with { UnreadCount = 0 } : c).ToList();
@@ -319,6 +361,57 @@ else
 
         if (dto is null) return;
         Broker.Publish(new ChatEvent(conversationId, _userId, otherId, dto));
+    }
+
+    private void ToggleActions(int messageId, bool selectable)
+    {
+        if (!selectable) return;
+        _selectedMessageId = _selectedMessageId == messageId ? null : messageId;
+    }
+
+    private void StartEdit(ChatMessageDto message)
+    {
+        _selectedMessageId = null;
+        _editingMessageId = message.Id;
+        _editDraft = message.Content ?? "";
+    }
+
+    private void CancelEdit()
+    {
+        _editingMessageId = null;
+        _editDraft = "";
+    }
+
+    private void OnEditInput(ChangeEventArgs e) => _editDraft = e?.Value?.ToString() ?? "";
+
+    private void HandleEditKeyDown(KeyboardEventArgs e)
+    {
+        if (e.Key == "Escape") CancelEdit();
+    }
+
+    private async Task SaveEdit()
+    {
+        if (_editingMessageId is null) return;
+
+        var messageId = _editingMessageId.Value;
+        var text = _editDraft?.Trim() ?? "";
+        if (text.Length == 0) return;
+
+        var dto = await Dm.EditMessageAsync(_userId, messageId, text);
+        _editingMessageId = null;
+        _editDraft = "";
+        if (dto is null) return;
+
+        Broker.Publish(new ChatEvent(dto.ConversationId, _userId, _activeOther?.OtherUserId ?? 0, dto, ChatEventKind.Updated));
+    }
+
+    private async Task DeleteMessage(int messageId)
+    {
+        _selectedMessageId = null;
+        var dto = await Dm.DeleteMessageAsync(_userId, messageId);
+        if (dto is null) return;
+
+        Broker.Publish(new ChatEvent(dto.ConversationId, _userId, _activeOther?.OtherUserId ?? 0, dto, ChatEventKind.Updated));
     }
 
     private async Task OnAttachmentSelected(InputFileChangeEventArgs e)
@@ -374,6 +467,23 @@ else
         var isActive = _activeConversationId == message.ConversationId;
         var fromMe = message.Message.SenderId == _userId;
 
+        if (message.Kind == ChatEventKind.Updated)
+        {
+            if (isActive)
+            {
+                var index = _messages.FindIndex(m => m.Id == message.Message.Id);
+                if (index >= 0) _messages[index] = message.Message;
+                if (_editingMessageId == message.Message.Id)
+                {
+                    _editingMessageId = null;
+                    _editDraft = "";
+                }
+                if (_selectedMessageId == message.Message.Id) _selectedMessageId = null;
+            }
+            _conversations = await Dm.GetConversationsAsync(_userId);
+            return;
+        }
+
         if (isActive)
         {
             if (_messages.All(m => m.Id != message.Message.Id))
@@ -407,6 +517,7 @@ else
 
     private static string PreviewFor(ChatMessageDto message)
     {
+        if (message.IsDeleted) return "Message deleted";
         if (!string.IsNullOrWhiteSpace(message.Content)) return message.Content!;
         if (message.IsImage) return "Photo";
         return string.IsNullOrWhiteSpace(message.AttachmentName) ? "Attachment" : message.AttachmentName!;

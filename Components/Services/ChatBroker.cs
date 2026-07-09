@@ -1,6 +1,8 @@
 namespace FitnessApp.Services;
 
-public sealed record ChatEvent(int ConversationId, int SenderId, int RecipientId, ChatMessageDto Message);
+public enum ChatEventKind { Created, Updated }
+
+public sealed record ChatEvent(int ConversationId, int SenderId, int RecipientId, ChatMessageDto Message, ChatEventKind Kind = ChatEventKind.Created);
 
 public sealed class ChatBroker
 {

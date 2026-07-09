@@ -106,7 +106,7 @@ public class DirectMessageService
 
         var metas = await _db.DirectMessages
             .Where(m => conversationIds.Contains(m.ConversationId))
-            .Select(m => new MessageMeta(m.Id, m.ConversationId, m.SenderId, m.Content, m.IsImage, m.AttachmentName, m.IsRead, m.CreatedAt))
+            .Select(m => new MessageMeta(m.Id, m.ConversationId, m.SenderId, m.Content, m.IsImage, m.AttachmentName, m.IsRead, m.IsDeleted, m.CreatedAt))
             .ToListAsync();
 
         var lastByConversation = metas
@@ -134,7 +134,7 @@ public class DirectMessageService
                 other.Username,
                 other.AvatarData,
                 PresenceStatus.Normalize(other.Status),
-                last is null ? null : PreviewOf(last.Content, last.IsImage, last.AttachmentName),
+                last is null ? null : PreviewOf(last.Content, last.IsImage, last.AttachmentName, last.IsDeleted),
                 conversation.LastMessageAt,
                 unread));
         }
@@ -244,8 +244,43 @@ public class DirectMessageService
         return ToDto(message);
     }
 
-    private static string PreviewOf(string? content, bool isImage, string? attachmentName)
+    public async Task<ChatMessageDto?> EditMessageAsync(int meId, int messageId, string? newContent)
     {
+        newContent = newContent?.Trim();
+        if (string.IsNullOrEmpty(newContent)) return null;
+
+        var message = await _db.DirectMessages.FirstOrDefaultAsync(m => m.Id == messageId);
+        if (message is null || message.SenderId != meId || message.IsDeleted) return null;
+
+        message.Content = newContent;
+        message.IsEdited = true;
+        message.EditedAt = DateTime.UtcNow;
+        await _db.SaveChangesAsync();
+
+        return ToDto(message);
+    }
+
+    public async Task<ChatMessageDto?> DeleteMessageAsync(int meId, int messageId)
+    {
+        var message = await _db.DirectMessages.FirstOrDefaultAsync(m => m.Id == messageId);
+        if (message is null || message.SenderId != meId || message.IsDeleted) return null;
+
+        message.IsDeleted = true;
+        message.DeletedAt = DateTime.UtcNow;
+        message.Content = null;
+        message.AttachmentData = null;
+        message.AttachmentName = null;
+        message.AttachmentType = null;
+        message.IsImage = false;
+        message.AttachmentSize = 0;
+        await _db.SaveChangesAsync();
+
+        return ToDto(message);
+    }
+
+    private static string PreviewOf(string? content, bool isImage, string? attachmentName, bool isDeleted)
+    {
+        if (isDeleted) return "Message deleted";
         if (!string.IsNullOrWhiteSpace(content)) return content!;
         if (isImage) return "Photo";
         return string.IsNullOrWhiteSpace(attachmentName) ? "Attachment" : attachmentName!;
@@ -255,13 +290,15 @@ public class DirectMessageService
         m.Id,
         m.ConversationId,
         m.SenderId,
-        m.Content,
-        m.AttachmentData,
-        m.AttachmentName,
-        m.AttachmentType,
-        m.IsImage,
-        m.AttachmentSize,
-        m.CreatedAt);
+        m.IsDeleted ? null : m.Content,
+        m.IsDeleted ? null : m.AttachmentData,
+        m.IsDeleted ? null : m.AttachmentName,
+        m.IsDeleted ? null : m.AttachmentType,
+        !m.IsDeleted && m.IsImage,
+        m.IsDeleted ? 0 : m.AttachmentSize,
+        m.CreatedAt,
+        m.IsEdited,
+        m.IsDeleted);
 
     private static int AgeFrom(DateOnly dob)
     {
@@ -278,7 +315,7 @@ public class DirectMessageService
         _ => goal.ToString()
     };
 
-    private sealed record MessageMeta(int Id, int ConversationId, int SenderId, string? Content, bool IsImage, string? AttachmentName, bool IsRead, DateTime CreatedAt);
+    private sealed record MessageMeta(int Id, int ConversationId, int SenderId, string? Content, bool IsImage, string? AttachmentName, bool IsRead, bool IsDeleted, DateTime CreatedAt);
 }
 
 public record UserSearchResult(int Id, string Username, string? AvatarData, string Status, PublicProfileDto Profile);
@@ -289,7 +326,7 @@ public record ProfileStat(string Label, string Value);
 
 public record ConversationDto(int Id, int OtherUserId, string OtherUsername, string? OtherAvatarData, string OtherStatus, string? LastMessagePreview, DateTime LastMessageAt, int UnreadCount);
 
-public record ChatMessageDto(int Id, int ConversationId, int SenderId, string? Content, string? AttachmentData, string? AttachmentName, string? AttachmentType, bool IsImage, long AttachmentSize, DateTime CreatedAt);
+public record ChatMessageDto(int Id, int ConversationId, int SenderId, string? Content, string? AttachmentData, string? AttachmentName, string? AttachmentType, bool IsImage, long AttachmentSize, DateTime CreatedAt, bool IsEdited, bool IsDeleted);
 
 public class AttachmentInput
 {

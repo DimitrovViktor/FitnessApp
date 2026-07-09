@@ -279,11 +279,20 @@ using (var scope = app.Services.CreateScope())
             IsImage INTEGER NOT NULL DEFAULT 0,
             AttachmentSize INTEGER NOT NULL DEFAULT 0,
             IsRead INTEGER NOT NULL DEFAULT 0,
+            IsEdited INTEGER NOT NULL DEFAULT 0,
+            EditedAt TEXT NULL,
+            IsDeleted INTEGER NOT NULL DEFAULT 0,
+            DeletedAt TEXT NULL,
             CreatedAt TEXT NOT NULL,
             FOREIGN KEY (ConversationId) REFERENCES Conversations(Id),
             FOREIGN KEY (SenderId) REFERENCES Users(Id))");
     }
     catch { }
+
+    try { db.Database.ExecuteSqlRaw("ALTER TABLE DirectMessages ADD COLUMN IsEdited INTEGER NOT NULL DEFAULT 0"); } catch { }
+    try { db.Database.ExecuteSqlRaw("ALTER TABLE DirectMessages ADD COLUMN EditedAt TEXT NULL"); } catch { }
+    try { db.Database.ExecuteSqlRaw("ALTER TABLE DirectMessages ADD COLUMN IsDeleted INTEGER NOT NULL DEFAULT 0"); } catch { }
+    try { db.Database.ExecuteSqlRaw("ALTER TABLE DirectMessages ADD COLUMN DeletedAt TEXT NULL"); } catch { }
 
     try
     {

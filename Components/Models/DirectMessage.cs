@@ -14,5 +14,9 @@ public class DirectMessage
     public bool IsImage { get; set; }
     public long AttachmentSize { get; set; }
     public bool IsRead { get; set; }
+    public bool IsEdited { get; set; }
+    public DateTime? EditedAt { get; set; }
+    public bool IsDeleted { get; set; }
+    public DateTime? DeletedAt { get; set; }
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
 }
