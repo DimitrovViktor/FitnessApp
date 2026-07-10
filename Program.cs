@@ -25,6 +25,7 @@ builder.Services.AddScoped<AuthenticationStateProvider>(sp =>
 builder.Services.AddScoped<ProgressService>();
 builder.Services.AddScoped<DietService>();
 builder.Services.AddScoped<ProfilePresenceState>();
+builder.Services.AddScoped<FriendService>();
 builder.Services.AddScoped<DirectMessageService>();
 builder.Services.AddSingleton<ChatBroker>();
 
@@ -299,6 +300,23 @@ using (var scope = app.Services.CreateScope())
         db.Database.ExecuteSqlRaw("CREATE INDEX IF NOT EXISTS IX_DirectMessages_ConversationId_CreatedAt ON DirectMessages (ConversationId, CreatedAt)");
     }
     catch { }
+
+    try
+    {
+        db.Database.ExecuteSqlRaw(@"CREATE TABLE IF NOT EXISTS Friendships (
+            Id INTEGER PRIMARY KEY AUTOINCREMENT,
+            RequesterId INTEGER NOT NULL,
+            AddresseeId INTEGER NOT NULL,
+            Status INTEGER NOT NULL DEFAULT 0,
+            CreatedAt TEXT NOT NULL,
+            RespondedAt TEXT NULL,
+            FOREIGN KEY (RequesterId) REFERENCES Users(Id),
+            FOREIGN KEY (AddresseeId) REFERENCES Users(Id))");
+    }
+    catch { }
+
+    try { db.Database.ExecuteSqlRaw("CREATE UNIQUE INDEX IF NOT EXISTS IX_Friendships_RequesterId_AddresseeId ON Friendships (RequesterId, AddresseeId)"); } catch { }
+    try { db.Database.ExecuteSqlRaw("CREATE INDEX IF NOT EXISTS IX_Friendships_AddresseeId ON Friendships (AddresseeId)"); } catch { }
 
     var auth = scope.ServiceProvider.GetRequiredService<AuthService>();
     var adminUser = db.Users.FirstOrDefault(u => u.Username == "admin");

@@ -820,3 +820,185 @@
         right: calc(100% + 10px);
     }
 }
+
+.dm-avatar-click {
+    display: inline-flex;
+    border-radius: 50%;
+    cursor: pointer;
+}
+
+.dm-preview-overlay {
+    position: fixed;
+    inset: 0;
+    z-index: 60;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 20px;
+    background: var(--overlay);
+}
+
+.dm-preview {
+    position: relative;
+    width: 100%;
+    max-width: 360px;
+    background: var(--surface);
+    border: 1px solid var(--border-modal);
+    border-radius: 16px;
+    padding: 24px;
+    box-shadow: 0 30px 70px var(--shadow-modal);
+}
+
+.dm-preview-close {
+    position: absolute;
+    top: 14px;
+    right: 14px;
+    border: none;
+    background: transparent;
+    color: var(--t3);
+    font-family: inherit;
+    font-size: 12px;
+    font-weight: 700;
+    cursor: pointer;
+    padding: 4px 6px;
+    border-radius: 6px;
+}
+
+.dm-preview-close:hover {
+    color: var(--t1);
+}
+
+.dm-preview-loading {
+    padding: 24px 4px;
+    color: var(--t2);
+    font-size: 13px;
+    text-align: center;
+}
+
+.dm-preview-head {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+}
+
+.dm-preview-id {
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+    min-width: 0;
+}
+
+.dm-preview-username {
+    color: var(--t1);
+    font-size: 18px;
+    font-weight: 800;
+}
+
+.dm-preview-name {
+    color: var(--t2);
+    font-size: 13px;
+    font-weight: 600;
+}
+
+.dm-preview-status {
+    color: var(--t3);
+    font-size: 12px;
+    font-weight: 600;
+}
+
+.dm-preview-bio {
+    margin: 16px 0 0;
+    color: var(--t1-soft);
+    font-size: 13px;
+    line-height: 1.55;
+}
+
+.dm-preview-stats {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 8px;
+    margin-top: 16px;
+}
+
+.dm-preview-stat {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 9px 11px;
+}
+
+.dm-preview-stat-label {
+    color: var(--t3);
+    font-size: 9.5px;
+    font-weight: 800;
+    text-transform: uppercase;
+    letter-spacing: .07em;
+}
+
+.dm-preview-stat-value {
+    color: var(--t1);
+    font-size: 13px;
+    font-weight: 700;
+}
+
+.dm-preview-empty {
+    margin: 16px 0 0;
+    color: var(--t2);
+    font-size: 13px;
+}
+
+.dm-preview-actions {
+    display: flex;
+    gap: 8px;
+    margin-top: 20px;
+}
+
+.dm-preview-btn {
+    flex: 1;
+    border: 1px solid var(--border);
+    background: var(--bg-subtle);
+    color: var(--t1);
+    font-family: inherit;
+    font-size: 13px;
+    font-weight: 700;
+    padding: 9px 12px;
+    border-radius: 10px;
+    cursor: pointer;
+    transition: opacity .12s ease, color .12s ease, border-color .12s ease;
+}
+
+.dm-preview-btn:hover {
+    border-color: var(--border-hover);
+}
+
+.dm-preview-btn:disabled {
+    opacity: .5;
+    cursor: not-allowed;
+}
+
+.dm-preview-btn-primary {
+    background: var(--accent);
+    color: var(--on-accent);
+    border-color: var(--accent);
+}
+
+.dm-preview-btn-primary:hover {
+    opacity: .9;
+    border-color: var(--accent);
+}
+
+.dm-preview-btn-danger:hover {
+    color: var(--danger);
+    border-color: var(--danger);
+}
+
+.dm-preview-note {
+    margin: 12px 0 0;
+    text-align: center;
+    color: var(--t3);
+    font-size: 11.5px;
+    font-weight: 600;
+}

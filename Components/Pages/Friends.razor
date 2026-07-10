@@ -1,0 +1,238 @@
+@inject FriendService FriendSvc
+@inject DirectMessageService Dm
+@inject CustomAuthStateProvider AuthState
+@inject NavigationManager Navigation
+
+@if (_loading)
+{
+    <div class="loading-state">
+        <p>Loading...</p>
+    </div>
+}
+else
+{
+    <div class="fr">
+        <div class="fr-search">
+            <input type="search" class="fr-search-input" placeholder="Search people by username" value="@_search" @oninput="OnSearchInput" />
+        </div>
+
+        @if (_search.Trim().Length > 0)
+        {
+            <section class="fr-section">
+                <h2 class="fr-heading">Search results</h2>
+                @if (_searchResults.Count == 0)
+                {
+                    <p class="fr-empty">No people found for "@_search".</p>
+                }
+                else
+                {
+                    <div class="fr-list">
+                        @foreach (var user in _searchResults)
+                        {
+                            var stateVal = _searchStates.TryGetValue(user.Id, out var s) ? s : FriendshipState.None;
+                            <div class="fr-row">
+                                <UserAvatar AvatarData="@user.AvatarData" Name="@user.Username" ShowStatus="true" Status="@user.Status" Size="md" />
+                                <div class="fr-row-text">
+                                    <span class="fr-row-name">@user.Username</span>
+                                    <span class="fr-row-sub">@StateLabel(stateVal)</span>
+                                </div>
+                                <div class="fr-row-actions">
+                                    @switch (stateVal)
+                                    {
+                                        case FriendshipState.None:
+                                            <button type="button" class="fr-btn fr-btn-primary" @onclick="() => SendRequest(user.Id)" disabled="@_busy">Add friend</button>
+                                            break;
+                                        case FriendshipState.Outgoing:
+                                            <button type="button" class="fr-btn" @onclick="() => Remove(user.Id)" disabled="@_busy">Cancel</button>
+                                            break;
+                                        case FriendshipState.Incoming:
+                                            <button type="button" class="fr-btn fr-btn-primary" @onclick="() => Accept(user.Id)" disabled="@_busy">Accept</button>
+                                            break;
+                                        case FriendshipState.Friends:
+                                            <button type="button" class="fr-btn fr-btn-primary" @onclick="() => Message(user.Id)">Message</button>
+                                            break;
+                                    }
+                                </div>
+                            </div>
+                        }
+                    </div>
+                }
+            </section>
+        }
+        else
+        {
+            @if (_incoming.Count > 0)
+            {
+                <section class="fr-section">
+                    <h2 class="fr-heading">Friend requests</h2>
+                    <div class="fr-list">
+                        @foreach (var user in _incoming)
+                        {
+                            <div class="fr-row">
+                                <UserAvatar AvatarData="@user.AvatarData" Name="@user.Username" ShowStatus="true" Status="@user.Status" Size="md" />
+                                <div class="fr-row-text">
+                                    <span class="fr-row-name">@user.Username</span>
+                                    <span class="fr-row-sub">Wants to be your friend</span>
+                                </div>
+                                <div class="fr-row-actions">
+                                    <button type="button" class="fr-btn fr-btn-primary" @onclick="() => Accept(user.Id)" disabled="@_busy">Accept</button>
+                                    <button type="button" class="fr-btn" @onclick="() => Remove(user.Id)" disabled="@_busy">Decline</button>
+                                </div>
+                            </div>
+                        }
+                    </div>
+                </section>
+            }
+
+            <section class="fr-section">
+                <h2 class="fr-heading">Your friends</h2>
+                @if (_friends.Count == 0)
+                {
+                    <p class="fr-empty">You have no friends yet. Search for someone above and send them a friend request.</p>
+                }
+                else
+                {
+                    <div class="fr-list">
+                        @foreach (var user in _friends)
+                        {
+                            <div class="fr-row">
+                                <UserAvatar AvatarData="@user.AvatarData" Name="@user.Username" ShowStatus="true" Status="@user.Status" Size="md" />
+                                <div class="fr-row-text">
+                                    <span class="fr-row-name">@user.Username</span>
+                                    <span class="fr-row-sub">@PresenceStatus.Label(user.Status)</span>
+                                </div>
+                                <div class="fr-row-actions">
+                                    <button type="button" class="fr-btn fr-btn-primary" @onclick="() => Message(user.Id)">Message</button>
+                                    <button type="button" class="fr-btn fr-btn-danger" @onclick="() => Remove(user.Id)" disabled="@_busy">Remove</button>
+                                </div>
+                            </div>
+                        }
+                    </div>
+                }
+            </section>
+
+            @if (_outgoing.Count > 0)
+            {
+                <section class="fr-section">
+                    <h2 class="fr-heading">Pending requests</h2>
+                    <div class="fr-list">
+                        @foreach (var user in _outgoing)
+                        {
+                            <div class="fr-row">
+                                <UserAvatar AvatarData="@user.AvatarData" Name="@user.Username" ShowStatus="true" Status="@user.Status" Size="md" />
+                                <div class="fr-row-text">
+                                    <span class="fr-row-name">@user.Username</span>
+                                    <span class="fr-row-sub">Request sent</span>
+                                </div>
+                                <div class="fr-row-actions">
+                                    <button type="button" class="fr-btn" @onclick="() => Remove(user.Id)" disabled="@_busy">Cancel</button>
+                                </div>
+                            </div>
+                        }
+                    </div>
+                </section>
+            }
+        }
+    </div>
+}
+
+@code {
+    private bool _loading = true;
+    private bool _busy;
+    private int _userId;
+
+    private List<FriendUserDto> _friends = new();
+    private List<FriendUserDto> _incoming = new();
+    private List<FriendUserDto> _outgoing = new();
+
+    private string _search = "";
+    private List<UserSearchResult> _searchResults = new();
+    private Dictionary<int, FriendshipState> _searchStates = new();
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!firstRender) return;
+
+        var state = await AuthState.GetAuthenticationStateAsync();
+        if (state.User.Identity is not { IsAuthenticated: true })
+        {
+            try { Navigation.NavigateTo("/login", forceLoad: true); } catch { }
+            return;
+        }
+
+        _userId = int.Parse(state.User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)!.Value);
+        await Reload();
+        _loading = false;
+        StateHasChanged();
+    }
+
+    private async Task Reload()
+    {
+        _friends = await FriendSvc.GetFriendsAsync(_userId);
+        _incoming = await FriendSvc.GetIncomingRequestsAsync(_userId);
+        _outgoing = await FriendSvc.GetOutgoingRequestsAsync(_userId);
+    }
+
+    private async Task OnSearchInput(ChangeEventArgs e)
+    {
+        _search = e?.Value?.ToString() ?? "";
+        if (_search.Trim().Length == 0)
+        {
+            _searchResults = new();
+            _searchStates = new();
+            return;
+        }
+
+        _searchResults = await Dm.SearchUsersAsync(_userId, _search);
+        _searchStates = await FriendSvc.GetStatesAsync(_userId, _searchResults.Select(r => r.Id).ToList());
+    }
+
+    private async Task RefreshSearchStates()
+    {
+        if (_searchResults.Count == 0) return;
+        _searchStates = await FriendSvc.GetStatesAsync(_userId, _searchResults.Select(r => r.Id).ToList());
+    }
+
+    private async Task SendRequest(int userId)
+    {
+        if (_busy) return;
+        _busy = true;
+        await FriendSvc.SendRequestAsync(_userId, userId);
+        await Reload();
+        await RefreshSearchStates();
+        _busy = false;
+    }
+
+    private async Task Accept(int userId)
+    {
+        if (_busy) return;
+        _busy = true;
+        await FriendSvc.AcceptRequestAsync(_userId, userId);
+        await Reload();
+        await RefreshSearchStates();
+        _busy = false;
+    }
+
+    private async Task Remove(int userId)
+    {
+        if (_busy) return;
+        _busy = true;
+        await FriendSvc.RemoveAsync(_userId, userId);
+        await Reload();
+        await RefreshSearchStates();
+        _busy = false;
+    }
+
+    private void Message(int userId)
+    {
+        Navigation.NavigateTo($"social?dm={userId}");
+    }
+
+    private static string StateLabel(FriendshipState state) => state switch
+    {
+        FriendshipState.Friends => "Friend",
+        FriendshipState.Outgoing => "Request sent",
+        FriendshipState.Incoming => "Wants to be your friend",
+        _ => "Not connected"
+    };
+}

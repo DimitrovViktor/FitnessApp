@@ -1,4 +1,5 @@
 @inject DirectMessageService Dm
+@inject FriendService Friends
 @inject ChatBroker Broker
 @inject CustomAuthStateProvider AuthState
 @inject NavigationManager Navigation
@@ -23,7 +24,9 @@ else
                         @foreach (var result in _searchResults)
                         {
                             <div class="dm-result" @onclick="() => StartConversation(result.Id)">
-                                <UserAvatar AvatarData="@result.AvatarData" Name="@result.Username" ShowStatus="true" Status="@result.Status" Size="sm" />
+                                <span class="dm-avatar-click" @onclick="() => OpenPreview(result.Id)" @onclick:stopPropagation="true">
+                                    <UserAvatar AvatarData="@result.AvatarData" Name="@result.Username" ShowStatus="true" Status="@result.Status" Size="sm" />
+                                </span>
                                 <div class="dm-result-text">
                                     <span class="dm-result-name">@result.Username</span>
                                     <span class="dm-result-sub">@PresenceStatus.Label(result.Status)</span>
@@ -78,7 +81,9 @@ else
                     @foreach (var convo in _conversations)
                     {
                         <div class="dm-convo @(convo.Id == _activeConversationId ? "active" : "")" @onclick="() => OpenConversation(convo)">
-                            <UserAvatar AvatarData="@convo.OtherAvatarData" Name="@convo.OtherUsername" ShowStatus="true" Status="@convo.OtherStatus" Size="md" />
+                            <span class="dm-avatar-click" @onclick="() => OpenPreview(convo.OtherUserId)" @onclick:stopPropagation="true">
+                                <UserAvatar AvatarData="@convo.OtherAvatarData" Name="@convo.OtherUsername" ShowStatus="true" Status="@convo.OtherStatus" Size="md" />
+                            </span>
                             <div class="dm-convo-text">
                                 <span class="dm-convo-name">@convo.OtherUsername</span>
                                 <span class="dm-convo-preview">@(string.IsNullOrEmpty(convo.LastMessagePreview) ? "Say hello" : convo.LastMessagePreview)</span>
@@ -105,7 +110,9 @@ else
             else
             {
                 <header class="dm-chat-head">
-                    <UserAvatar AvatarData="@_activeOther.OtherAvatarData" Name="@_activeOther.OtherUsername" ShowStatus="true" Status="@_activeOther.OtherStatus" Size="md" />
+                    <span class="dm-avatar-click" @onclick="() => OpenPreview(_activeOther.OtherUserId)">
+                        <UserAvatar AvatarData="@_activeOther.OtherAvatarData" Name="@_activeOther.OtherUsername" ShowStatus="true" Status="@_activeOther.OtherStatus" Size="md" />
+                    </span>
                     <div class="dm-chat-head-text">
                         <span class="dm-chat-head-name">@_activeOther.OtherUsername</span>
                         <span class="dm-chat-head-status">@PresenceStatus.Label(_activeOther.OtherStatus)</span>
@@ -221,6 +228,85 @@ else
             }
         </section>
     </div>
+
+    @if (_previewUserId is not null)
+    {
+        <div class="dm-preview-overlay" @onclick="ClosePreview">
+            <div class="dm-preview" @onclick:stopPropagation="true">
+                <button type="button" class="dm-preview-close" @onclick="ClosePreview" aria-label="Close">Close</button>
+
+                @if (_previewLoading || _preview is null)
+                {
+                    <div class="dm-preview-loading">Loading profile...</div>
+                }
+                else
+                {
+                    <div class="dm-preview-head">
+                        <UserAvatar AvatarData="@_preview.Profile.AvatarData" Name="@_preview.Profile.Username" ShowStatus="true" Status="@_preview.Profile.Status" Size="lg" />
+                        <div class="dm-preview-id">
+                            <span class="dm-preview-username">@_preview.Profile.Username</span>
+                            @if (!string.IsNullOrWhiteSpace(_preview.Profile.DisplayName))
+                            {
+                                <span class="dm-preview-name">@_preview.Profile.DisplayName</span>
+                            }
+                            <span class="dm-preview-status">@PresenceStatus.Label(_preview.Profile.Status)</span>
+                        </div>
+                    </div>
+
+                    @if (!string.IsNullOrWhiteSpace(_preview.Profile.Bio))
+                    {
+                        <p class="dm-preview-bio">@_preview.Profile.Bio</p>
+                    }
+
+                    @if (_preview.Profile.Stats.Count > 0)
+                    {
+                        <div class="dm-preview-stats">
+                            @foreach (var stat in _preview.Profile.Stats)
+                            {
+                                <div class="dm-preview-stat">
+                                    <span class="dm-preview-stat-label">@stat.Label</span>
+                                    <span class="dm-preview-stat-value">@stat.Value</span>
+                                </div>
+                            }
+                        </div>
+                    }
+                    else if (string.IsNullOrWhiteSpace(_preview.Profile.Bio) && string.IsNullOrWhiteSpace(_preview.Profile.DisplayName))
+                    {
+                        <p class="dm-preview-empty">This member keeps their profile private.</p>
+                    }
+
+                    <div class="dm-preview-actions">
+                        <button type="button" class="dm-preview-btn dm-preview-btn-primary" @onclick="MessageFromPreview">Message</button>
+
+                        @switch (_preview.Friendship)
+                        {
+                            case FriendshipState.None:
+                                <button type="button" class="dm-preview-btn" @onclick="AddFriend" disabled="@_previewBusy">Add friend</button>
+                                break;
+                            case FriendshipState.Outgoing:
+                                <button type="button" class="dm-preview-btn" @onclick="RemoveFriend" disabled="@_previewBusy">Cancel request</button>
+                                break;
+                            case FriendshipState.Incoming:
+                                <button type="button" class="dm-preview-btn" @onclick="AcceptFriend" disabled="@_previewBusy">Accept request</button>
+                                break;
+                            case FriendshipState.Friends:
+                                <button type="button" class="dm-preview-btn dm-preview-btn-danger" @onclick="RemoveFriend" disabled="@_previewBusy">Remove friend</button>
+                                break;
+                        }
+                    </div>
+
+                    @if (_preview.Friendship == FriendshipState.Friends)
+                    {
+                        <p class="dm-preview-note">You are friends</p>
+                    }
+                    else if (_preview.Friendship == FriendshipState.Outgoing)
+                    {
+                        <p class="dm-preview-note">Friend request sent</p>
+                    }
+                }
+            </div>
+        </div>
+    }
 }
 
 @code {
@@ -252,6 +338,11 @@ else
     private int? _boundComposerConversation;
     private IDisposable? _subscription;
 
+    private int? _previewUserId;
+    private bool _previewLoading;
+    private bool _previewBusy;
+    private ProfilePreviewDto? _preview;
+
     private const long MaxAttachmentBytes = 5 * 1024 * 1024;
 
     protected override async Task OnAfterRenderAsync(bool firstRender)
@@ -269,8 +360,10 @@ else
             _username = state.User.FindFirst("Username")?.Value ?? state.User.Identity.Name ?? "User";
             _conversations = await Dm.GetConversationsAsync(_userId);
             _subscription = Broker.Subscribe(_userId, OnBrokerEvent);
+            Navigation.LocationChanged += OnLocationChanged;
             _loading = false;
             StateHasChanged();
+            await TryOpenFromQuery();
             return;
         }
 
@@ -523,6 +616,90 @@ else
         return string.IsNullOrWhiteSpace(message.AttachmentName) ? "Attachment" : message.AttachmentName!;
     }
 
+    private async Task OpenPreview(int userId)
+    {
+        if (userId == _userId) return;
+        _previewUserId = userId;
+        _preview = null;
+        _previewLoading = true;
+        StateHasChanged();
+
+        _preview = await Dm.GetProfilePreviewAsync(_userId, userId);
+        _previewLoading = false;
+        StateHasChanged();
+    }
+
+    private void ClosePreview()
+    {
+        _previewUserId = null;
+        _preview = null;
+        _previewBusy = false;
+    }
+
+    private async Task AddFriend()
+    {
+        if (_previewUserId is null || _preview is null || _previewBusy) return;
+        _previewBusy = true;
+        var state = await Friends.SendRequestAsync(_userId, _previewUserId.Value);
+        if (_preview is not null) _preview = _preview with { Friendship = state };
+        _previewBusy = false;
+    }
+
+    private async Task AcceptFriend()
+    {
+        if (_previewUserId is null || _preview is null || _previewBusy) return;
+        _previewBusy = true;
+        var state = await Friends.AcceptRequestAsync(_userId, _previewUserId.Value);
+        if (_preview is not null) _preview = _preview with { Friendship = state };
+        _previewBusy = false;
+    }
+
+    private async Task RemoveFriend()
+    {
+        if (_previewUserId is null || _preview is null || _previewBusy) return;
+        _previewBusy = true;
+        var state = await Friends.RemoveAsync(_userId, _previewUserId.Value);
+        if (_preview is not null) _preview = _preview with { Friendship = state };
+        _previewBusy = false;
+    }
+
+    private async Task MessageFromPreview()
+    {
+        if (_previewUserId is null) return;
+        var target = _previewUserId.Value;
+        ClosePreview();
+        await StartConversation(target);
+    }
+
+    private void OnLocationChanged(object? sender, LocationChangedEventArgs e)
+    {
+        _ = InvokeAsync(TryOpenFromQuery);
+    }
+
+    private async Task TryOpenFromQuery()
+    {
+        var id = ReadDmParam();
+        if (id is null) return;
+
+        Navigation.NavigateTo("social", replace: true);
+        await StartConversation(id.Value);
+        StateHasChanged();
+    }
+
+    private int? ReadDmParam()
+    {
+        var query = new Uri(Navigation.Uri).Query;
+        if (string.IsNullOrEmpty(query)) return null;
+
+        foreach (var pair in query.TrimStart('?').Split('&', StringSplitOptions.RemoveEmptyEntries))
+        {
+            var kv = pair.Split('=', 2);
+            if (kv.Length == 2 && kv[0] == "dm" && int.TryParse(kv[1], out var id))
+                return id;
+        }
+        return null;
+    }
+
     private static string FormatTime(DateTime utc) => utc.ToLocalTime().ToString("HH:mm");
 
     private static string FormatSize(long bytes)
@@ -535,6 +712,7 @@ else
 
     public void Dispose()
     {
+        Navigation.LocationChanged -= OnLocationChanged;
         _subscription?.Dispose();
         _dotNetRef?.Dispose();
     }

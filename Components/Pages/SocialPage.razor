@@ -1,5 +1,6 @@
 @page "/social"
 @page "/social/global"
+@page "/social/friends"
 @inject NavigationManager Navigation
 @implements IDisposable
 
@@ -9,6 +10,10 @@
     @if (_current == "social/global")
     {
         <SocialGlobal />
+    }
+    else if (_current == "social/friends")
+    {
+        <Friends />
     }
     else
     {
@@ -20,6 +25,7 @@
     private static readonly IReadOnlyList<NavTab> _tabs = new List<NavTab>
     {
         new("social", "Direct Messages"),
+        new("social/friends", "Friends"),
         new("social/global", "Global")
     };
 

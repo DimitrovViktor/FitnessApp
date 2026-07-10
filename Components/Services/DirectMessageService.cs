@@ -8,10 +8,12 @@ namespace FitnessApp.Services;
 public class DirectMessageService
 {
     private readonly AppDbContext _db;
+    private readonly FriendService _friends;
 
-    public DirectMessageService(AppDbContext db)
+    public DirectMessageService(AppDbContext db, FriendService friends)
     {
         _db = db;
+        _friends = friends;
     }
 
     public async Task<List<UserSearchResult>> SearchUsersAsync(int meId, string? query, int limit = 8)
@@ -29,6 +31,7 @@ public class DirectMessageService
 
         var ids = users.Select(u => u.Id).ToList();
         var settings = await _db.ProfileSettings.Where(p => ids.Contains(p.UserId)).ToListAsync();
+        var friendIds = await _friends.GetFriendIdsAsync(meId);
 
         return users
             .Select(u => new UserSearchResult(
@@ -36,21 +39,33 @@ public class DirectMessageService
                 u.Username,
                 u.AvatarData,
                 PresenceStatus.Normalize(u.Status),
-                BuildPublicProfile(u, settings.FirstOrDefault(p => p.UserId == u.Id))))
+                BuildPublicProfile(u, settings.FirstOrDefault(p => p.UserId == u.Id), friendIds.Contains(u.Id))))
             .ToList();
     }
 
-    public async Task<PublicProfileDto?> GetPublicProfileAsync(int targetId)
+    public async Task<ProfilePreviewDto?> GetProfilePreviewAsync(int viewerId, int targetId)
+    {
+        var user = await _db.Users.FindAsync(targetId);
+        if (user is null) return null;
+
+        var settings = await _db.ProfileSettings.FirstOrDefaultAsync(p => p.UserId == targetId);
+        var state = await _friends.GetStateAsync(viewerId, targetId);
+        var profile = BuildPublicProfile(user, settings, state == FriendshipState.Friends);
+        return new ProfilePreviewDto(profile, state);
+    }
+
+    public async Task<PublicProfileDto?> GetPublicProfileAsync(int viewerId, int targetId)
     {
         var user = await _db.Users.FindAsync(targetId);
         if (user is null) return null;
         var settings = await _db.ProfileSettings.FirstOrDefaultAsync(p => p.UserId == targetId);
-        return BuildPublicProfile(user, settings);
+        var areFriends = await _friends.AreFriendsAsync(viewerId, targetId);
+        return BuildPublicProfile(user, settings, areFriends);
     }
 
-    private static PublicProfileDto BuildPublicProfile(User user, ProfileSettings? settings)
+    private static PublicProfileDto BuildPublicProfile(User user, ProfileSettings? settings, bool areFriends)
     {
-        bool Pub(string? visibility) => visibility == "public";
+        bool Pub(string? visibility) => visibility == "public" || (areFriends && visibility == "friends");
 
         var displayName = settings is not null && Pub(settings.NameVisibility) && !string.IsNullOrWhiteSpace(user.FullName)
             ? user.FullName
@@ -321,6 +336,8 @@ public class DirectMessageService
 public record UserSearchResult(int Id, string Username, string? AvatarData, string Status, PublicProfileDto Profile);
 
 public record PublicProfileDto(int Id, string Username, string? AvatarData, string Status, string? DisplayName, string? Bio, List<ProfileStat> Stats);
+
+public record ProfilePreviewDto(PublicProfileDto Profile, FriendshipState Friendship);
 
 public record ProfileStat(string Label, string Value);
 

@@ -35,6 +35,7 @@ public class AppDbContext : DbContext
     public DbSet<ProfileSettings> ProfileSettings => Set<ProfileSettings>();
     public DbSet<Conversation> Conversations => Set<Conversation>();
     public DbSet<DirectMessage> DirectMessages => Set<DirectMessage>();
+    public DbSet<Friendship> Friendships => Set<Friendship>();
     public DbSet<BodyMeasurement> BodyMeasurements => Set<BodyMeasurement>();
     public DbSet<PersonalRecord> PersonalRecords => Set<PersonalRecord>();
     public DbSet<DailyLog> DailyLogs => Set<DailyLog>();
@@ -349,6 +350,14 @@ public class AppDbContext : DbContext
             e.Property(m => m.AttachmentType).HasMaxLength(120);
             e.HasOne(m => m.Conversation).WithMany(c => c.Messages).HasForeignKey(m => m.ConversationId);
             e.HasOne(m => m.Sender).WithMany().HasForeignKey(m => m.SenderId).OnDelete(DeleteBehavior.Restrict);
+        });
+
+        mb.Entity<Friendship>(e =>
+        {
+            e.HasIndex(f => new { f.RequesterId, f.AddresseeId }).IsUnique();
+            e.HasIndex(f => f.AddresseeId);
+            e.HasOne(f => f.Requester).WithMany().HasForeignKey(f => f.RequesterId).OnDelete(DeleteBehavior.Restrict);
+            e.HasOne(f => f.Addressee).WithMany().HasForeignKey(f => f.AddresseeId).OnDelete(DeleteBehavior.Restrict);
         });
     }
 }
