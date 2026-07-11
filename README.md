@@ -60,6 +60,10 @@ A list of foods sorted in categories
 
 Users can message each other and attach images/files
 
+### Friends
+
+Users can add each other as friends and look each other up
+
 ## To-do
 
 ### Features and functionality
