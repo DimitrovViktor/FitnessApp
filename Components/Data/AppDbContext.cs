@@ -36,6 +36,11 @@ public class AppDbContext : DbContext
     public DbSet<Conversation> Conversations => Set<Conversation>();
     public DbSet<DirectMessage> DirectMessages => Set<DirectMessage>();
     public DbSet<Friendship> Friendships => Set<Friendship>();
+    public DbSet<Post> Posts => Set<Post>();
+    public DbSet<PostReaction> PostReactions => Set<PostReaction>();
+    public DbSet<PostShare> PostShares => Set<PostShare>();
+    public DbSet<Comment> Comments => Set<Comment>();
+    public DbSet<CommentReaction> CommentReactions => Set<CommentReaction>();
     public DbSet<BodyMeasurement> BodyMeasurements => Set<BodyMeasurement>();
     public DbSet<PersonalRecord> PersonalRecords => Set<PersonalRecord>();
     public DbSet<DailyLog> DailyLogs => Set<DailyLog>();
@@ -358,6 +363,40 @@ public class AppDbContext : DbContext
             e.HasIndex(f => f.AddresseeId);
             e.HasOne(f => f.Requester).WithMany().HasForeignKey(f => f.RequesterId).OnDelete(DeleteBehavior.Restrict);
             e.HasOne(f => f.Addressee).WithMany().HasForeignKey(f => f.AddresseeId).OnDelete(DeleteBehavior.Restrict);
+        });
+
+        mb.Entity<Post>(e =>
+        {
+            e.HasIndex(p => p.CreatedAt);
+            e.Property(p => p.Content).HasMaxLength(5000);
+            e.HasOne(p => p.Author).WithMany().HasForeignKey(p => p.AuthorId).OnDelete(DeleteBehavior.Restrict);
+        });
+
+        mb.Entity<PostReaction>(e =>
+        {
+            e.HasIndex(r => new { r.PostId, r.UserId }).IsUnique();
+            e.HasOne(r => r.Post).WithMany(p => p.Reactions).HasForeignKey(r => r.PostId).OnDelete(DeleteBehavior.Restrict);
+        });
+
+        mb.Entity<PostShare>(e =>
+        {
+            e.HasIndex(s => new { s.PostId, s.UserId }).IsUnique();
+            e.HasIndex(s => s.UserId);
+            e.HasOne(s => s.Post).WithMany(p => p.Shares).HasForeignKey(s => s.PostId).OnDelete(DeleteBehavior.Restrict);
+        });
+
+        mb.Entity<Comment>(e =>
+        {
+            e.HasIndex(c => new { c.PostId, c.CreatedAt });
+            e.Property(c => c.Content).HasMaxLength(4000);
+            e.HasOne(c => c.Post).WithMany(p => p.Comments).HasForeignKey(c => c.PostId).OnDelete(DeleteBehavior.Restrict);
+            e.HasOne(c => c.Author).WithMany().HasForeignKey(c => c.AuthorId).OnDelete(DeleteBehavior.Restrict);
+        });
+
+        mb.Entity<CommentReaction>(e =>
+        {
+            e.HasIndex(r => new { r.CommentId, r.UserId }).IsUnique();
+            e.HasOne(r => r.Comment).WithMany(c => c.Reactions).HasForeignKey(r => r.CommentId).OnDelete(DeleteBehavior.Restrict);
         });
     }
 }

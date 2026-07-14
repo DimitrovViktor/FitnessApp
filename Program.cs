@@ -26,6 +26,7 @@ builder.Services.AddScoped<ProgressService>();
 builder.Services.AddScoped<DietService>();
 builder.Services.AddScoped<ProfilePresenceState>();
 builder.Services.AddScoped<FriendService>();
+builder.Services.AddScoped<FeedService>();
 builder.Services.AddScoped<DirectMessageService>();
 builder.Services.AddSingleton<ChatBroker>();
 
@@ -317,6 +318,75 @@ using (var scope = app.Services.CreateScope())
 
     try { db.Database.ExecuteSqlRaw("CREATE UNIQUE INDEX IF NOT EXISTS IX_Friendships_RequesterId_AddresseeId ON Friendships (RequesterId, AddresseeId)"); } catch { }
     try { db.Database.ExecuteSqlRaw("CREATE INDEX IF NOT EXISTS IX_Friendships_AddresseeId ON Friendships (AddresseeId)"); } catch { }
+
+    try
+    {
+        db.Database.ExecuteSqlRaw(@"CREATE TABLE IF NOT EXISTS Posts (
+            Id INTEGER PRIMARY KEY AUTOINCREMENT,
+            AuthorId INTEGER NOT NULL,
+            Content TEXT NULL,
+            ImageData TEXT NULL,
+            IsEdited INTEGER NOT NULL DEFAULT 0,
+            EditedAt TEXT NULL,
+            CreatedAt TEXT NOT NULL,
+            FOREIGN KEY (AuthorId) REFERENCES Users(Id))");
+    }
+    catch { }
+    try { db.Database.ExecuteSqlRaw("CREATE INDEX IF NOT EXISTS IX_Posts_CreatedAt ON Posts (CreatedAt)"); } catch { }
+
+    try
+    {
+        db.Database.ExecuteSqlRaw(@"CREATE TABLE IF NOT EXISTS PostReactions (
+            Id INTEGER PRIMARY KEY AUTOINCREMENT,
+            PostId INTEGER NOT NULL,
+            UserId INTEGER NOT NULL,
+            IsLike INTEGER NOT NULL DEFAULT 0,
+            FOREIGN KEY (PostId) REFERENCES Posts(Id))");
+    }
+    catch { }
+    try { db.Database.ExecuteSqlRaw("CREATE UNIQUE INDEX IF NOT EXISTS IX_PostReactions_PostId_UserId ON PostReactions (PostId, UserId)"); } catch { }
+
+    try
+    {
+        db.Database.ExecuteSqlRaw(@"CREATE TABLE IF NOT EXISTS PostShares (
+            Id INTEGER PRIMARY KEY AUTOINCREMENT,
+            PostId INTEGER NOT NULL,
+            UserId INTEGER NOT NULL,
+            CreatedAt TEXT NOT NULL,
+            FOREIGN KEY (PostId) REFERENCES Posts(Id))");
+    }
+    catch { }
+    try { db.Database.ExecuteSqlRaw("CREATE UNIQUE INDEX IF NOT EXISTS IX_PostShares_PostId_UserId ON PostShares (PostId, UserId)"); } catch { }
+    try { db.Database.ExecuteSqlRaw("CREATE INDEX IF NOT EXISTS IX_PostShares_UserId ON PostShares (UserId)"); } catch { }
+
+    try
+    {
+        db.Database.ExecuteSqlRaw(@"CREATE TABLE IF NOT EXISTS Comments (
+            Id INTEGER PRIMARY KEY AUTOINCREMENT,
+            PostId INTEGER NOT NULL,
+            ParentCommentId INTEGER NULL,
+            AuthorId INTEGER NOT NULL,
+            Content TEXT NOT NULL,
+            IsEdited INTEGER NOT NULL DEFAULT 0,
+            EditedAt TEXT NULL,
+            CreatedAt TEXT NOT NULL,
+            FOREIGN KEY (PostId) REFERENCES Posts(Id),
+            FOREIGN KEY (AuthorId) REFERENCES Users(Id))");
+    }
+    catch { }
+    try { db.Database.ExecuteSqlRaw("CREATE INDEX IF NOT EXISTS IX_Comments_PostId_CreatedAt ON Comments (PostId, CreatedAt)"); } catch { }
+
+    try
+    {
+        db.Database.ExecuteSqlRaw(@"CREATE TABLE IF NOT EXISTS CommentReactions (
+            Id INTEGER PRIMARY KEY AUTOINCREMENT,
+            CommentId INTEGER NOT NULL,
+            UserId INTEGER NOT NULL,
+            IsLike INTEGER NOT NULL DEFAULT 0,
+            FOREIGN KEY (CommentId) REFERENCES Comments(Id))");
+    }
+    catch { }
+    try { db.Database.ExecuteSqlRaw("CREATE UNIQUE INDEX IF NOT EXISTS IX_CommentReactions_CommentId_UserId ON CommentReactions (CommentId, UserId)"); } catch { }
 
     var auth = scope.ServiceProvider.GetRequiredService<AuthService>();
     var adminUser = db.Users.FirstOrDefault(u => u.Username == "admin");

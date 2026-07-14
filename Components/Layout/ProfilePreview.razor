@@ -1,0 +1,155 @@
+@inject DirectMessageService Dm
+@inject FriendService FriendSvc
+@inject NavigationManager Navigation
+
+@if (TargetUserId is not null)
+{
+    <div class="pp-overlay" @onclick="Close">
+        <div class="pp" @onclick:stopPropagation="true">
+            <button type="button" class="pp-close" @onclick="Close" aria-label="Close">Close</button>
+
+            @if (_loading || _preview is null)
+            {
+                <div class="pp-loading">Loading profile...</div>
+            }
+            else
+            {
+                <div class="pp-head">
+                    <UserAvatar AvatarData="@_preview.Profile.AvatarData" Name="@_preview.Profile.Username" ShowStatus="true" Status="@_preview.Profile.Status" Size="lg" />
+                    <div class="pp-id">
+                        <span class="pp-username">@_preview.Profile.Username</span>
+                        @if (!string.IsNullOrWhiteSpace(_preview.Profile.DisplayName))
+                        {
+                            <span class="pp-name">@_preview.Profile.DisplayName</span>
+                        }
+                        <span class="pp-status">@PresenceStatus.Label(_preview.Profile.Status)</span>
+                    </div>
+                </div>
+
+                @if (!string.IsNullOrWhiteSpace(_preview.Profile.Bio))
+                {
+                    <p class="pp-bio">@_preview.Profile.Bio</p>
+                }
+
+                @if (_preview.Profile.Stats.Count > 0)
+                {
+                    <div class="pp-stats">
+                        @foreach (var stat in _preview.Profile.Stats)
+                        {
+                            <div class="pp-stat">
+                                <span class="pp-stat-label">@stat.Label</span>
+                                <span class="pp-stat-value">@stat.Value</span>
+                            </div>
+                        }
+                    </div>
+                }
+                else if (string.IsNullOrWhiteSpace(_preview.Profile.Bio) && string.IsNullOrWhiteSpace(_preview.Profile.DisplayName))
+                {
+                    <p class="pp-empty">This member keeps their profile private.</p>
+                }
+
+                <div class="pp-actions">
+                    <button type="button" class="pp-btn pp-btn-primary" @onclick="Message">Message</button>
+                    <button type="button" class="pp-btn" @onclick="ViewProfile">View profile</button>
+
+                    @switch (_preview.Friendship)
+                    {
+                        case FriendshipState.None:
+                            <button type="button" class="pp-btn" @onclick="AddFriend" disabled="@_busy">Add friend</button>
+                            break;
+                        case FriendshipState.Outgoing:
+                            <button type="button" class="pp-btn" @onclick="RemoveFriend" disabled="@_busy">Cancel request</button>
+                            break;
+                        case FriendshipState.Incoming:
+                            <button type="button" class="pp-btn" @onclick="AcceptFriend" disabled="@_busy">Accept request</button>
+                            break;
+                        case FriendshipState.Friends:
+                            <button type="button" class="pp-btn pp-btn-danger" @onclick="RemoveFriend" disabled="@_busy">Remove friend</button>
+                            break;
+                    }
+                </div>
+
+                @if (_preview.Friendship == FriendshipState.Friends)
+                {
+                    <p class="pp-note">You are friends</p>
+                }
+                else if (_preview.Friendship == FriendshipState.Outgoing)
+                {
+                    <p class="pp-note">Friend request sent</p>
+                }
+            }
+        </div>
+    </div>
+}
+
+@code {
+    [Parameter] public int? TargetUserId { get; set; }
+    [Parameter] public int ViewerId { get; set; }
+    [Parameter] public EventCallback OnClose { get; set; }
+
+    private ProfilePreviewDto? _preview;
+    private bool _loading;
+    private bool _busy;
+    private int? _loadedFor;
+
+    protected override async Task OnParametersSetAsync()
+    {
+        if (TargetUserId is null)
+        {
+            _preview = null;
+            _loadedFor = null;
+            return;
+        }
+
+        if (_loadedFor == TargetUserId) return;
+
+        _loadedFor = TargetUserId;
+        _preview = null;
+        _loading = true;
+        _preview = await Dm.GetProfilePreviewAsync(ViewerId, TargetUserId.Value);
+        _loading = false;
+    }
+
+    private async Task Close() => await OnClose.InvokeAsync();
+
+    private async Task Message()
+    {
+        var id = TargetUserId;
+        await OnClose.InvokeAsync();
+        if (id is not null) Navigation.NavigateTo($"social?dm={id}");
+    }
+
+    private async Task ViewProfile()
+    {
+        var id = TargetUserId;
+        await OnClose.InvokeAsync();
+        if (id is not null) Navigation.NavigateTo($"social/global?user={id}");
+    }
+
+    private async Task AddFriend()
+    {
+        if (TargetUserId is null || _preview is null || _busy) return;
+        _busy = true;
+        var state = await FriendSvc.SendRequestAsync(ViewerId, TargetUserId.Value);
+        if (_preview is not null) _preview = _preview with { Friendship = state };
+        _busy = false;
+    }
+
+    private async Task AcceptFriend()
+    {
+        if (TargetUserId is null || _preview is null || _busy) return;
+        _busy = true;
+        var state = await FriendSvc.AcceptRequestAsync(ViewerId, TargetUserId.Value);
+        if (_preview is not null) _preview = _preview with { Friendship = state };
+        _busy = false;
+    }
+
+    private async Task RemoveFriend()
+    {
+        if (TargetUserId is null || _preview is null || _busy) return;
+        _busy = true;
+        var state = await FriendSvc.RemoveAsync(ViewerId, TargetUserId.Value);
+        if (_preview is not null) _preview = _preview with { Friendship = state };
+        _busy = false;
+    }
+}

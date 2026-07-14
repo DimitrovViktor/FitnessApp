@@ -1,7 +1,628 @@
-<div class="global-placeholder">
-    <div class="global-card">
-        <span class="global-badge">Soon</span>
-        <h2>soon</h2>
-        <p>social page</p>
+@inject FeedService Feed
+@inject FriendService FriendSvc
+@inject CustomAuthStateProvider AuthState
+@inject NavigationManager Navigation
+@implements IDisposable
+
+@if (_loading)
+{
+    <div class="loading-state">
+        <p>Loading...</p>
     </div>
-</div>
+}
+else
+{
+    <div class="gl">
+        @if (_profileUserId is null)
+        {
+            <div class="gl-composer">
+                <textarea class="gl-composer-input" rows="2" placeholder="Share something with everyone..." value="@_draft" @oninput="e => _draft = e.Value?.ToString() ?? string.Empty"></textarea>
+
+                @if (!string.IsNullOrEmpty(_pendingImage))
+                {
+                    <div class="gl-composer-image">
+                        <img src="@_pendingImage" alt="" />
+                        <button type="button" class="gl-image-remove" @onclick="RemoveImage">Remove</button>
+                    </div>
+                    <p class="gl-image-name">@_pendingImageName</p>
+                }
+                @if (!string.IsNullOrEmpty(_imageError))
+                {
+                    <p class="gl-error">@_imageError</p>
+                }
+
+                <div class="gl-composer-row">
+                    <label class="gl-attach" title="Attach image" aria-label="Attach image">
+                        <span class="gl-attach-plus" aria-hidden="true">+</span>
+                        <InputFile OnChange="OnImageSelected" accept="image/*" />
+                    </label>
+                    <button type="button" class="gl-post-btn" @onclick="CreatePost" disabled="@(_posting || (string.IsNullOrWhiteSpace(_draft) && string.IsNullOrEmpty(_pendingImage)))">Post</button>
+                </div>
+            </div>
+        }
+        else
+        {
+            <div class="gl-profile-head">
+                <button type="button" class="gl-back" @onclick="BackToFeed">Back to feed</button>
+                <div class="gl-profile-id">
+                    <UserAvatar AvatarData="@_profileAvatar" Name="@_profileUsername" ShowStatus="true" Status="@_profileStatus" Size="lg" />
+                    <div class="gl-profile-text">
+                        <span class="gl-profile-name">@_profileUsername</span>
+                        <span class="gl-profile-sub">@PresenceStatus.Label(_profileStatus)</span>
+                    </div>
+                    @if (_profileUserId != _userId)
+                    {
+                        <div class="gl-profile-actions">
+                            @switch (_profileFriendState)
+                            {
+                                case FriendshipState.None:
+                                    <button type="button" class="gl-btn gl-btn-primary" @onclick="ProfileAddFriend" disabled="@_profileBusy">Add friend</button>
+                                    break;
+                                case FriendshipState.Outgoing:
+                                    <button type="button" class="gl-btn" @onclick="ProfileRemoveFriend" disabled="@_profileBusy">Cancel request</button>
+                                    break;
+                                case FriendshipState.Incoming:
+                                    <button type="button" class="gl-btn gl-btn-primary" @onclick="ProfileAcceptFriend" disabled="@_profileBusy">Accept request</button>
+                                    break;
+                                case FriendshipState.Friends:
+                                    <button type="button" class="gl-btn gl-btn-danger" @onclick="ProfileRemoveFriend" disabled="@_profileBusy">Remove friend</button>
+                                    break;
+                            }
+                        </div>
+                    }
+                </div>
+
+                @if (!string.IsNullOrWhiteSpace(_profileBio))
+                {
+                    <p class="gl-profile-bio">@_profileBio</p>
+                }
+                @if (_profileStats.Count > 0)
+                {
+                    <div class="gl-profile-stats">
+                        @foreach (var stat in _profileStats)
+                        {
+                            <div class="gl-profile-stat">
+                                <span class="gl-profile-stat-label">@stat.Label</span>
+                                <span class="gl-profile-stat-value">@stat.Value</span>
+                            </div>
+                        }
+                    </div>
+                }
+            </div>
+        }
+
+        @if (_posts.Count == 0)
+        {
+            <p class="gl-empty">@(_profileUserId is null ? "No posts yet. Be the first to share something." : "This user has not posted or shared anything yet.")</p>
+        }
+
+        @foreach (var post in _posts)
+        {
+            var mine = post.AuthorId == _userId;
+            @if (_profileUserId is not null && _sharedIds.Contains(post.Id) && post.AuthorId != _profileUserId)
+            {
+                <div class="gl-repost-label">@_profileUsername reposted</div>
+            }
+            <article class="gl-post">
+                <header class="gl-post-head">
+                    <span class="gl-author-click" @onclick="() => OpenPreview(post.AuthorId)">
+                        <UserAvatar AvatarData="@post.AuthorAvatarData" Name="@post.AuthorUsername" ShowStatus="true" Status="@post.AuthorStatus" Size="md" />
+                    </span>
+                    <div class="gl-post-id">
+                        <span class="gl-post-author gl-author-click" @onclick="() => OpenPreview(post.AuthorId)">@post.AuthorUsername</span>
+                        <span class="gl-post-time">@FormatTime(post.CreatedAt)@(post.IsEdited ? " \u00b7 edited" : "")</span>
+                    </div>
+                    @if (mine)
+                    {
+                        <div class="gl-menu">
+                            <button type="button" class="gl-menu-btn" @onclick="() => ToggleMenu(post.Id)" aria-label="Post options">More</button>
+                            @if (_menuPostId == post.Id)
+                            {
+                                <div class="gl-menu-pop">
+                                    <button type="button" @onclick="() => StartEditPost(post)">Edit</button>
+                                    <button type="button" class="gl-menu-danger" @onclick="() => DeletePost(post.Id)">Delete</button>
+                                </div>
+                            }
+                        </div>
+                    }
+                </header>
+
+                @if (_editingPostId == post.Id)
+                {
+                    <div class="gl-edit">
+                        <textarea class="gl-edit-input" value="@_editPostDraft" @oninput="e => _editPostDraft = e.Value?.ToString() ?? string.Empty"></textarea>
+                        <div class="gl-edit-actions">
+                            <button type="button" class="gl-btn" @onclick="CancelEditPost">Cancel</button>
+                            <button type="button" class="gl-btn gl-btn-primary" @onclick="SaveEditPost" disabled="@(string.IsNullOrWhiteSpace(_editPostDraft) && string.IsNullOrEmpty(post.ImageData))">Save</button>
+                        </div>
+                    </div>
+                }
+                else
+                {
+                    @if (!string.IsNullOrEmpty(post.Content))
+                    {
+                        <p class="gl-post-text">@post.Content</p>
+                    }
+                    @if (!string.IsNullOrEmpty(post.ImageData))
+                    {
+                        <a class="gl-post-image" href="@post.ImageData" target="_blank" rel="noopener">
+                            <img src="@post.ImageData" alt="" />
+                        </a>
+                    }
+                }
+
+                <div class="gl-bar">
+                    <button type="button" class="gl-react @(post.MyReaction == 1 ? "active-up" : "")" @onclick="() => ReactPost(post.Id, true)">
+                        <span class="gl-thumb-up" aria-hidden="true"></span>
+                        <span>@post.LikeCount</span>
+                    </button>
+                    <button type="button" class="gl-react @(post.MyReaction == -1 ? "active-down" : "")" @onclick="() => ReactPost(post.Id, false)">
+                        <span class="gl-thumb-down" aria-hidden="true"></span>
+                        <span>@post.DislikeCount</span>
+                    </button>
+                    <button type="button" class="gl-react @(post.SharedByMe ? "active-share" : "")" @onclick="() => ToggleShare(post.Id)">
+                        <span class="gl-share-icon" aria-hidden="true"></span>
+                        <span>@post.ShareCount</span>
+                    </button>
+                    <button type="button" class="gl-comment-toggle" @onclick="() => ToggleComments(post.Id)">
+                        Comments (@post.CommentCount)
+                    </button>
+                </div>
+
+                @if (_openComments.Contains(post.Id))
+                {
+                    <div class="gl-comments">
+                        <div class="gl-comment-new">
+                            <textarea class="gl-comment-input" rows="1" placeholder="Write a comment..." value="@GetNewComment(post.Id)" @oninput="e => SetNewComment(post.Id, e.Value?.ToString() ?? string.Empty)"></textarea>
+                            <button type="button" class="gl-btn gl-btn-primary" @onclick="() => AddComment(post.Id)" disabled="@(string.IsNullOrWhiteSpace(GetNewComment(post.Id)))">Reply</button>
+                        </div>
+
+                        @if (_comments.TryGetValue(post.Id, out var comments))
+                        {
+                            @foreach (var comment in OrderedThread(comments))
+                            {
+                                <div class="gl-comment @(comment.ParentCommentId is not null ? "reply" : "")">
+                                    <UserAvatar AvatarData="@comment.AuthorAvatarData" Name="@comment.AuthorUsername" ShowStatus="false" Size="sm" />
+                                    <div class="gl-comment-body">
+                                        <div class="gl-comment-bubble">
+                                            <span class="gl-comment-author">@comment.AuthorUsername</span>
+                                            @if (_editingCommentId == comment.Id)
+                                            {
+                                                <div class="gl-edit">
+                                                    <textarea class="gl-edit-input" value="@_editCommentDraft" @oninput="e => _editCommentDraft = e.Value?.ToString() ?? string.Empty"></textarea>
+                                                    <div class="gl-edit-actions">
+                                                        <button type="button" class="gl-btn" @onclick="CancelEditComment">Cancel</button>
+                                                        <button type="button" class="gl-btn gl-btn-primary" @onclick="() => SaveEditComment(post.Id)" disabled="@(string.IsNullOrWhiteSpace(_editCommentDraft))">Save</button>
+                                                    </div>
+                                                </div>
+                                            }
+                                            else
+                                            {
+                                                <span class="gl-comment-text">@comment.Content</span>
+                                                @if (comment.IsEdited)
+                                                {
+                                                    <span class="gl-comment-edited">edited</span>
+                                                }
+                                            }
+                                        </div>
+                                        <div class="gl-comment-actions">
+                                            <button type="button" class="gl-react-mini @(comment.MyReaction == 1 ? "active-up" : "")" @onclick="() => ReactComment(post.Id, comment.Id, true)">
+                                                <span class="gl-thumb-up" aria-hidden="true"></span><span>@comment.LikeCount</span>
+                                            </button>
+                                            <button type="button" class="gl-react-mini @(comment.MyReaction == -1 ? "active-down" : "")" @onclick="() => ReactComment(post.Id, comment.Id, false)">
+                                                <span class="gl-thumb-down" aria-hidden="true"></span><span>@comment.DislikeCount</span>
+                                            </button>
+                                            <button type="button" class="gl-comment-link" @onclick="() => StartReply(comment.Id)">Reply</button>
+                                            @if (comment.AuthorId == _userId)
+                                            {
+                                                <button type="button" class="gl-comment-link" @onclick="() => StartEditComment(comment)">Edit</button>
+                                                <button type="button" class="gl-comment-link gl-comment-danger" @onclick="() => DeleteComment(post.Id, comment.Id)">Delete</button>
+                                            }
+                                            <span class="gl-comment-time">@FormatTime(comment.CreatedAt)</span>
+                                        </div>
+                                        @if (_replyTarget == comment.Id)
+                                        {
+                                            <div class="gl-comment-new">
+                                                <textarea class="gl-comment-input" rows="1" placeholder="Write a reply..." value="@_replyDraft" @oninput="e => _replyDraft = e.Value?.ToString() ?? string.Empty"></textarea>
+                                                <button type="button" class="gl-btn" @onclick="CancelReply">Cancel</button>
+                                                <button type="button" class="gl-btn gl-btn-primary" @onclick="() => SubmitReply(post.Id, comment.Id)" disabled="@(string.IsNullOrWhiteSpace(_replyDraft))">Reply</button>
+                                            </div>
+                                        }
+                                    </div>
+                                </div>
+                            }
+                        }
+                    </div>
+                }
+            </article>
+        }
+    </div>
+
+    <ProfilePreview TargetUserId="_previewUserId" ViewerId="_userId" OnClose="ClosePreview" />
+}
+
+@code {
+    private bool _loading = true;
+    private int _userId;
+
+    private List<PostDto> _posts = new();
+
+    private string _draft = "";
+    private string? _pendingImage;
+    private string? _imageError;
+    private string? _pendingImageName;
+    private bool _posting;
+
+    private int? _profileUserId;
+    private string _profileUsername = "";
+    private string? _profileAvatar;
+    private string _profileStatus = "online";
+    private string? _profileBio;
+    private List<ProfileStat> _profileStats = new();
+    private FriendshipState _profileFriendState = FriendshipState.None;
+    private bool _profileBusy;
+    private readonly HashSet<int> _sharedIds = new();
+    private int? _previewUserId;
+
+    private int? _menuPostId;
+    private int? _editingPostId;
+    private string _editPostDraft = "";
+
+    private readonly HashSet<int> _openComments = new();
+    private readonly Dictionary<int, List<CommentDto>> _comments = new();
+    private readonly Dictionary<int, string> _newComment = new();
+
+    private int? _replyTarget;
+    private string _replyDraft = "";
+    private int? _editingCommentId;
+    private string _editCommentDraft = "";
+
+    private const long MaxImageBytes = 5 * 1024 * 1024;
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!firstRender) return;
+
+        var state = await AuthState.GetAuthenticationStateAsync();
+        if (state.User.Identity is not { IsAuthenticated: true })
+        {
+            try { Navigation.NavigateTo("/login", forceLoad: true); } catch { }
+            return;
+        }
+
+        _userId = int.Parse(state.User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)!.Value);
+        Navigation.LocationChanged += OnLocationChanged;
+        await LoadForRoute();
+        _loading = false;
+        StateHasChanged();
+    }
+
+    private void OnLocationChanged(object? sender, LocationChangedEventArgs e)
+    {
+        _ = InvokeAsync(async () =>
+        {
+            await LoadForRoute();
+            StateHasChanged();
+        });
+    }
+
+    private async Task LoadForRoute()
+    {
+        var target = ReadUserParam();
+        if (target is null || target == 0)
+        {
+            _profileUserId = null;
+            _sharedIds.Clear();
+            _posts = await Feed.GetFeedAsync(_userId);
+            return;
+        }
+
+        var profile = await Feed.GetUserProfileAsync(_userId, target.Value);
+        if (profile is null)
+        {
+            _profileUserId = null;
+            _posts = await Feed.GetFeedAsync(_userId);
+            return;
+        }
+
+        _profileUserId = profile.UserId;
+        _profileUsername = profile.Username;
+        _profileAvatar = profile.AvatarData;
+        _profileStatus = profile.Status;
+        _profileBio = profile.Bio;
+        _profileStats = profile.Stats;
+        _posts = profile.Posts;
+        _sharedIds.Clear();
+        foreach (var id in profile.SharedPostIds) _sharedIds.Add(id);
+        _openComments.Clear();
+        _profileFriendState = _profileUserId == _userId
+            ? FriendshipState.Self
+            : await FriendSvc.GetStateAsync(_userId, _profileUserId.Value);
+    }
+
+    private int? ReadUserParam()
+    {
+        var query = new Uri(Navigation.Uri).Query;
+        if (string.IsNullOrEmpty(query)) return null;
+        foreach (var pair in query.TrimStart('?').Split('&', StringSplitOptions.RemoveEmptyEntries))
+        {
+            var kv = pair.Split('=', 2);
+            if (kv.Length == 2 && kv[0] == "user" && int.TryParse(kv[1], out var id))
+                return id;
+        }
+        return null;
+    }
+
+    private void OpenPreview(int userId)
+    {
+        if (userId == _userId) return;
+        _previewUserId = userId;
+    }
+
+    private void ClosePreview() => _previewUserId = null;
+
+    private void BackToFeed() => Navigation.NavigateTo("social/global");
+
+    private async Task ProfileAddFriend()
+    {
+        if (_profileUserId is null || _profileBusy) return;
+        _profileBusy = true;
+        _profileFriendState = await FriendSvc.SendRequestAsync(_userId, _profileUserId.Value);
+        _profileBusy = false;
+    }
+
+    private async Task ProfileAcceptFriend()
+    {
+        if (_profileUserId is null || _profileBusy) return;
+        _profileBusy = true;
+        _profileFriendState = await FriendSvc.AcceptRequestAsync(_userId, _profileUserId.Value);
+        _profileBusy = false;
+    }
+
+    private async Task ProfileRemoveFriend()
+    {
+        if (_profileUserId is null || _profileBusy) return;
+        _profileBusy = true;
+        _profileFriendState = await FriendSvc.RemoveAsync(_userId, _profileUserId.Value);
+        _profileBusy = false;
+    }
+
+    private async Task ToggleShare(int postId)
+    {
+        var dto = await Feed.ToggleShareAsync(_userId, postId);
+        if (dto is null) return;
+        var i = _posts.FindIndex(p => p.Id == postId);
+        if (i >= 0) _posts[i] = _posts[i] with { ShareCount = dto.ShareCount, SharedByMe = dto.SharedByMe };
+    }
+
+    private async Task OnImageSelected(InputFileChangeEventArgs e)
+    {
+        _imageError = null;
+        var file = e.File;
+        if (file is null) return;
+
+        if (!file.ContentType.StartsWith("image/", StringComparison.OrdinalIgnoreCase))
+        {
+            _imageError = "Only images can be attached to posts.";
+            return;
+        }
+        if (file.Size > MaxImageBytes)
+        {
+            _imageError = "Images must be 5 MB or smaller.";
+            return;
+        }
+
+        try
+        {
+            using var stream = file.OpenReadStream(MaxImageBytes);
+            using var ms = new MemoryStream();
+            await stream.CopyToAsync(ms);
+            _pendingImage = $"data:{file.ContentType};base64,{Convert.ToBase64String(ms.ToArray())}";
+            _pendingImageName = file.Name;
+        }
+        catch
+        {
+            _imageError = "Could not read that image. Please try another.";
+        }
+    }
+
+    private void RemoveImage()
+    {
+        _pendingImage = null;
+        _pendingImageName = null;
+        _imageError = null;
+    }
+
+    private async Task CreatePost()
+    {
+        if (_posting) return;
+        var text = _draft?.Trim() ?? "";
+        if (text.Length == 0 && string.IsNullOrEmpty(_pendingImage)) return;
+
+        _posting = true;
+        var dto = await Feed.CreatePostAsync(_userId, text, _pendingImage);
+        _posting = false;
+        if (dto is null) return;
+
+        _draft = "";
+        _pendingImage = null;
+        _pendingImageName = null;
+        _imageError = null;
+        _posts = _posts.Prepend(dto).ToList();
+    }
+
+    private void ToggleMenu(int postId) => _menuPostId = _menuPostId == postId ? null : postId;
+
+    private void StartEditPost(PostDto post)
+    {
+        _menuPostId = null;
+        _editingPostId = post.Id;
+        _editPostDraft = post.Content ?? "";
+    }
+
+    private void CancelEditPost()
+    {
+        _editingPostId = null;
+        _editPostDraft = "";
+    }
+
+    private async Task SaveEditPost()
+    {
+        if (_editingPostId is null) return;
+        var id = _editingPostId.Value;
+        var dto = await Feed.EditPostAsync(_userId, id, _editPostDraft);
+        _editingPostId = null;
+        _editPostDraft = "";
+        if (dto is not null) ReplacePost(dto);
+    }
+
+    private async Task DeletePost(int postId)
+    {
+        _menuPostId = null;
+        if (await Feed.DeletePostAsync(_userId, postId))
+        {
+            _posts = _posts.Where(p => p.Id != postId).ToList();
+            _openComments.Remove(postId);
+            _comments.Remove(postId);
+        }
+    }
+
+    private async Task ReactPost(int postId, bool isLike)
+    {
+        var dto = await Feed.ReactPostAsync(_userId, postId, isLike);
+        if (dto is null) return;
+        var i = _posts.FindIndex(p => p.Id == postId);
+        if (i >= 0) _posts[i] = _posts[i] with { LikeCount = dto.LikeCount, DislikeCount = dto.DislikeCount, MyReaction = dto.MyReaction };
+    }
+
+    private async Task ToggleComments(int postId)
+    {
+        if (_openComments.Contains(postId))
+        {
+            _openComments.Remove(postId);
+            return;
+        }
+        _comments[postId] = await Feed.GetCommentsAsync(_userId, postId);
+        _openComments.Add(postId);
+    }
+
+    private string GetNewComment(int postId) => _newComment.TryGetValue(postId, out var v) ? v : "";
+    private void SetNewComment(int postId, string value) => _newComment[postId] = value;
+
+    private async Task AddComment(int postId)
+    {
+        var text = GetNewComment(postId).Trim();
+        if (text.Length == 0) return;
+        var dto = await Feed.AddCommentAsync(_userId, postId, null, text);
+        if (dto is null) return;
+        _newComment[postId] = "";
+        await ReloadComments(postId);
+    }
+
+    private void StartReply(int commentId)
+    {
+        _replyTarget = commentId;
+        _replyDraft = "";
+    }
+
+    private void CancelReply()
+    {
+        _replyTarget = null;
+        _replyDraft = "";
+    }
+
+    private async Task SubmitReply(int postId, int commentId)
+    {
+        var text = _replyDraft?.Trim() ?? "";
+        if (text.Length == 0) return;
+        var dto = await Feed.AddCommentAsync(_userId, postId, commentId, text);
+        if (dto is null) return;
+        _replyTarget = null;
+        _replyDraft = "";
+        await ReloadComments(postId);
+    }
+
+    private void StartEditComment(CommentDto comment)
+    {
+        _editingCommentId = comment.Id;
+        _editCommentDraft = comment.Content;
+    }
+
+    private void CancelEditComment()
+    {
+        _editingCommentId = null;
+        _editCommentDraft = "";
+    }
+
+    private async Task SaveEditComment(int postId)
+    {
+        if (_editingCommentId is null) return;
+        var id = _editingCommentId.Value;
+        var text = _editCommentDraft?.Trim() ?? "";
+        if (text.Length == 0) return;
+        var dto = await Feed.EditCommentAsync(_userId, id, text);
+        _editingCommentId = null;
+        _editCommentDraft = "";
+        if (dto is not null) ReplaceComment(postId, dto);
+    }
+
+    private async Task DeleteComment(int postId, int commentId)
+    {
+        if (await Feed.DeleteCommentAsync(_userId, commentId))
+            await ReloadComments(postId);
+    }
+
+    private async Task ReactComment(int postId, int commentId, bool isLike)
+    {
+        var dto = await Feed.ReactCommentAsync(_userId, commentId, isLike);
+        if (dto is null) return;
+        if (_comments.TryGetValue(postId, out var list))
+        {
+            var i = list.FindIndex(c => c.Id == commentId);
+            if (i >= 0) list[i] = list[i] with { LikeCount = dto.LikeCount, DislikeCount = dto.DislikeCount, MyReaction = dto.MyReaction };
+        }
+    }
+
+    private async Task ReloadComments(int postId)
+    {
+        _comments[postId] = await Feed.GetCommentsAsync(_userId, postId);
+        var i = _posts.FindIndex(p => p.Id == postId);
+        if (i >= 0) _posts[i] = _posts[i] with { CommentCount = _comments[postId].Count };
+    }
+
+    private void ReplacePost(PostDto dto)
+    {
+        var i = _posts.FindIndex(p => p.Id == dto.Id);
+        if (i >= 0) _posts[i] = dto;
+    }
+
+    private void ReplaceComment(int postId, CommentDto dto)
+    {
+        if (_comments.TryGetValue(postId, out var list))
+        {
+            var i = list.FindIndex(c => c.Id == dto.Id);
+            if (i >= 0) list[i] = dto;
+        }
+    }
+
+    private static string FormatTime(DateTime utc)
+    {
+        var local = utc.ToLocalTime();
+        return local.Date == DateTime.Today ? local.ToString("HH:mm") : local.ToString("d MMM, HH:mm");
+    }
+
+    private static IEnumerable<CommentDto> OrderedThread(List<CommentDto> comments)
+    {
+        foreach (var top in comments.Where(c => c.ParentCommentId is null))
+        {
+            yield return top;
+            foreach (var reply in comments.Where(c => c.ParentCommentId == top.Id))
+                yield return reply;
+        }
+    }
+
+    public void Dispose()
+    {
+        Navigation.LocationChanged -= OnLocationChanged;
+    }
+}

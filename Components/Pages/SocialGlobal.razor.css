@@ -1,45 +1,671 @@
-.global-placeholder {
+.gl {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+    max-width: 620px;
+    margin: 0 auto;
+}
+
+.gl-composer {
+    background: var(--s2);
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    padding: 14px;
+}
+
+.gl-composer-input {
+    width: 100%;
+    box-sizing: border-box;
+    resize: vertical;
+    min-height: 52px;
+    max-height: 220px;
+    padding: 10px 12px;
+    font-family: inherit;
+    font-size: 14px;
+    line-height: 1.5;
+    color: var(--t1);
+    background: var(--bg);
+    border: 1px solid var(--border-input);
+    border-radius: 10px;
+    outline: none;
+}
+
+.gl-composer-input:focus {
+    border-color: var(--accent);
+}
+
+.gl-composer-input::placeholder {
+    color: var(--t3);
+}
+
+.gl-composer-image {
+    position: relative;
+    margin-top: 10px;
+    display: inline-block;
+}
+
+.gl-composer-image img {
+    max-width: 220px;
+    max-height: 220px;
+    border-radius: 10px;
+    display: block;
+}
+
+.gl-image-remove {
+    position: absolute;
+    top: 6px;
+    right: 6px;
+    border: none;
+    background: var(--overlay);
+    color: #fff;
+    font-family: inherit;
+    font-size: 11px;
+    font-weight: 700;
+    padding: 4px 9px;
+    border-radius: 7px;
+    cursor: pointer;
+}
+
+.gl-error {
+    margin: 8px 0 0;
+    color: var(--danger);
+    font-size: 12px;
+    font-weight: 600;
+}
+
+.gl-composer-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-top: 10px;
+}
+
+.gl-attach {
+    position: relative;
+    width: 40px;
+    height: 40px;
     display: flex;
     align-items: center;
     justify-content: center;
-    min-height: 360px;
+    border: 1px solid var(--border-input);
+    border-radius: 9px;
+    background: var(--bg);
+    color: var(--t2);
+    cursor: pointer;
+    overflow: hidden;
+    transition: color .13s ease, border-color .13s ease, background .13s ease;
+}
+
+.gl-attach:hover {
+    color: var(--accent);
+    border-color: var(--accent-border);
+    background: var(--accent-dim);
+}
+
+.gl-attach-plus {
+    font-size: 22px;
+    font-weight: 700;
+    line-height: 1;
+}
+
+.gl-image-name {
+    margin: 6px 0 0;
+    color: var(--t3);
+    font-size: 11.5px;
+    font-weight: 600;
+    word-break: break-all;
+}
+
+.gl-attach ::deep input {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    opacity: 0;
+    cursor: pointer;
+}
+
+.gl-post-btn,
+.gl-btn {
+    border: 1px solid var(--border);
+    background: var(--bg-subtle);
+    color: var(--t1);
+    font-family: inherit;
+    font-size: 13px;
+    font-weight: 700;
+    padding: 9px 18px;
+    border-radius: 10px;
+    cursor: pointer;
+    transition: opacity .12s ease, color .12s ease, border-color .12s ease;
+}
+
+.gl-btn {
+    padding: 6px 12px;
+    font-size: 12px;
+}
+
+.gl-post-btn:hover,
+.gl-btn:hover {
+    border-color: var(--border-hover);
+}
+
+.gl-post-btn:disabled,
+.gl-btn:disabled {
+    opacity: .5;
+    cursor: not-allowed;
+}
+
+.gl-post-btn {
+    background: var(--accent);
+    color: var(--on-accent);
+    border-color: var(--accent);
+}
+
+.gl-post-btn:hover {
+    opacity: .9;
+    border-color: var(--accent);
+}
+
+.gl-btn-primary {
+    background: var(--accent);
+    color: var(--on-accent);
+    border-color: var(--accent);
+}
+
+.gl-btn-primary:hover {
+    opacity: .9;
+    border-color: var(--accent);
+}
+
+.gl-empty {
+    text-align: center;
+    color: var(--t2);
+    font-size: 13.5px;
     padding: 24px 0;
 }
 
-.global-card {
-    max-width: 520px;
-    text-align: center;
+.gl-post {
     background: var(--s2);
     border: 1px solid var(--border);
-    border-radius: 16px;
-    padding: 40px 36px;
-    box-shadow: 0 10px 24px var(--shadow-card);
+    border-radius: 14px;
+    padding: 16px;
 }
 
-.global-badge {
-    display: inline-block;
-    margin-bottom: 16px;
-    padding: 5px 13px;
-    border-radius: 999px;
-    background: var(--accent-dim);
-    color: var(--accent);
-    font-size: 11px;
-    font-weight: 800;
-    letter-spacing: .08em;
-    text-transform: uppercase;
+.gl-post-head {
+    display: flex;
+    align-items: center;
+    gap: 11px;
 }
 
-.global-card h2 {
-    margin: 0 0 12px;
+.gl-post-id {
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+    flex: 1;
+}
+
+.gl-post-author {
     color: var(--t1);
-    font-size: 21px;
+    font-size: 14px;
     font-weight: 800;
-    letter-spacing: -.01em;
 }
 
-.global-card p {
-    margin: 0;
-    color: var(--t2);
+.gl-post-time {
+    color: var(--t3);
+    font-size: 11.5px;
+    font-weight: 600;
+}
+
+.gl-menu {
+    position: relative;
+    flex: 0 0 auto;
+}
+
+.gl-menu-btn {
+    border: none;
+    background: transparent;
+    color: var(--t3);
+    font-family: inherit;
+    font-size: 12px;
+    font-weight: 800;
+    padding: 4px 8px;
+    border-radius: 7px;
+    cursor: pointer;
+}
+
+.gl-menu-btn:hover {
+    color: var(--t1);
+    background: var(--bg-hover-faint);
+}
+
+.gl-menu-pop {
+    position: absolute;
+    top: 100%;
+    right: 0;
+    z-index: 20;
+    display: flex;
+    flex-direction: column;
+    min-width: 120px;
+    background: var(--surface);
+    border: 1px solid var(--border-modal);
+    border-radius: 10px;
+    padding: 5px;
+    box-shadow: 0 14px 34px var(--shadow-modal);
+}
+
+.gl-menu-pop button {
+    text-align: left;
+    border: none;
+    background: transparent;
+    color: var(--t1);
+    font-family: inherit;
+    font-size: 13px;
+    font-weight: 600;
+    padding: 8px 10px;
+    border-radius: 7px;
+    cursor: pointer;
+}
+
+.gl-menu-pop button:hover {
+    background: var(--bg-hover-faint);
+}
+
+.gl-menu-danger {
+    color: var(--danger) !important;
+}
+
+.gl-post-text {
+    margin: 12px 0 0;
+    color: var(--t1);
     font-size: 14px;
+    line-height: 1.55;
+    white-space: pre-wrap;
+    word-break: break-word;
+}
+
+.gl-post-image {
+    display: block;
+    margin-top: 12px;
+    border-radius: 12px;
+    overflow: hidden;
+    max-width: 100%;
+}
+
+.gl-post-image img {
+    display: block;
+    width: 100%;
+    max-height: 460px;
+    object-fit: cover;
+}
+
+.gl-bar {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-top: 14px;
+    padding-top: 12px;
+    border-top: 1px solid var(--border-faint);
+}
+
+.gl-react,
+.gl-react-mini {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    border: 1px solid var(--border);
+    background: var(--bg-subtle);
+    color: var(--t2);
+    font-family: inherit;
+    font-weight: 700;
+    cursor: pointer;
+    transition: color .12s ease, border-color .12s ease, background .12s ease;
+}
+
+.gl-react {
+    font-size: 12.5px;
+    padding: 6px 12px;
+    border-radius: 9px;
+}
+
+.gl-react-mini {
+    font-size: 11px;
+    padding: 3px 8px;
+    border-radius: 7px;
+}
+
+.gl-react:hover,
+.gl-react-mini:hover {
+    border-color: var(--border-hover);
+    color: var(--t1);
+}
+
+.gl-react.active-up,
+.gl-react-mini.active-up {
+    color: var(--accent);
+    border-color: var(--accent-border);
+    background: var(--accent-dim);
+}
+
+.gl-react.active-down,
+.gl-react-mini.active-down {
+    color: var(--danger);
+    border-color: var(--danger);
+    background: transparent;
+}
+
+.gl-thumb-up,
+.gl-thumb-down {
+    width: 15px;
+    height: 15px;
+    background: currentColor;
+    -webkit-mask: center/contain no-repeat;
+    mask: center/contain no-repeat;
+    -webkit-mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Cpath d='M6.956 1.745C7.021.81 7.908.087 8.864.325l.261.066c.463.116.874.456 1.012.964.22.817.533 2.512.062 4.51a10 10 0 0 1 .443-.051c.713-.065 1.669-.072 2.516.21.518.173.994.681 1.2 1.273.184.532.16 1.162-.234 1.733q.086.18.138.363c.077.27.113.567.113.856s-.036.586-.113.856c-.039.135-.09.273-.16.404.169.387.107.819-.003 1.148a3.2 3.2 0 0 1-.488.901c.054.152.076.312.076.465 0 .305-.089.625-.253.912C13.1 15.522 12.437 16 11.5 16H8c-.605 0-1.07-.081-1.466-.218a4.8 4.8 0 0 1-.97-.484l-.048-.03c-.504-.307-.999-.609-2.068-.722C2.682 14.464 2 13.846 2 13V9c0-.85.685-1.432 1.357-1.615.849-.232 1.574-.787 2.132-1.41.56-.627.914-1.28 1.039-1.639.199-.575.356-1.539.428-2.59z'/%3E%3C/svg%3E");
+    mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Cpath d='M6.956 1.745C7.021.81 7.908.087 8.864.325l.261.066c.463.116.874.456 1.012.964.22.817.533 2.512.062 4.51a10 10 0 0 1 .443-.051c.713-.065 1.669-.072 2.516.21.518.173.994.681 1.2 1.273.184.532.16 1.162-.234 1.733q.086.18.138.363c.077.27.113.567.113.856s-.036.586-.113.856c-.039.135-.09.273-.16.404.169.387.107.819-.003 1.148a3.2 3.2 0 0 1-.488.901c.054.152.076.312.076.465 0 .305-.089.625-.253.912C13.1 15.522 12.437 16 11.5 16H8c-.605 0-1.07-.081-1.466-.218a4.8 4.8 0 0 1-.97-.484l-.048-.03c-.504-.307-.999-.609-2.068-.722C2.682 14.464 2 13.846 2 13V9c0-.85.685-1.432 1.357-1.615.849-.232 1.574-.787 2.132-1.41.56-.627.914-1.28 1.039-1.639.199-.575.356-1.539.428-2.59z'/%3E%3C/svg%3E");
+}
+
+.gl-thumb-down {
+    transform: rotate(180deg);
+}
+
+.gl-comment-toggle {
+    margin-left: auto;
+    border: none;
+    background: transparent;
+    color: var(--t2);
+    font-family: inherit;
+    font-size: 12.5px;
+    font-weight: 700;
+    padding: 6px 8px;
+    border-radius: 8px;
+    cursor: pointer;
+}
+
+.gl-comment-toggle:hover {
+    color: var(--t1);
+    background: var(--bg-hover-faint);
+}
+
+.gl-comments {
+    margin-top: 12px;
+    padding-top: 12px;
+    border-top: 1px solid var(--border-faint);
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+
+.gl-comment-new {
+    display: flex;
+    align-items: flex-start;
+    gap: 8px;
+}
+
+.gl-comment-input {
+    flex: 1;
+    box-sizing: border-box;
+    resize: none;
+    min-height: 38px;
+    max-height: 120px;
+    padding: 9px 11px;
+    font-family: inherit;
+    font-size: 13px;
+    color: var(--t1);
+    background: var(--bg);
+    border: 1px solid var(--border-input);
+    border-radius: 9px;
+    outline: none;
+}
+
+.gl-comment-input:focus {
+    border-color: var(--accent);
+}
+
+.gl-comment {
+    display: flex;
+    gap: 9px;
+}
+
+.gl-comment.reply {
+    margin-left: 38px;
+}
+
+.gl-comment-body {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    min-width: 0;
+    flex: 1;
+}
+
+.gl-comment-bubble {
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 11px;
+    padding: 8px 11px;
+}
+
+.gl-comment-author {
+    color: var(--t1);
+    font-size: 12.5px;
+    font-weight: 800;
+}
+
+.gl-comment-text {
+    color: var(--t1);
+    font-size: 13px;
+    line-height: 1.5;
+    white-space: pre-wrap;
+    word-break: break-word;
+}
+
+.gl-comment-edited {
+    color: var(--t3);
+    font-size: 10px;
+    font-style: italic;
+    font-weight: 600;
+}
+
+.gl-comment-actions {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-wrap: wrap;
+    padding-left: 4px;
+}
+
+.gl-comment-link {
+    border: none;
+    background: transparent;
+    color: var(--t3);
+    font-family: inherit;
+    font-size: 11.5px;
+    font-weight: 700;
+    cursor: pointer;
+    padding: 2px 2px;
+}
+
+.gl-comment-link:hover {
+    color: var(--t1);
+}
+
+.gl-comment-danger:hover {
+    color: var(--danger);
+}
+
+.gl-comment-time {
+    color: var(--t3);
+    font-size: 10.5px;
+    font-weight: 600;
+    margin-left: auto;
+}
+
+.gl-edit {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    width: 100%;
+}
+
+.gl-edit-input {
+    width: 100%;
+    box-sizing: border-box;
+    resize: vertical;
+    min-height: 46px;
+    max-height: 200px;
+    padding: 8px 10px;
+    font-family: inherit;
+    font-size: 13.5px;
+    line-height: 1.45;
+    color: var(--t1);
+    background: var(--bg);
+    border: 1px solid var(--border-input);
+    border-radius: 9px;
+    outline: none;
+}
+
+.gl-edit-input:focus {
+    border-color: var(--accent);
+}
+
+.gl-edit-actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 6px;
+}
+
+.gl-author-click {
+    cursor: pointer;
+}
+
+.gl-post-author.gl-author-click:hover {
+    text-decoration: underline;
+}
+
+.gl-share-icon {
+    width: 15px;
+    height: 15px;
+    background: currentColor;
+    -webkit-mask: center/contain no-repeat;
+    mask: center/contain no-repeat;
+    -webkit-mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Cpath fill-rule='evenodd' d='M11.534 7h3.932a.25.25 0 0 1 .192.41l-1.966 2.36a.25.25 0 0 1-.384 0l-1.966-2.36a.25.25 0 0 1 .192-.41m-11 2h3.932a.25.25 0 0 0 .192-.41L2.692 6.23a.25.25 0 0 0-.384 0L.342 8.59A.25.25 0 0 0 .534 9'/%3E%3Cpath d='M8 3c-1.552 0-2.94.707-3.857 1.818a.5.5 0 1 1-.771-.636A6.002 6.002 0 0 1 13.917 7H12.9A5.002 5.002 0 0 0 8 3M3.1 9a5.002 5.002 0 0 0 8.757 2.182.5.5 0 1 1 .771.636A6.002 6.002 0 0 1 2.083 9z'/%3E%3C/svg%3E");
+    mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Cpath fill-rule='evenodd' d='M11.534 7h3.932a.25.25 0 0 1 .192.41l-1.966 2.36a.25.25 0 0 1-.384 0l-1.966-2.36a.25.25 0 0 1 .192-.41m-11 2h3.932a.25.25 0 0 0 .192-.41L2.692 6.23a.25.25 0 0 0-.384 0L.342 8.59A.25.25 0 0 0 .534 9'/%3E%3Cpath d='M8 3c-1.552 0-2.94.707-3.857 1.818a.5.5 0 1 1-.771-.636A6.002 6.002 0 0 1 13.917 7H12.9A5.002 5.002 0 0 0 8 3M3.1 9a5.002 5.002 0 0 0 8.757 2.182.5.5 0 1 1 .771.636A6.002 6.002 0 0 1 2.083 9z'/%3E%3C/svg%3E");
+}
+
+.gl-react.active-share {
+    color: var(--success);
+    border-color: var(--success);
+    background: transparent;
+}
+
+.gl-btn-danger:hover {
+    color: var(--danger);
+    border-color: var(--danger);
+}
+
+.gl-repost-label {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    color: var(--t3);
+    font-size: 11.5px;
+    font-weight: 700;
+    padding: 2px 4px 0;
+}
+
+.gl-profile-head {
+    background: var(--s2);
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    padding: 16px;
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+}
+
+.gl-back {
+    align-self: flex-start;
+    border: none;
+    background: transparent;
+    color: var(--t2);
+    font-family: inherit;
+    font-size: 12.5px;
+    font-weight: 700;
+    cursor: pointer;
+    padding: 4px 8px;
+    border-radius: 8px;
+}
+
+.gl-back:hover {
+    color: var(--t1);
+    background: var(--bg-hover-faint);
+}
+
+.gl-profile-id {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+}
+
+.gl-profile-text {
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+    flex: 1;
+}
+
+.gl-profile-name {
+    color: var(--t1);
+    font-size: 19px;
+    font-weight: 800;
+}
+
+.gl-profile-sub {
+    color: var(--t3);
+    font-size: 12.5px;
+    font-weight: 600;
+}
+
+.gl-profile-actions {
+    flex: 0 0 auto;
+}
+
+.gl-profile-bio {
+    margin: 0;
+    color: var(--t1-soft);
+    font-size: 13.5px;
     line-height: 1.6;
+}
+
+.gl-profile-stats {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+    gap: 8px;
+}
+
+.gl-profile-stat {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 9px 11px;
+}
+
+.gl-profile-stat-label {
+    color: var(--t3);
+    font-size: 9.5px;
+    font-weight: 800;
+    text-transform: uppercase;
+    letter-spacing: .07em;
+}
+
+.gl-profile-stat-value {
+    color: var(--t1);
+    font-size: 13px;
+    font-weight: 700;
 }
