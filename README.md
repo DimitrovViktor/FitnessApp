@@ -60,11 +60,14 @@ A list of foods sorted in categories
 
 Users can message each other and attach images/files
 
+### Friends
+
+Users can add each other as friends and look each other up
+
 ## To-do
 
 ### Features and functionality
 
-- add edit/delete functionality to direct messages
 - Social global - users can make posts to share custom workouts, make posts, interact with others who use the app
 - Add functionality to settings placeholders
 
