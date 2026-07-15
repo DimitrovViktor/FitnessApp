@@ -8,23 +8,27 @@ public class FeedService
 {
     private readonly AppDbContext _db;
     private readonly DirectMessageService _dm;
+    private readonly WorkoutService _workouts;
 
-    public FeedService(AppDbContext db, DirectMessageService dm)
+    public FeedService(AppDbContext db, DirectMessageService dm, WorkoutService workouts)
     {
         _db = db;
         _dm = dm;
+        _workouts = workouts;
     }
 
-    public async Task<PostDto?> CreatePostAsync(int meId, string? content, string? imageData)
+    public async Task<PostDto?> CreatePostAsync(int meId, string? content, string? imageData, int? sharedWorkoutId, int? sharedProgramId)
     {
         content = content?.Trim();
-        if (string.IsNullOrEmpty(content) && string.IsNullOrEmpty(imageData)) return null;
+        if (string.IsNullOrEmpty(content) && string.IsNullOrEmpty(imageData) && sharedWorkoutId is null && sharedProgramId is null) return null;
 
         var post = new Post
         {
             AuthorId = meId,
             Content = string.IsNullOrEmpty(content) ? null : content,
             ImageData = string.IsNullOrEmpty(imageData) ? null : imageData,
+            SharedWorkoutId = sharedWorkoutId,
+            SharedProgramId = sharedProgramId,
             CreatedAt = DateTime.UtcNow
         };
         _db.Posts.Add(post);
@@ -137,12 +141,37 @@ public class FeedService
             .Select(s => new { s.PostId, s.UserId })
             .ToListAsync();
 
+        var wIds = posts.Where(p => p.SharedWorkoutId is not null).Select(p => p.SharedWorkoutId!.Value).Distinct().ToList();
+        var pIds = posts.Where(p => p.SharedProgramId is not null).Select(p => p.SharedProgramId!.Value).Distinct().ToList();
+
+        var wMap = new Dictionary<int, SharedActivityDto>();
+        if (wIds.Count > 0)
+        {
+            var ws = await _db.Workouts.Include(x => x.WorkoutExercises).Where(x => wIds.Contains(x.Id)).ToListAsync();
+            foreach (var w in ws)
+                wMap[w.Id] = new SharedActivityDto("workout", w.Id, w.Name,
+                    $"{w.WorkoutExercises.Count} exercises \u00b7 {w.WorkoutExercises.Sum(x => x.Sets)} sets \u00b7 ~{(int)Math.Round(WorkoutService.EstimateWorkoutMinutesFromWE(w.WorkoutExercises))} min");
+        }
+
+        var pMap = new Dictionary<int, SharedActivityDto>();
+        if (pIds.Count > 0)
+        {
+            var ps = await _db.Programs.Include(x => x.Workouts).Where(x => pIds.Contains(x.Id)).ToListAsync();
+            foreach (var p in ps)
+                pMap[p.Id] = new SharedActivityDto("program", p.Id, p.Name,
+                    $"{p.DurationWeeks}w \u00b7 {p.DaysPerWeek}d/wk \u00b7 {p.Workouts.Count} workouts");
+        }
+
         var result = new List<PostDto>();
         foreach (var post in posts)
         {
             var author = authors.FirstOrDefault(u => u.Id == post.AuthorId);
             var postReactions = reactions.Where(r => r.PostId == post.Id).ToList();
             var postShares = shares.Where(s => s.PostId == post.Id).ToList();
+            SharedActivityDto? activity = null;
+            if (post.SharedWorkoutId is not null) wMap.TryGetValue(post.SharedWorkoutId.Value, out activity);
+            else if (post.SharedProgramId is not null) pMap.TryGetValue(post.SharedProgramId.Value, out activity);
+
             result.Add(new PostDto(
                 post.Id,
                 post.AuthorId,
@@ -158,10 +187,63 @@ public class FeedService
                 MyReactionValue(postReactions.Where(r => r.UserId == meId).Select(r => (bool?)r.IsLike).FirstOrDefault()),
                 commentPostIds.Count(id => id == post.Id),
                 postShares.Count,
-                postShares.Any(s => s.UserId == meId)));
+                postShares.Any(s => s.UserId == meId),
+                activity));
         }
         return result;
     }
+
+    public async Task<List<ActivityPickDto>> GetMyActivitiesAsync(int meId)
+    {
+        var workouts = await _workouts.GetUserWorkoutsAsync(meId);
+        var programs = await _workouts.GetUserProgramsAsync(meId);
+
+        var list = new List<ActivityPickDto>();
+        foreach (var w in workouts.OrderBy(x => x.Name))
+            list.Add(new ActivityPickDto("workout", w.Id, w.Name, $"{w.WorkoutExercises.Count} exercises"));
+        foreach (var p in programs.OrderBy(x => x.Name))
+            list.Add(new ActivityPickDto("program", p.Id, p.Name, $"{p.Workouts.Count} workouts"));
+        return list;
+    }
+
+    public async Task<WorkoutActivityDto?> GetWorkoutPreviewAsync(int workoutId)
+    {
+        var w = await _db.Workouts
+            .Include(x => x.WorkoutExercises).ThenInclude(we => we.Exercise).ThenInclude(e => e.ExerciseMuscleGroups).ThenInclude(em => em.MuscleGroup)
+            .Include(x => x.Program)
+            .FirstOrDefaultAsync(x => x.Id == workoutId);
+        if (w is null) return null;
+
+        var exercises = w.WorkoutExercises.OrderBy(x => x.SortOrder).Select(we => new ActivityExerciseDto(
+            we.Exercise.Name,
+            string.Join(", ", we.Exercise.ExerciseMuscleGroups.Where(m => m.IsPrimary).Select(m => m.MuscleGroup.Name)),
+            we.Sets,
+            we.Reps)).ToList();
+
+        return new WorkoutActivityDto(w.Id, w.Name, w.Program?.Name,
+            w.WorkoutExercises.Count,
+            w.WorkoutExercises.Sum(x => x.Sets),
+            (int)Math.Round(WorkoutService.EstimateWorkoutMinutesFromWE(w.WorkoutExercises)),
+            exercises);
+    }
+
+    public async Task<ProgramActivityDto?> GetProgramPreviewAsync(int programId)
+    {
+        var p = await _db.Programs
+            .Include(x => x.Workouts).ThenInclude(w => w.WorkoutExercises)
+            .FirstOrDefaultAsync(x => x.Id == programId);
+        if (p is null) return null;
+
+        var workouts = p.Workouts.OrderBy(x => x.SortOrder).Select(w => new ProgramWorkoutDto(
+            w.Name, w.WorkoutExercises.Count, w.WorkoutExercises.Sum(x => x.Sets))).ToList();
+
+        return new ProgramActivityDto(p.Id, p.Name, p.TargetLevel, p.TargetGoal,
+            p.DurationWeeks, p.DaysPerWeek, p.Description, workouts);
+    }
+
+    public async Task AddWorkoutToMeAsync(int meId, int workoutId) => await _workouts.CopyWorkoutToUserAsync(workoutId, meId);
+
+    public async Task AddProgramToMeAsync(int meId, int programId) => await _workouts.CopyProgramToUserAsync(programId, meId);
 
     public async Task<PostReactionDto?> ReactPostAsync(int meId, int postId, bool isLike)
     {
@@ -339,6 +421,22 @@ public class FeedService
         var commentCount = await _db.Comments.CountAsync(c => c.PostId == postId);
         var shares = await _db.PostShares.Where(s => s.PostId == postId).Select(s => s.UserId).ToListAsync();
 
+        SharedActivityDto? activity = null;
+        if (post.SharedWorkoutId is not null)
+        {
+            var w = await _db.Workouts.Include(x => x.WorkoutExercises).FirstOrDefaultAsync(x => x.Id == post.SharedWorkoutId.Value);
+            if (w is not null)
+                activity = new SharedActivityDto("workout", w.Id, w.Name,
+                    $"{w.WorkoutExercises.Count} exercises \u00b7 {w.WorkoutExercises.Sum(x => x.Sets)} sets \u00b7 ~{(int)Math.Round(WorkoutService.EstimateWorkoutMinutesFromWE(w.WorkoutExercises))} min");
+        }
+        else if (post.SharedProgramId is not null)
+        {
+            var p = await _db.Programs.Include(x => x.Workouts).FirstOrDefaultAsync(x => x.Id == post.SharedProgramId.Value);
+            if (p is not null)
+                activity = new SharedActivityDto("program", p.Id, p.Name,
+                    $"{p.DurationWeeks}w \u00b7 {p.DaysPerWeek}d/wk \u00b7 {p.Workouts.Count} workouts");
+        }
+
         return new PostDto(
             post.Id,
             post.AuthorId,
@@ -354,7 +452,8 @@ public class FeedService
             MyReactionValue(reactions.Where(r => r.UserId == meId).Select(r => (bool?)r.IsLike).FirstOrDefault()),
             commentCount,
             shares.Count,
-            shares.Contains(meId));
+            shares.Contains(meId),
+            activity);
     }
 
     private static int MyReactionValue(bool? isLike)
@@ -364,7 +463,19 @@ public class FeedService
     }
 }
 
-public record PostDto(int Id, int AuthorId, string AuthorUsername, string? AuthorAvatarData, string AuthorStatus, string? Content, string? ImageData, bool IsEdited, DateTime CreatedAt, int LikeCount, int DislikeCount, int MyReaction, int CommentCount, int ShareCount, bool SharedByMe);
+public record PostDto(int Id, int AuthorId, string AuthorUsername, string? AuthorAvatarData, string AuthorStatus, string? Content, string? ImageData, bool IsEdited, DateTime CreatedAt, int LikeCount, int DislikeCount, int MyReaction, int CommentCount, int ShareCount, bool SharedByMe, SharedActivityDto? SharedActivity);
+
+public record SharedActivityDto(string Kind, int RefId, string Name, string Line);
+
+public record ActivityPickDto(string Kind, int Id, string Name, string Line);
+
+public record WorkoutActivityDto(int Id, string Name, string? ProgramName, int ExerciseCount, int SetCount, int Minutes, List<ActivityExerciseDto> Exercises);
+
+public record ActivityExerciseDto(string Name, string Muscles, int Sets, int Reps);
+
+public record ProgramActivityDto(int Id, string Name, string? Level, string? Goal, int Weeks, int Days, string? Description, List<ProgramWorkoutDto> Workouts);
+
+public record ProgramWorkoutDto(string Name, int ExerciseCount, int SetCount);
 
 public record PostShareDto(int PostId, int ShareCount, bool SharedByMe);
 

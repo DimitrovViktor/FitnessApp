@@ -1,0 +1,141 @@
+@inject FeedService Feed
+
+@if (Activity is not null)
+{
+    <div class="ap-overlay" @onclick="Close">
+        <div class="ap" @onclick:stopPropagation="true">
+            <button type="button" class="ap-close" @onclick="Close" aria-label="Close">Close</button>
+
+            @if (_loading)
+            {
+                <div class="ap-loading">Loading...</div>
+            }
+            else if (_workout is not null)
+            {
+                <h2 class="ap-title">@_workout.Name</h2>
+                @if (!string.IsNullOrEmpty(_workout.ProgramName))
+                {
+                    <span class="ap-badge">@_workout.ProgramName</span>
+                }
+                <div class="ap-stats">
+                    <span class="ap-bdg">@_workout.ExerciseCount exercises</span>
+                    <span class="ap-bdg">@_workout.SetCount sets</span>
+                    <span class="ap-bdg">~@_workout.Minutes min</span>
+                </div>
+                <div class="ap-list">
+                    @foreach (var ex in _workout.Exercises)
+                    {
+                        <div class="ap-item">
+                            <div class="ap-item-info">
+                                <span class="ap-item-name">@ex.Name</span>
+                                <span class="ap-item-sub">@ex.Muscles</span>
+                            </div>
+                            <span class="ap-item-sr">@ex.Sets x @ex.Reps</span>
+                        </div>
+                    }
+                </div>
+                <div class="ap-actions">
+                    <button type="button" class="ap-btn" @onclick="AddWorkout" disabled="@(_busy || _added)">@(_added ? "Added to My Activities" : "Add to My Activities")</button>
+                </div>
+            }
+            else if (_program is not null)
+            {
+                <h2 class="ap-title">@_program.Name</h2>
+                <div class="ap-stats">
+                    @if (!string.IsNullOrEmpty(_program.Level))
+                    {
+                        <span class="ap-bdg">@_program.Level</span>
+                    }
+                    @if (!string.IsNullOrEmpty(_program.Goal))
+                    {
+                        <span class="ap-bdg">@_program.Goal</span>
+                    }
+                    <span class="ap-bdg">@($"{_program.Weeks}w \u00b7 {_program.Days}d/wk")</span>
+                </div>
+                @if (!string.IsNullOrEmpty(_program.Description))
+                {
+                    <p class="ap-desc">@_program.Description</p>
+                }
+                <h3 class="ap-subtitle">Workouts</h3>
+                <div class="ap-list">
+                    @foreach (var w in _program.Workouts)
+                    {
+                        <div class="ap-item">
+                            <div class="ap-item-info">
+                                <span class="ap-item-name">@w.Name</span>
+                                <span class="ap-item-sub">@($"{w.ExerciseCount} exercises \u00b7 {w.SetCount} sets")</span>
+                            </div>
+                        </div>
+                    }
+                </div>
+                <div class="ap-actions">
+                    <button type="button" class="ap-btn" @onclick="AddProgram" disabled="@(_busy || _added)">@(_added ? "Saved to My Programs" : "Save to My Programs")</button>
+                </div>
+            }
+            else
+            {
+                <div class="ap-loading">This activity is no longer available.</div>
+            }
+        </div>
+    </div>
+}
+
+@code {
+    [Parameter] public SharedActivityDto? Activity { get; set; }
+    [Parameter] public int ViewerUserId { get; set; }
+    [Parameter] public EventCallback OnClose { get; set; }
+
+    private WorkoutActivityDto? _workout;
+    private ProgramActivityDto? _program;
+    private bool _loading;
+    private bool _busy;
+    private bool _added;
+    private string? _loadedKey;
+
+    protected override async Task OnParametersSetAsync()
+    {
+        if (Activity is null)
+        {
+            _workout = null;
+            _program = null;
+            _loadedKey = null;
+            return;
+        }
+
+        var key = $"{Activity.Kind}:{Activity.RefId}";
+        if (_loadedKey == key) return;
+
+        _loadedKey = key;
+        _workout = null;
+        _program = null;
+        _added = false;
+        _loading = true;
+
+        if (Activity.Kind == "workout")
+            _workout = await Feed.GetWorkoutPreviewAsync(Activity.RefId);
+        else
+            _program = await Feed.GetProgramPreviewAsync(Activity.RefId);
+
+        _loading = false;
+    }
+
+    private async Task Close() => await OnClose.InvokeAsync();
+
+    private async Task AddWorkout()
+    {
+        if (_workout is null || _busy || _added) return;
+        _busy = true;
+        await Feed.AddWorkoutToMeAsync(ViewerUserId, _workout.Id);
+        _added = true;
+        _busy = false;
+    }
+
+    private async Task AddProgram()
+    {
+        if (_program is null || _busy || _added) return;
+        _busy = true;
+        await Feed.AddProgramToMeAsync(ViewerUserId, _program.Id);
+        _added = true;
+        _busy = false;
+    }
+}

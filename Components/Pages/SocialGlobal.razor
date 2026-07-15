@@ -31,12 +31,43 @@ else
                     <p class="gl-error">@_imageError</p>
                 }
 
+                @if (_pendingActivity is not null)
+                {
+                    <div class="gl-activity-chip">
+                        <span class="gl-activity-kind">@(_pendingActivity.Kind == "workout" ? "Activity" : "Program")</span>
+                        <span class="gl-activity-chip-name">@_pendingActivity.Name</span>
+                        <button type="button" class="gl-image-remove gl-activity-remove" @onclick="() => _pendingActivity = null">Remove</button>
+                    </div>
+                }
+
+                @if (_showActivityPicker)
+                {
+                    <div class="gl-picker">
+                        @if (_myActivities.Count == 0)
+                        {
+                            <p class="gl-picker-empty">You have no saved activities or programs yet.</p>
+                        }
+                        else
+                        {
+                            @foreach (var item in _myActivities)
+                            {
+                                <button type="button" class="gl-picker-item" @onclick="() => PickActivity(item)">
+                                    <span class="gl-picker-kind">@(item.Kind == "workout" ? "Activity" : "Program")</span>
+                                    <span class="gl-picker-name">@item.Name</span>
+                                    <span class="gl-picker-line">@item.Line</span>
+                                </button>
+                            }
+                        }
+                    </div>
+                }
+
                 <div class="gl-composer-row">
                     <label class="gl-attach" title="Attach image" aria-label="Attach image">
                         <span class="gl-attach-plus" aria-hidden="true">+</span>
                         <InputFile OnChange="OnImageSelected" accept="image/*" />
                     </label>
-                    <button type="button" class="gl-post-btn" @onclick="CreatePost" disabled="@(_posting || (string.IsNullOrWhiteSpace(_draft) && string.IsNullOrEmpty(_pendingImage)))">Post</button>
+                    <button type="button" class="gl-attach-activity" @onclick="ToggleActivityPicker">@(_showActivityPicker ? "Close" : "Attach activity")</button>
+                    <button type="button" class="gl-post-btn" @onclick="CreatePost" disabled="@(_posting || (string.IsNullOrWhiteSpace(_draft) && string.IsNullOrEmpty(_pendingImage) && _pendingActivity is null))">Post</button>
                 </div>
             </div>
         }
@@ -149,6 +180,14 @@ else
                             <img src="@post.ImageData" alt="" />
                         </a>
                     }
+                    @if (post.SharedActivity is not null)
+                    {
+                        <button type="button" class="gl-activity-card" @onclick="() => OpenActivity(post.SharedActivity)">
+                            <span class="gl-activity-card-kind">@(post.SharedActivity.Kind == "workout" ? "Activity" : "Program")</span>
+                            <span class="gl-activity-card-name">@post.SharedActivity.Name</span>
+                            <span class="gl-activity-card-line">@post.SharedActivity.Line</span>
+                        </button>
+                    }
                 }
 
                 <div class="gl-bar">
@@ -239,6 +278,7 @@ else
     </div>
 
     <ProfilePreview TargetUserId="_previewUserId" ViewerId="_userId" OnClose="ClosePreview" />
+    <ActivityPreview Activity="_activeActivity" ViewerUserId="_userId" OnClose="CloseActivity" />
 }
 
 @code {
@@ -252,6 +292,10 @@ else
     private string? _imageError;
     private string? _pendingImageName;
     private bool _posting;
+    private ActivityPickDto? _pendingActivity;
+    private List<ActivityPickDto> _myActivities = new();
+    private bool _showActivityPicker;
+    private SharedActivityDto? _activeActivity;
 
     private int? _profileUserId;
     private string _profileUsername = "";
@@ -437,10 +481,13 @@ else
     {
         if (_posting) return;
         var text = _draft?.Trim() ?? "";
-        if (text.Length == 0 && string.IsNullOrEmpty(_pendingImage)) return;
+        if (text.Length == 0 && string.IsNullOrEmpty(_pendingImage) && _pendingActivity is null) return;
+
+        var workoutId = _pendingActivity is not null && _pendingActivity.Kind == "workout" ? _pendingActivity.Id : (int?)null;
+        var programId = _pendingActivity is not null && _pendingActivity.Kind == "program" ? _pendingActivity.Id : (int?)null;
 
         _posting = true;
-        var dto = await Feed.CreatePostAsync(_userId, text, _pendingImage);
+        var dto = await Feed.CreatePostAsync(_userId, text, _pendingImage, workoutId, programId);
         _posting = false;
         if (dto is null) return;
 
@@ -448,8 +495,32 @@ else
         _pendingImage = null;
         _pendingImageName = null;
         _imageError = null;
+        _pendingActivity = null;
+        _showActivityPicker = false;
         _posts = _posts.Prepend(dto).ToList();
     }
+
+    private async Task ToggleActivityPicker()
+    {
+        if (_showActivityPicker)
+        {
+            _showActivityPicker = false;
+            return;
+        }
+        if (_myActivities.Count == 0)
+            _myActivities = await Feed.GetMyActivitiesAsync(_userId);
+        _showActivityPicker = true;
+    }
+
+    private void PickActivity(ActivityPickDto item)
+    {
+        _pendingActivity = item;
+        _showActivityPicker = false;
+    }
+
+    private void OpenActivity(SharedActivityDto activity) => _activeActivity = activity;
+
+    private void CloseActivity() => _activeActivity = null;
 
     private void ToggleMenu(int postId) => _menuPostId = _menuPostId == postId ? null : postId;
 

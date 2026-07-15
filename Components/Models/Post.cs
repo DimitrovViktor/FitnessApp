@@ -7,6 +7,8 @@ public class Post
     public User Author { get; set; } = null!;
     public string? Content { get; set; }
     public string? ImageData { get; set; }
+    public int? SharedWorkoutId { get; set; }
+    public int? SharedProgramId { get; set; }
     public bool IsEdited { get; set; }
     public DateTime? EditedAt { get; set; }
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;

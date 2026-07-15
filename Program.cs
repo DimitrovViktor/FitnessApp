@@ -326,6 +326,8 @@ using (var scope = app.Services.CreateScope())
             AuthorId INTEGER NOT NULL,
             Content TEXT NULL,
             ImageData TEXT NULL,
+            SharedWorkoutId INTEGER NULL,
+            SharedProgramId INTEGER NULL,
             IsEdited INTEGER NOT NULL DEFAULT 0,
             EditedAt TEXT NULL,
             CreatedAt TEXT NOT NULL,
@@ -333,6 +335,8 @@ using (var scope = app.Services.CreateScope())
     }
     catch { }
     try { db.Database.ExecuteSqlRaw("CREATE INDEX IF NOT EXISTS IX_Posts_CreatedAt ON Posts (CreatedAt)"); } catch { }
+    try { db.Database.ExecuteSqlRaw("ALTER TABLE Posts ADD COLUMN SharedWorkoutId INTEGER NULL"); } catch { }
+    try { db.Database.ExecuteSqlRaw("ALTER TABLE Posts ADD COLUMN SharedProgramId INTEGER NULL"); } catch { }
 
     try
     {
