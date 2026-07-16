@@ -64,6 +64,10 @@ Users can message each other and attach images/files
 
 Users can add each other as friends and look each other up
 
+### Global
+
+Users can make posts and share their workouts with everyone
+
 ## To-do
 
 ### Features and functionality
