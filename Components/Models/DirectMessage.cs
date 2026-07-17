@@ -13,6 +13,8 @@ public class DirectMessage
     public string? AttachmentType { get; set; }
     public bool IsImage { get; set; }
     public long AttachmentSize { get; set; }
+    public int? SharedWorkoutId { get; set; }
+    public int? SharedProgramId { get; set; }
     public bool IsRead { get; set; }
     public bool IsEdited { get; set; }
     public DateTime? EditedAt { get; set; }

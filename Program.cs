@@ -26,6 +26,7 @@ builder.Services.AddScoped<ProgressService>();
 builder.Services.AddScoped<DietService>();
 builder.Services.AddScoped<ProfilePresenceState>();
 builder.Services.AddScoped<FriendService>();
+builder.Services.AddScoped<ActivityShareService>();
 builder.Services.AddScoped<FeedService>();
 builder.Services.AddScoped<DirectMessageService>();
 builder.Services.AddSingleton<ChatBroker>();
@@ -318,6 +319,9 @@ using (var scope = app.Services.CreateScope())
 
     try { db.Database.ExecuteSqlRaw("CREATE UNIQUE INDEX IF NOT EXISTS IX_Friendships_RequesterId_AddresseeId ON Friendships (RequesterId, AddresseeId)"); } catch { }
     try { db.Database.ExecuteSqlRaw("CREATE INDEX IF NOT EXISTS IX_Friendships_AddresseeId ON Friendships (AddresseeId)"); } catch { }
+
+    try { db.Database.ExecuteSqlRaw("ALTER TABLE DirectMessages ADD COLUMN SharedWorkoutId INTEGER NULL"); } catch { }
+    try { db.Database.ExecuteSqlRaw("ALTER TABLE DirectMessages ADD COLUMN SharedProgramId INTEGER NULL"); } catch { }
 
     try
     {

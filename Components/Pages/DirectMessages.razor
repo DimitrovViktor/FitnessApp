@@ -1,4 +1,5 @@
 @inject DirectMessageService Dm
+@inject ActivityShareService Activities
 @inject ChatBroker Broker
 @inject CustomAuthStateProvider AuthState
 @inject NavigationManager Navigation
@@ -165,6 +166,14 @@ else
                                             </a>
                                         }
                                     }
+                                    @if (message.SharedActivity is not null)
+                                    {
+                                        <button type="button" class="dm-activity-card" @onclick="() => OpenActivity(message.SharedActivity)" @onclick:stopPropagation="true">
+                                            <span class="dm-activity-card-kind">@(message.SharedActivity.Kind == "workout" ? "Activity" : "Program")</span>
+                                            <span class="dm-activity-card-name">@message.SharedActivity.Name</span>
+                                            <span class="dm-activity-card-line">@message.SharedActivity.Line</span>
+                                        </button>
+                                    }
                                     @if (!string.IsNullOrEmpty(message.Content))
                                     {
                                         <span class="dm-text">@message.Content</span>
@@ -215,13 +224,44 @@ else
                     {
                         <p class="dm-attach-error">@_attachmentError</p>
                     }
+                    @if (_pendingActivity is not null)
+                    {
+                        <div class="dm-activity-chip">
+                            <span class="dm-activity-kind">@(_pendingActivity.Kind == "workout" ? "Activity" : "Program")</span>
+                            <span class="dm-activity-chip-name">@_pendingActivity.Name</span>
+                            <button type="button" class="dm-attach-remove" @onclick="() => _pendingActivity = null" aria-label="Remove activity">Remove</button>
+                        </div>
+                    }
+                    @if (_showActivityPicker)
+                    {
+                        <div class="dm-picker">
+                            @if (_myActivities.Count == 0)
+                            {
+                                <p class="dm-picker-empty">You have no saved activities or programs yet.</p>
+                            }
+                            else
+                            {
+                                @foreach (var item in _myActivities)
+                                {
+                                    <button type="button" class="dm-picker-item" @onclick="() => PickActivity(item)">
+                                        <span class="dm-picker-kind">@(item.Kind == "workout" ? "Activity" : "Program")</span>
+                                        <span class="dm-picker-name">@item.Name</span>
+                                        <span class="dm-picker-line">@item.Line</span>
+                                    </button>
+                                }
+                            }
+                        </div>
+                    }
                     <div class="dm-composer-row">
                         <label class="dm-attach-btn" title="Attach image or file" aria-label="Attach image or file">
                             <span class="dm-attach-btn-icon" aria-hidden="true"></span>
                             <InputFile OnChange="OnAttachmentSelected" accept="image/*,.pdf,.txt,.zip,.csv,.doc,.docx,.xls,.xlsx" />
                         </label>
+                        <button type="button" class="dm-activity-btn @(_showActivityPicker ? "active" : "")" @onclick="ToggleActivityPicker" title="Share an activity or program" aria-label="Share an activity or program">
+                            <span class="dm-activity-btn-icon" aria-hidden="true"></span>
+                        </button>
                         <textarea @ref="_composerRef" class="dm-input" rows="1" placeholder="Message @_activeOther.OtherUsername" value="@_draft" @oninput="OnDraftInput"></textarea>
-                        <button type="button" class="dm-send" @onclick="SendMessage" disabled="@(_sending || (string.IsNullOrWhiteSpace(_draft) && _pendingAttachment is null))">Send</button>
+                        <button type="button" class="dm-send" @onclick="SendMessage" disabled="@(_sending || (string.IsNullOrWhiteSpace(_draft) && _pendingAttachment is null && _pendingActivity is null))">Send</button>
                     </div>
                 </div>
             }
@@ -229,6 +269,7 @@ else
     </div>
 
     <ProfilePreview TargetUserId="_previewUserId" ViewerId="_userId" OnClose="ClosePreview" />
+    <ActivityPreview Activity="_activeActivity" ViewerUserId="_userId" OnClose="CloseActivity" />
 }
 
 @code {
@@ -248,6 +289,10 @@ else
     private AttachmentInput? _pendingAttachment;
     private string? _attachmentError;
     private bool _sending;
+    private ActivityPickDto? _pendingActivity;
+    private List<ActivityPickDto> _myActivities = new();
+    private bool _showActivityPicker;
+    private SharedActivityDto? _activeActivity;
 
     private int? _editingMessageId;
     private string _editDraft = "";
@@ -356,19 +401,23 @@ else
         if (_sending || _activeConversationId is null || _activeOther is null) return;
 
         var text = _draft?.Trim() ?? "";
-        if (text.Length == 0 && _pendingAttachment is null) return;
+        if (text.Length == 0 && _pendingAttachment is null && _pendingActivity is null) return;
 
         var conversationId = _activeConversationId.Value;
         var otherId = _activeOther.OtherUserId;
         var attachment = _pendingAttachment;
+        var workoutId = _pendingActivity is not null && _pendingActivity.Kind == "workout" ? _pendingActivity.Id : (int?)null;
+        var programId = _pendingActivity is not null && _pendingActivity.Kind == "program" ? _pendingActivity.Id : (int?)null;
 
         _sending = true;
         _draft = "";
         _pendingAttachment = null;
         _attachmentError = null;
+        _pendingActivity = null;
+        _showActivityPicker = false;
         StateHasChanged();
 
-        var dto = await Dm.SendMessageAsync(_userId, conversationId, text, attachment);
+        var dto = await Dm.SendMessageAsync(_userId, conversationId, text, attachment, workoutId, programId);
         _sending = false;
 
         if (dto is null) return;
@@ -542,6 +591,28 @@ else
     }
 
     private void ClosePreview() => _previewUserId = null;
+
+    private async Task ToggleActivityPicker()
+    {
+        if (_showActivityPicker)
+        {
+            _showActivityPicker = false;
+            return;
+        }
+        if (_myActivities.Count == 0)
+            _myActivities = await Activities.GetMyActivitiesAsync(_userId);
+        _showActivityPicker = true;
+    }
+
+    private void PickActivity(ActivityPickDto item)
+    {
+        _pendingActivity = item;
+        _showActivityPicker = false;
+    }
+
+    private void OpenActivity(SharedActivityDto activity) => _activeActivity = activity;
+
+    private void CloseActivity() => _activeActivity = null;
 
     private void OnLocationChanged(object? sender, LocationChangedEventArgs e)
     {

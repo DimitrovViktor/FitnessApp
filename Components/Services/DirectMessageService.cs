@@ -9,11 +9,13 @@ public class DirectMessageService
 {
     private readonly AppDbContext _db;
     private readonly FriendService _friends;
+    private readonly ActivityShareService _activities;
 
-    public DirectMessageService(AppDbContext db, FriendService friends)
+    public DirectMessageService(AppDbContext db, FriendService friends, ActivityShareService activities)
     {
         _db = db;
         _friends = friends;
+        _activities = activities;
     }
 
     public async Task<List<UserSearchResult>> SearchUsersAsync(int meId, string? query, int limit = 8)
@@ -121,7 +123,7 @@ public class DirectMessageService
 
         var metas = await _db.DirectMessages
             .Where(m => conversationIds.Contains(m.ConversationId))
-            .Select(m => new MessageMeta(m.Id, m.ConversationId, m.SenderId, m.Content, m.IsImage, m.AttachmentName, m.IsRead, m.IsDeleted, m.CreatedAt))
+            .Select(m => new MessageMeta(m.Id, m.ConversationId, m.SenderId, m.Content, m.IsImage, m.AttachmentName, m.IsRead, m.IsDeleted, m.CreatedAt, m.SharedWorkoutId, m.SharedProgramId))
             .ToListAsync();
 
         var lastByConversation = metas
@@ -149,7 +151,7 @@ public class DirectMessageService
                 other.Username,
                 other.AvatarData,
                 PresenceStatus.Normalize(other.Status),
-                last is null ? null : PreviewOf(last.Content, last.IsImage, last.AttachmentName, last.IsDeleted),
+                last is null ? null : PreviewOf(last.Content, last.IsImage, last.AttachmentName, last.IsDeleted, last.SharedWorkoutId, last.SharedProgramId),
                 conversation.LastMessageAt,
                 unread));
         }
@@ -210,7 +212,19 @@ public class DirectMessageService
             .ToListAsync();
 
         messages.Reverse();
-        return messages.Select(ToDto).ToList();
+
+        var wMap = await _activities.GetWorkoutSummariesAsync(
+            messages.Where(m => !m.IsDeleted && m.SharedWorkoutId is not null).Select(m => m.SharedWorkoutId!.Value).Distinct().ToList());
+        var pMap = await _activities.GetProgramSummariesAsync(
+            messages.Where(m => !m.IsDeleted && m.SharedProgramId is not null).Select(m => m.SharedProgramId!.Value).Distinct().ToList());
+
+        return messages.Select(m =>
+        {
+            SharedActivityDto? activity = null;
+            if (m.SharedWorkoutId is not null) wMap.TryGetValue(m.SharedWorkoutId.Value, out activity);
+            else if (m.SharedProgramId is not null) pMap.TryGetValue(m.SharedProgramId.Value, out activity);
+            return ToDto(m, activity);
+        }).ToList();
     }
 
     public async Task MarkReadAsync(int meId, int conversationId)
@@ -224,12 +238,12 @@ public class DirectMessageService
         await _db.SaveChangesAsync();
     }
 
-    public async Task<ChatMessageDto?> SendMessageAsync(int meId, int conversationId, string? content, AttachmentInput? attachment)
+    public async Task<ChatMessageDto?> SendMessageAsync(int meId, int conversationId, string? content, AttachmentInput? attachment, int? sharedWorkoutId = null, int? sharedProgramId = null)
     {
         if (!await IsParticipantAsync(meId, conversationId)) return null;
 
         content = content?.Trim();
-        if (string.IsNullOrEmpty(content) && attachment is null) return null;
+        if (string.IsNullOrEmpty(content) && attachment is null && sharedWorkoutId is null && sharedProgramId is null) return null;
 
         var conversation = await _db.Conversations.FirstOrDefaultAsync(c => c.Id == conversationId);
         if (conversation is null) return null;
@@ -239,6 +253,8 @@ public class DirectMessageService
             ConversationId = conversationId,
             SenderId = meId,
             Content = string.IsNullOrEmpty(content) ? null : content,
+            SharedWorkoutId = sharedWorkoutId,
+            SharedProgramId = sharedProgramId,
             IsRead = false,
             CreatedAt = DateTime.UtcNow
         };
@@ -256,7 +272,7 @@ public class DirectMessageService
         conversation.LastMessageAt = message.CreatedAt;
         await _db.SaveChangesAsync();
 
-        return ToDto(message);
+        return ToDto(message, await _activities.GetSummaryAsync(message.SharedWorkoutId, message.SharedProgramId));
     }
 
     public async Task<ChatMessageDto?> EditMessageAsync(int meId, int messageId, string? newContent)
@@ -272,7 +288,7 @@ public class DirectMessageService
         message.EditedAt = DateTime.UtcNow;
         await _db.SaveChangesAsync();
 
-        return ToDto(message);
+        return ToDto(message, await _activities.GetSummaryAsync(message.SharedWorkoutId, message.SharedProgramId));
     }
 
     public async Task<ChatMessageDto?> DeleteMessageAsync(int meId, int messageId)
@@ -288,20 +304,24 @@ public class DirectMessageService
         message.AttachmentType = null;
         message.IsImage = false;
         message.AttachmentSize = 0;
+        message.SharedWorkoutId = null;
+        message.SharedProgramId = null;
         await _db.SaveChangesAsync();
 
         return ToDto(message);
     }
 
-    private static string PreviewOf(string? content, bool isImage, string? attachmentName, bool isDeleted)
+    private static string PreviewOf(string? content, bool isImage, string? attachmentName, bool isDeleted, int? sharedWorkoutId, int? sharedProgramId)
     {
         if (isDeleted) return "Message deleted";
         if (!string.IsNullOrWhiteSpace(content)) return content!;
         if (isImage) return "Photo";
+        if (sharedWorkoutId is not null) return "Shared an activity";
+        if (sharedProgramId is not null) return "Shared a program";
         return string.IsNullOrWhiteSpace(attachmentName) ? "Attachment" : attachmentName!;
     }
 
-    private static ChatMessageDto ToDto(DirectMessage m) => new(
+    private static ChatMessageDto ToDto(DirectMessage m, SharedActivityDto? activity = null) => new(
         m.Id,
         m.ConversationId,
         m.SenderId,
@@ -313,7 +333,8 @@ public class DirectMessageService
         m.IsDeleted ? 0 : m.AttachmentSize,
         m.CreatedAt,
         m.IsEdited,
-        m.IsDeleted);
+        m.IsDeleted,
+        m.IsDeleted ? null : activity);
 
     private static int AgeFrom(DateOnly dob)
     {
@@ -330,7 +351,7 @@ public class DirectMessageService
         _ => goal.ToString()
     };
 
-    private sealed record MessageMeta(int Id, int ConversationId, int SenderId, string? Content, bool IsImage, string? AttachmentName, bool IsRead, bool IsDeleted, DateTime CreatedAt);
+    private sealed record MessageMeta(int Id, int ConversationId, int SenderId, string? Content, bool IsImage, string? AttachmentName, bool IsRead, bool IsDeleted, DateTime CreatedAt, int? SharedWorkoutId, int? SharedProgramId);
 }
 
 public record UserSearchResult(int Id, string Username, string? AvatarData, string Status, PublicProfileDto Profile);
@@ -343,7 +364,7 @@ public record ProfileStat(string Label, string Value);
 
 public record ConversationDto(int Id, int OtherUserId, string OtherUsername, string? OtherAvatarData, string OtherStatus, string? LastMessagePreview, DateTime LastMessageAt, int UnreadCount);
 
-public record ChatMessageDto(int Id, int ConversationId, int SenderId, string? Content, string? AttachmentData, string? AttachmentName, string? AttachmentType, bool IsImage, long AttachmentSize, DateTime CreatedAt, bool IsEdited, bool IsDeleted);
+public record ChatMessageDto(int Id, int ConversationId, int SenderId, string? Content, string? AttachmentData, string? AttachmentName, string? AttachmentType, bool IsImage, long AttachmentSize, DateTime CreatedAt, bool IsEdited, bool IsDeleted, SharedActivityDto? SharedActivity);
 
 public class AttachmentInput
 {

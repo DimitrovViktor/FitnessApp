@@ -1,4 +1,4 @@
-@inject FeedService Feed
+@inject ActivityShareService Activities
 
 @if (Activity is not null)
 {
@@ -112,9 +112,9 @@
         _loading = true;
 
         if (Activity.Kind == "workout")
-            _workout = await Feed.GetWorkoutPreviewAsync(Activity.RefId);
+            _workout = await Activities.GetWorkoutPreviewAsync(Activity.RefId);
         else
-            _program = await Feed.GetProgramPreviewAsync(Activity.RefId);
+            _program = await Activities.GetProgramPreviewAsync(Activity.RefId);
 
         _loading = false;
     }
@@ -125,7 +125,7 @@
     {
         if (_workout is null || _busy || _added) return;
         _busy = true;
-        await Feed.AddWorkoutToMeAsync(ViewerUserId, _workout.Id);
+        await Activities.AddWorkoutToMeAsync(ViewerUserId, _workout.Id);
         _added = true;
         _busy = false;
     }
@@ -134,7 +134,7 @@
     {
         if (_program is null || _busy || _added) return;
         _busy = true;
-        await Feed.AddProgramToMeAsync(ViewerUserId, _program.Id);
+        await Activities.AddProgramToMeAsync(ViewerUserId, _program.Id);
         _added = true;
         _busy = false;
     }

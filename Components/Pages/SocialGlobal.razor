@@ -1,4 +1,5 @@
 @inject FeedService Feed
+@inject ActivityShareService Activities
 @inject FriendService FriendSvc
 @inject CustomAuthStateProvider AuthState
 @inject NavigationManager Navigation
@@ -508,7 +509,7 @@ else
             return;
         }
         if (_myActivities.Count == 0)
-            _myActivities = await Feed.GetMyActivitiesAsync(_userId);
+            _myActivities = await Activities.GetMyActivitiesAsync(_userId);
         _showActivityPicker = true;
     }
 
