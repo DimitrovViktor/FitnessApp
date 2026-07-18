@@ -1550,14 +1550,18 @@ else
     {
         if (_session is not null)
         {
-            await DashService.CompleteWorkoutAsync(_session.Id, _userId);
-
             if (_completedSets > 0)
             {
+                await DashService.CompleteWorkoutAsync(_session.Id, _userId);
+
                 var exercises = BuildExerciseLogEntries();
                 var status = ComputeWorkoutStatus();
                 await LogService.SaveWorkoutLogAsync(_userId, _session.WorkoutId, _startTime, DateTime.UtcNow, _estCalBurned, exercises, status);
                 await LogService.CheckAndSavePersonalRecordsAsync(_userId, exercises);
+            }
+            else
+            {
+                await DashService.CancelScheduleAsync(_session.Id, _userId);
             }
         }
 

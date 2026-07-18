@@ -551,6 +551,17 @@ else
                                     <button type="button" class="history-btn history-cancel" @onclick="() => _editingMeasId = -1" aria-label="Cancel"><span class="icon icon-x" aria-hidden="true"></span></button>
                                 </span>
                             }
+                            else if (_deletingMeasId == m.Id)
+                            {
+                                <span class="history-col history-confirm-text">Delete this entry?</span>
+                                <span class="history-col"></span>
+                                <span class="history-col"></span>
+                                <span class="history-col"></span>
+                                <span class="history-col-action">
+                                    <button type="button" class="history-btn history-delete" @onclick="() => DeleteMeasurement(mRef)" aria-label="Confirm delete">Delete</button>
+                                    <button type="button" class="history-btn history-cancel" @onclick="() => _deletingMeasId = -1" aria-label="Cancel">Cancel</button>
+                                </span>
+                            }
                             else
                             {
                                 <span class="history-col">@FormatWeightValue(m.WeightKg)</span>
@@ -559,6 +570,7 @@ else
                                 <span class="history-col">@(m.WaistCm.HasValue ? $"{m.WaistCm:F0}" : "-")</span>
                                 <span class="history-col-action">
                                     <button type="button" class="history-btn history-edit" @onclick="() => StartEdit(mRef)">Edit</button>
+                                    <button type="button" class="history-btn history-remove" @onclick="() => _deletingMeasId = mRef.Id">Delete</button>
                                 </span>
                             }
                         </div>
@@ -614,6 +626,7 @@ else
     private bool _showHistoryModal;
     private List<BodyMeasurement> _allMeasurements = new();
     private int _editingMeasId = -1;
+    private int _deletingMeasId = -1;
     private decimal? _editWeight;
     private decimal? _editBodyFat;
     private decimal? _editChest;
@@ -891,6 +904,7 @@ else
 
     private void StartEdit(BodyMeasurement m)
     {
+        _deletingMeasId = -1;
         _editingMeasId = m.Id;
         _editWeight = m.WeightKg;
         _editBodyFat = m.BodyFatPercent;
@@ -905,6 +919,17 @@ else
         _measurements = await ProgressSvc.GetRecentMeasurementsAsync(_userId);
         _chartMeasurements = await ProgressSvc.GetMeasurementsForChartAsync(_userId);
         BuildChartData();
+        _editingMeasId = -1;
+    }
+
+    private async Task DeleteMeasurement(BodyMeasurement m)
+    {
+        await ProgressSvc.DeleteMeasurementAsync(m.Id, _userId);
+        _allMeasurements = await ProgressSvc.GetAllMeasurementsAsync(_userId);
+        _measurements = await ProgressSvc.GetRecentMeasurementsAsync(_userId);
+        _chartMeasurements = await ProgressSvc.GetMeasurementsForChartAsync(_userId);
+        BuildChartData();
+        _deletingMeasId = -1;
         _editingMeasId = -1;
     }
 

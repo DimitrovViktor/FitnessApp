@@ -171,6 +171,15 @@ public class ProgressService
         return true;
     }
 
+    public async Task<bool> DeleteMeasurementAsync(int id, int userId)
+    {
+        var m = await _db.BodyMeasurements.FirstOrDefaultAsync(bm => bm.Id == id && bm.UserId == userId);
+        if (m is null) return false;
+        _db.BodyMeasurements.Remove(m);
+        await _db.SaveChangesAsync();
+        return true;
+    }
+
     public async Task SaveMeasurementAsync(int userId, decimal? weight, decimal? bodyFat, decimal? chest, decimal? waist)
     {
         _db.BodyMeasurements.Add(new BodyMeasurement
