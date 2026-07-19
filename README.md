@@ -72,7 +72,6 @@ Users can make posts and share their workouts with everyone
 
 ### Features and functionality
 
-- Social global - users can make posts to share custom workouts, make posts, interact with others who use the app
 - Add functionality to settings placeholders
 
 ### UI
