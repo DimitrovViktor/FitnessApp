@@ -19,6 +19,8 @@ builder.Services.AddScoped<WorkoutService>();
 builder.Services.AddScoped<DashboardService>();
 builder.Services.AddScoped<LoggingService>();
 builder.Services.AddScoped<SettingsService>();
+builder.Services.AddSingleton<PresenceTracker>();
+builder.Services.AddScoped<Microsoft.AspNetCore.Components.Server.Circuits.CircuitHandler, PresenceCircuitHandler>();
 builder.Services.AddScoped<CustomAuthStateProvider>();
 builder.Services.AddScoped<AuthenticationStateProvider>(sp =>
     sp.GetRequiredService<CustomAuthStateProvider>());

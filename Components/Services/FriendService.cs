@@ -7,10 +7,12 @@ namespace FitnessApp.Services;
 public class FriendService
 {
     private readonly AppDbContext _db;
+    private readonly PresenceTracker _presence;
 
-    public FriendService(AppDbContext db)
+    public FriendService(AppDbContext db, PresenceTracker presence)
     {
         _db = db;
+        _presence = presence;
     }
 
     public Task<bool> AreFriendsAsync(int a, int b)
@@ -160,7 +162,7 @@ public class FriendService
         var users = await _db.Users.Where(u => ids.Contains(u.Id)).ToListAsync();
         return users
             .OrderBy(u => u.Username)
-            .Select(u => new FriendUserDto(u.Id, u.Username, u.AvatarData, PresenceStatus.Normalize(u.Status)))
+            .Select(u => new FriendUserDto(u.Id, u.Username, u.AvatarData, PresenceStatus.Effective(u.Status, _presence.IsOnline(u.Id))))
             .ToList();
     }
 }

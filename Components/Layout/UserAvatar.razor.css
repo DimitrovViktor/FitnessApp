@@ -36,3 +36,4 @@
 .status-away { background: var(--warning); }
 .status-dnd { background: var(--danger); }
 .status-invisible { background: var(--t3); }
+.status-offline { background: var(--t3); }

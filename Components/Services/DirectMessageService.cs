@@ -10,12 +10,14 @@ public class DirectMessageService
     private readonly AppDbContext _db;
     private readonly FriendService _friends;
     private readonly ActivityShareService _activities;
+    private readonly PresenceTracker _presence;
 
-    public DirectMessageService(AppDbContext db, FriendService friends, ActivityShareService activities)
+    public DirectMessageService(AppDbContext db, FriendService friends, ActivityShareService activities, PresenceTracker presence)
     {
         _db = db;
         _friends = friends;
         _activities = activities;
+        _presence = presence;
     }
 
     public async Task<List<UserSearchResult>> SearchUsersAsync(int meId, string? query, int limit = 8)
@@ -40,8 +42,8 @@ public class DirectMessageService
                 u.Id,
                 u.Username,
                 u.AvatarData,
-                PresenceStatus.Normalize(u.Status),
-                BuildPublicProfile(u, settings.FirstOrDefault(p => p.UserId == u.Id), friendIds.Contains(u.Id))))
+                PresenceStatus.Effective(u.Status, _presence.IsOnline(u.Id)),
+                BuildPublicProfile(u, settings.FirstOrDefault(p => p.UserId == u.Id), friendIds.Contains(u.Id), _presence.IsOnline(u.Id))))
             .ToList();
     }
 
@@ -52,7 +54,7 @@ public class DirectMessageService
 
         var settings = await _db.ProfileSettings.FirstOrDefaultAsync(p => p.UserId == targetId);
         var state = await _friends.GetStateAsync(viewerId, targetId);
-        var profile = BuildPublicProfile(user, settings, state == FriendshipState.Friends);
+        var profile = BuildPublicProfile(user, settings, state == FriendshipState.Friends, _presence.IsOnline(user.Id));
         return new ProfilePreviewDto(profile, state);
     }
 
@@ -62,10 +64,10 @@ public class DirectMessageService
         if (user is null) return null;
         var settings = await _db.ProfileSettings.FirstOrDefaultAsync(p => p.UserId == targetId);
         var areFriends = await _friends.AreFriendsAsync(viewerId, targetId);
-        return BuildPublicProfile(user, settings, areFriends);
+        return BuildPublicProfile(user, settings, areFriends, _presence.IsOnline(user.Id));
     }
 
-    private static PublicProfileDto BuildPublicProfile(User user, ProfileSettings? settings, bool areFriends)
+    private static PublicProfileDto BuildPublicProfile(User user, ProfileSettings? settings, bool areFriends, bool isOnline)
     {
         bool Pub(string? visibility) => visibility == "public" || (areFriends && visibility == "friends");
 
@@ -103,7 +105,7 @@ public class DirectMessageService
             user.Id,
             user.Username,
             user.AvatarData,
-            PresenceStatus.Normalize(user.Status),
+            PresenceStatus.Effective(user.Status, isOnline),
             displayName,
             bio,
             stats);
@@ -150,7 +152,7 @@ public class DirectMessageService
                 otherId,
                 other.Username,
                 other.AvatarData,
-                PresenceStatus.Normalize(other.Status),
+                PresenceStatus.Effective(other.Status, _presence.IsOnline(otherId)),
                 last is null ? null : PreviewOf(last.Content, last.IsImage, last.AttachmentName, last.IsDeleted, last.SharedWorkoutId, last.SharedProgramId),
                 conversation.LastMessageAt,
                 unread));
@@ -189,7 +191,7 @@ public class DirectMessageService
             otherId,
             other.Username,
             other.AvatarData,
-            PresenceStatus.Normalize(other.Status),
+            PresenceStatus.Effective(other.Status, _presence.IsOnline(otherId)),
             null,
             conversation.LastMessageAt,
             0);

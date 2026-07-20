@@ -9,12 +9,14 @@ public class FeedService
     private readonly AppDbContext _db;
     private readonly DirectMessageService _dm;
     private readonly ActivityShareService _activities;
+    private readonly PresenceTracker _presence;
 
-    public FeedService(AppDbContext db, DirectMessageService dm, ActivityShareService activities)
+    public FeedService(AppDbContext db, DirectMessageService dm, ActivityShareService activities, PresenceTracker presence)
     {
         _db = db;
         _dm = dm;
         _activities = activities;
+        _presence = presence;
     }
 
     public async Task<PostDto?> CreatePostAsync(int meId, string? content, string? imageData, int? sharedWorkoutId, int? sharedProgramId)
@@ -100,7 +102,7 @@ public class FeedService
         var bio = preview?.Profile.Bio;
         var stats = preview?.Profile.Stats ?? new List<ProfileStat>();
 
-        return new ProfileFeedDto(user.Id, user.Username, user.AvatarData, PresenceStatus.Normalize(user.Status), bio, stats, dtos, sharedIds);
+        return new ProfileFeedDto(user.Id, user.Username, user.AvatarData, PresenceStatus.Effective(user.Status, _presence.IsOnline(user.Id)), bio, stats, dtos, sharedIds);
     }
 
     public async Task<PostShareDto?> ToggleShareAsync(int meId, int postId)
@@ -161,7 +163,7 @@ public class FeedService
                 post.AuthorId,
                 author?.Username ?? "User",
                 author?.AvatarData,
-                PresenceStatus.Normalize(author?.Status),
+                PresenceStatus.Effective(author?.Status, author is not null && _presence.IsOnline(author.Id)),
                 post.Content,
                 post.ImageData,
                 post.IsEdited,
@@ -360,7 +362,7 @@ public class FeedService
             post.AuthorId,
             author?.Username ?? "User",
             author?.AvatarData,
-            PresenceStatus.Normalize(author?.Status),
+            PresenceStatus.Effective(author?.Status, author is not null && _presence.IsOnline(author.Id)),
             post.Content,
             post.ImageData,
             post.IsEdited,
