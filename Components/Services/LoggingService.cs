@@ -67,6 +67,56 @@ public class LoggingService
         return log;
     }
 
+    public async Task<string> ExportWorkoutDataAsync(int userId)
+    {
+        var logs = await _db.WorkoutLogs
+            .Where(wl => wl.UserId == userId)
+            .Include(wl => wl.ExerciseLogs).ThenInclude(el => el.Exercise)
+            .Include(wl => wl.ExerciseLogs).ThenInclude(el => el.SetLogs)
+            .OrderBy(wl => wl.Date)
+            .ToListAsync();
+
+        var export = logs.Select(wl => new
+        {
+            Date = wl.Date.ToString("yyyy-MM-dd"),
+            wl.StartedAt,
+            wl.CompletedAt,
+            CaloriesBurned = wl.TotalCaloriesBurned,
+            Status = wl.Status.ToString(),
+            Exercises = wl.ExerciseLogs.OrderBy(el => el.SortOrder).Select(el => new
+            {
+                Exercise = el.Exercise != null ? el.Exercise.Name : "Unknown",
+                Status = el.Status.ToString(),
+                Sets = el.SetLogs.OrderBy(s => s.SetNumber).Select(s => new
+                {
+                    s.SetNumber,
+                    Reps = s.RepsCompleted,
+                    WeightKg = s.WeightKg,
+                    s.DurationSec,
+                    s.IsCompleted
+                })
+            })
+        });
+
+        return System.Text.Json.JsonSerializer.Serialize(export, new System.Text.Json.JsonSerializerOptions { WriteIndented = true });
+    }
+
+    public async Task ClearWorkoutHistoryAsync(int userId)
+    {
+        var logs = await _db.WorkoutLogs.Where(wl => wl.UserId == userId).ToListAsync();
+        if (logs.Count == 0) return;
+
+        var logIds = logs.Select(wl => wl.Id).ToList();
+        var exerciseLogs = await _db.ExerciseLogs.Where(el => logIds.Contains(el.WorkoutLogId)).ToListAsync();
+        var exLogIds = exerciseLogs.Select(el => el.Id).ToList();
+        var setLogs = await _db.ExerciseSetLogs.Where(sl => exLogIds.Contains(sl.ExerciseLogId)).ToListAsync();
+
+        _db.ExerciseSetLogs.RemoveRange(setLogs);
+        _db.ExerciseLogs.RemoveRange(exerciseLogs);
+        _db.WorkoutLogs.RemoveRange(logs);
+        await _db.SaveChangesAsync();
+    }
+
     public async Task<List<WorkoutLog>> GetWorkoutLogsForDateAsync(int userId, DateOnly date)
     {
         return await _db.WorkoutLogs

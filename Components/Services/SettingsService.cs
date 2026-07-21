@@ -59,7 +59,6 @@ public class SettingsService
         existing.EnergyUnit = settings.EnergyUnit;
         existing.CalendarStart = settings.CalendarStart;
         existing.RestTimerDefault = settings.RestTimerDefault;
-        existing.RestTimerSound = settings.RestTimerSound;
         existing.AutoStartRestTimer = settings.AutoStartRestTimer;
         existing.ShowWeightInSets = settings.ShowWeightInSets;
         existing.ConfirmBeforeSkip = settings.ConfirmBeforeSkip;

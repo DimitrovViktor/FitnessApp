@@ -23,6 +23,13 @@
 .btn-export { padding:7px 16px; border-radius:8px; border:1px solid var(--accent-border); background:var(--accent-dim); color:var(--accent); font-size:13px; font-weight:600; cursor:pointer; transition:all .15s; font-family:inherit; flex-shrink:0; }
 .btn-clear-data { padding:7px 16px; border-radius:8px; border:1px solid var(--danger-border); background:var(--danger-tint); color:var(--danger); font-size:13px; font-weight:600; cursor:pointer; transition:all .15s; font-family:inherit; flex-shrink:0; }
 .btn-export:disabled,.btn-clear-data:disabled { opacity:.55; cursor:not-allowed; }
+a.btn-export { display:inline-block; text-decoration:none; text-align:center; }
+.btn-export:hover { background:var(--accent-border); }
+.btn-clear-data:hover { background:var(--danger-border); }
+.clear-confirm { display:flex; align-items:center; gap:8px; flex-shrink:0; }
+.clear-confirm-text { font-size:12.5px; font-weight:600; color:var(--danger); }
+.btn-clear-cancel { padding:7px 14px; border-radius:8px; border:1px solid var(--border-subtle); background:transparent; color:var(--t2); font-size:13px; font-weight:600; cursor:pointer; transition:all .15s; font-family:inherit; flex-shrink:0; }
+.btn-clear-cancel:hover { color:var(--t1); }
 .save-toast { position:fixed; bottom:24px; right:24px; background:var(--success-dim); border:1px solid var(--success-border); border-radius:10px; padding:10px 20px; font-size:13px; font-weight:600; color:var(--success); z-index:500; animation:toastIn .25s ease-out; }
 @keyframes toastIn { from { opacity:0; transform:translateY(10px); } to { opacity:1; transform:translateY(0); } }
 @media (max-width:640px) { .setting-row { flex-direction:column; align-items:flex-start; gap:10px; } .seg-control { flex-wrap:wrap; } }

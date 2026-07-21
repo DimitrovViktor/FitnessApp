@@ -1,5 +1,6 @@
 @page "/settings"
 @inject SettingsService SettingsSvc
+@inject LoggingService LogService
 @inject CustomAuthStateProvider AuthState
 @inject NavigationManager Navigation
 
@@ -85,7 +86,7 @@ else
 
             <div class="setting-row">
                 <div class="setting-info">
-                    <span class="setting-name">Default Rest Timer (placeholder)</span>
+                    <span class="setting-name">Default Rest Timer</span>
                     <span class="setting-desc">Stored in settings but not yet used by all workout flows</span>
                 </div>
                 <select class="setting-select" @bind="_settings.RestTimerDefault" @bind:after="Save">
@@ -99,7 +100,7 @@ else
 
             <div class="setting-row">
                 <div class="setting-info">
-                    <span class="setting-name">Auto-start Rest Timer (placeholder)</span>
+                    <span class="setting-name">Auto-start Rest Timer</span>
                     <span class="setting-desc">Stored for future live workout behaviour</span>
                 </div>
                 <button type="button" class="toggle @(_settings.AutoStartRestTimer ? "toggle-on" : "")" @onclick="ToggleAutoStartRestTimer" aria-label="Toggle auto-start rest timer">
@@ -109,17 +110,7 @@ else
 
             <div class="setting-row">
                 <div class="setting-info">
-                    <span class="setting-name">Rest Timer Sound (placeholder)</span>
-                    <span class="setting-desc">Stored for future sound notification behaviour</span>
-                </div>
-                <button type="button" class="toggle @(_settings.RestTimerSound ? "toggle-on" : "")" @onclick="ToggleRestTimerSound" aria-label="Toggle rest timer sound">
-                    <span class="toggle-knob"></span>
-                </button>
-            </div>
-
-            <div class="setting-row">
-                <div class="setting-info">
-                    <span class="setting-name">Show Weight Input on Sets (placeholder)</span>
+                    <span class="setting-name">Show Weight Input on Sets</span>
                     <span class="setting-desc">Stored for future live workout layout behaviour</span>
                 </div>
                 <button type="button" class="toggle @(_settings.ShowWeightInSets ? "toggle-on" : "")" @onclick="ToggleShowWeightInSets" aria-label="Toggle set weight input">
@@ -129,7 +120,7 @@ else
 
             <div class="setting-row setting-row-last">
                 <div class="setting-info">
-                    <span class="setting-name">Confirm Before Skipping (placeholder)</span>
+                    <span class="setting-name">Confirm Before Skipping</span>
                     <span class="setting-desc">Stored for future skip confirmation behaviour</span>
                 </div>
                 <button type="button" class="toggle @(_settings.ConfirmBeforeSkip ? "toggle-on" : "")" @onclick="ToggleConfirmBeforeSkip" aria-label="Toggle skip confirmation">
@@ -143,7 +134,7 @@ else
 
             <div class="setting-row">
                 <div class="setting-info">
-                    <span class="setting-name">Week Starts On (placeholder)</span>
+                    <span class="setting-name">Week Starts On</span>
                     <span class="setting-desc">Stored for future calendar layout behaviour</span>
                 </div>
                 <div class="seg-control">
@@ -187,18 +178,36 @@ else
 
             <div class="setting-row">
                 <div class="setting-info">
-                    <span class="setting-name">Export Workout Data (placeholder)</span>
-                    <span class="setting-desc">Visible for future data export support</span>
+                    <span class="setting-name">Export Workout Data</span>
+                    <span class="setting-desc">Download all your logged workouts as a JSON file</span>
                 </div>
-                <button type="button" class="btn-export" disabled>Export</button>
+                @if (_exportReady && _exportHref is not null)
+                {
+                    <a class="btn-export" href="@_exportHref" download="workout-data.json" @onclick="() => _exportReady = false">Download</a>
+                }
+                else
+                {
+                    <button type="button" class="btn-export" @onclick="ExportData" disabled="@_exporting">@(_exporting ? "Preparing..." : "Export")</button>
+                }
             </div>
 
             <div class="setting-row setting-row-last">
                 <div class="setting-info">
-                    <span class="setting-name">Clear Workout History (placeholder)</span>
-                    <span class="setting-desc">Visible for future account data controls</span>
+                    <span class="setting-name">Clear Workout History</span>
+                    <span class="setting-desc">Permanently delete every logged workout. This cannot be undone.</span>
                 </div>
-                <button type="button" class="btn-clear-data" disabled>Clear Data</button>
+                @if (_confirmingClear)
+                {
+                    <div class="clear-confirm">
+                        <span class="clear-confirm-text">Delete all workout history?</span>
+                        <button type="button" class="btn-clear-data" @onclick="ClearData" disabled="@_clearing">@(_clearing ? "Clearing..." : "Delete")</button>
+                        <button type="button" class="btn-clear-cancel" @onclick="() => _confirmingClear = false">Cancel</button>
+                    </div>
+                }
+                else
+                {
+                    <button type="button" class="btn-clear-data" @onclick="() => _confirmingClear = true">Clear Data</button>
+                }
             </div>
         </div>
 
@@ -214,6 +223,11 @@ else
     private int _userId;
     private UserSettings _settings = new();
     private string? _saveMsg;
+    private bool _exporting;
+    private bool _exportReady;
+    private string? _exportHref;
+    private bool _confirmingClear;
+    private bool _clearing;
 
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
@@ -262,12 +276,6 @@ else
         return Save();
     }
 
-    private Task ToggleRestTimerSound()
-    {
-        _settings.RestTimerSound = !_settings.RestTimerSound;
-        return Save();
-    }
-
     private Task ToggleShowWeightInSets()
     {
         _settings.ShowWeightInSets = !_settings.ShowWeightInSets;
@@ -284,6 +292,29 @@ else
     {
         _settings.WorkoutReminders = !_settings.WorkoutReminders;
         return Save();
+    }
+
+    private async Task ExportData()
+    {
+        _exporting = true;
+        var json = await LogService.ExportWorkoutDataAsync(_userId);
+        var base64 = Convert.ToBase64String(System.Text.Encoding.UTF8.GetBytes(json));
+        _exportHref = $"data:application/json;base64,{base64}";
+        _exportReady = true;
+        _exporting = false;
+    }
+
+    private async Task ClearData()
+    {
+        _clearing = true;
+        await LogService.ClearWorkoutHistoryAsync(_userId);
+        _clearing = false;
+        _confirmingClear = false;
+        _saveMsg = "Workout history cleared";
+        StateHasChanged();
+        await Task.Delay(1400);
+        _saveMsg = null;
+        StateHasChanged();
     }
 
     private async Task Save()

@@ -137,13 +137,13 @@ else
                     </div>
 
                     <div class="cal-grid">
-                        @foreach (var d in new[] { "Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun" })
+                        @foreach (var d in WeekdayHeaders())
                         {
                             <div class="cal-day-name">@d</div>
                         }
 
                         @{ var firstDay = new DateOnly(_calDate.Year, _calDate.Month, 1); }
-                        @{ int offset = ((int)firstDay.DayOfWeek + 6) % 7; }
+                        @{ int offset = MonthOffset(firstDay); }
                         @for (int i = 0; i < offset; i++) { <div class="cal-cell empty"></div> }
 
                         @{ int daysInMonth = DateTime.DaysInMonth(_calDate.Year, _calDate.Month); }
@@ -451,6 +451,7 @@ else
     private string _activeView = "today";
     private DateTime _calDate = DateTime.Now;
     private DateOnly _selectedDate = DateOnly.FromDateTime(DateTime.Now);
+    private bool _weekStartsSunday;
     private DateOnly _weekStart = StartOfWeek(DateOnly.FromDateTime(DateTime.Now));
     private List<WorkoutSchedule> _monthSchedules = new();
     private List<WorkoutSchedule> _weekSchedules = new();
@@ -526,6 +527,8 @@ else
         var settings = await SettingsSvc.GetSettingsAsync(_userId);
         _weightUnit = settings.WeightUnit;
         _energyUnit = settings.EnergyUnit;
+        _weekStartsSunday = settings.CalendarStart == "sunday";
+        _weekStart = StartOfWeek(_selectedDate, _weekStartsSunday);
         var user = await ProfileService.GetUserWithProfileAsync(_userId);
         if (user is { OnboardingCompleted: false }) { try { Navigation.NavigateTo("/onboarding"); } catch { } return; }
         _userName = state.User.Identity.Name ?? "User";
@@ -590,7 +593,7 @@ else
     {
         _selectedDate = _selectedDate.AddDays(-1);
         _calDate = new DateTime(_selectedDate.Year, _selectedDate.Month, 1);
-        _weekStart = StartOfWeek(_selectedDate);
+        _weekStart = StartOfWeek(_selectedDate, _weekStartsSunday);
         await LoadSelectedDate();
         await LoadMonth();
         await LoadWeek();
@@ -600,7 +603,7 @@ else
     {
         _selectedDate = _selectedDate.AddDays(1);
         _calDate = new DateTime(_selectedDate.Year, _selectedDate.Month, 1);
-        _weekStart = StartOfWeek(_selectedDate);
+        _weekStart = StartOfWeek(_selectedDate, _weekStartsSunday);
         await LoadSelectedDate();
         await LoadMonth();
         await LoadWeek();
@@ -610,7 +613,7 @@ else
     {
         _selectedDate = DateOnly.FromDateTime(DateTime.Now);
         _calDate = DateTime.Now;
-        _weekStart = StartOfWeek(_selectedDate);
+        _weekStart = StartOfWeek(_selectedDate, _weekStartsSunday);
         await LoadSelectedDate();
         await LoadMonth();
         await LoadWeek();
@@ -643,7 +646,7 @@ else
     private async Task SelectDate(DateOnly date)
     {
         _selectedDate = date;
-        _weekStart = StartOfWeek(date);
+        _weekStart = StartOfWeek(date, _weekStartsSunday);
         await LoadSelectedDate();
     }
 
@@ -675,7 +678,7 @@ else
         await DashService.ScheduleWorkoutIfMissingAsync(_userId, _schedWorkoutId, date, time);
         _showScheduleModal = false;
         _selectedDate = date;
-        _weekStart = StartOfWeek(date);
+        _weekStart = StartOfWeek(date, _weekStartsSunday);
         _calDate = new DateTime(date.Year, date.Month, 1);
         await LoadMonth();
         await LoadWeek();
@@ -689,7 +692,7 @@ else
         await DietSvc.ScheduleFoodIfMissingAsync(_userId, _mealFoodId, date, time, _mealName, _mealGrams);
         _showMealModal = false;
         _selectedDate = date;
-        _weekStart = StartOfWeek(date);
+        _weekStart = StartOfWeek(date, _weekStartsSunday);
         _calDate = new DateTime(date.Year, date.Month, 1);
         await LoadMonth();
         await LoadWeek();
@@ -817,7 +820,7 @@ else
 
         _planMessage = $"Scheduled {scheduled} activities from {program.Name}.";
         _selectedDate = start;
-        _weekStart = StartOfWeek(start);
+        _weekStart = StartOfWeek(start, _weekStartsSunday);
         _calDate = new DateTime(start.Year, start.Month, 1);
         await LoadMonth();
         await LoadWeek();
@@ -870,7 +873,7 @@ else
         var scheduled = await DietSvc.ScheduleDietPlanAsync(_userId, plan.Id, start, time, _dietPlanDays);
         _dietPlanMessage = $"Scheduled {scheduled} meals from {plan.Name}.";
         _selectedDate = start;
-        _weekStart = StartOfWeek(start);
+        _weekStart = StartOfWeek(start, _weekStartsSunday);
         _calDate = new DateTime(start.Year, start.Month, 1);
         await LoadMonth();
         await LoadWeek();
@@ -1335,11 +1338,19 @@ else
 
     private static string GetWorkoutKindClass(Workout workout) => $"kind-{GetWorkoutKind(workout).ToLowerInvariant()}";
 
-    private static DateOnly StartOfWeek(DateOnly date)
+    private static DateOnly StartOfWeek(DateOnly date, bool sundayStart = false)
     {
-        var diff = ((int)date.DayOfWeek + 6) % 7;
+        var diff = sundayStart ? (int)date.DayOfWeek : ((int)date.DayOfWeek + 6) % 7;
         return date.AddDays(-diff);
     }
+
+    private string[] WeekdayHeaders() => _weekStartsSunday
+        ? new[] { "Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat" }
+        : new[] { "Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun" };
+
+    private int MonthOffset(DateOnly firstDay) => _weekStartsSunday
+        ? (int)firstDay.DayOfWeek
+        : ((int)firstDay.DayOfWeek + 6) % 7;
 
     private void GoToLiveWorkout()
     {

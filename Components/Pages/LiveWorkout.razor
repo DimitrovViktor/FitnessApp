@@ -282,12 +282,15 @@ else
                                             <span class="reps-unit">reps</span>
                                             <button type="button" class="reps-btn" disabled="@setS.IsSkipped" @onclick="() => AdjustReps(exIdx, setIdx, 1)">+</button>
                                         </div>
-                                        <div class="set-weight-control">
-                                            <input type="number" class="weight-input" placeholder="@WeightUnitLabel" step="0.5" min="0"
-                                                   disabled="@setS.IsSkipped"
-                                                   value="@DisplayWeight(setS.WeightKg)"
-                                                   @onchange="(e) => SetWeight(exIdx, setIdx, e)" />
-                                        </div>
+                                        @if (_showWeightInSets)
+                                        {
+                                            <div class="set-weight-control">
+                                                <input type="number" class="weight-input" placeholder="@WeightUnitLabel" step="0.5" min="0"
+                                                       disabled="@setS.IsSkipped"
+                                                       value="@DisplayWeight(setS.WeightKg)"
+                                                       @onchange="(e) => SetWeight(exIdx, setIdx, e)" />
+                                            </div>
+                                        }
                                         <div class="set-actions">
                                             @if (setS.IsSkipped)
                                             {
@@ -439,6 +442,17 @@ else
     </div>
 </Modal>
 
+<Modal IsOpen="_pendingSkipExIdx is not null" OnClose="CancelSkip" Size="sm">
+    <div class="finish-modal">
+        <h2>@(_pendingSkipIsExercise ? "Skip Exercise?" : "Skip Set?")</h2>
+        <p class="cancel-desc">@(_pendingSkipIsExercise ? "This exercise will be marked as skipped." : "This set will be marked as skipped.")</p>
+        <div class="mf-actions">
+            <button type="button" class="btn-ghost" @onclick="CancelSkip">Keep Going</button>
+            <button type="button" class="btn-action btn-finish-style" @onclick="ConfirmSkip">@(_pendingSkipIsExercise ? "Skip Exercise" : "Skip Set")</button>
+        </div>
+    </div>
+</Modal>
+
 <Modal IsOpen="_showCancelConfirm" OnClose="() => _showCancelConfirm = false" Size="sm">
     <div class="finish-modal">
         <h2>Cancel Workout?</h2>
@@ -457,6 +471,12 @@ else
     private string _weightUnit = "kg";
     private string _energyUnit = "kcal";
     private int _restTimerDefault = 60;
+    private bool _autoStartRest = true;
+    private bool _showWeightInSets = true;
+    private bool _confirmBeforeSkip = true;
+    private int? _pendingSkipExIdx;
+    private int? _pendingSkipSetIdx;
+    private bool _pendingSkipIsExercise;
     private WorkoutSchedule? _session;
     private List<WorkoutExercise> _orderedExercises = new();
     private List<Exercise> _exerciseLibrary = new();
@@ -546,6 +566,9 @@ else
         _weightUnit = settings.WeightUnit;
         _energyUnit = settings.EnergyUnit;
         _restTimerDefault = settings.RestTimerDefault;
+        _autoStartRest = settings.AutoStartRestTimer;
+        _showWeightInSets = settings.ShowWeightInSets;
+        _confirmBeforeSkip = settings.ConfirmBeforeSkip;
         _session = await DashService.GetActiveSessionAsync(_userId);
         _exerciseLibrary = await WorkoutService.GetExerciseLibraryAsync();
 
@@ -1181,8 +1204,7 @@ else
                 return;
             }
 
-            if (restAfterExercise > 0)
-                StartRest(restAfterExercise);
+            MaybeStartRest(restAfterExercise);
 
             StateHasChanged();
             return;
@@ -1202,20 +1224,30 @@ else
                 return;
             }
 
-            if (restAfterExercise > 0)
-                StartRest(restAfterExercise);
+            MaybeStartRest(restAfterExercise);
 
             StateHasChanged();
             return;
         }
 
-        if (restAfterExercise > 0)
-            StartRest(restAfterExercise);
+        MaybeStartRest(restAfterExercise);
 
         StateHasChanged();
     }
 
-    private async void SkipSet(int exIdx, int setIdx)
+    private void SkipSet(int exIdx, int setIdx)
+    {
+        if (_confirmBeforeSkip)
+        {
+            _pendingSkipExIdx = exIdx;
+            _pendingSkipSetIdx = setIdx;
+            _pendingSkipIsExercise = false;
+            return;
+        }
+        _ = DoSkipSetAsync(exIdx, setIdx);
+    }
+
+    private async Task DoSkipSetAsync(int exIdx, int setIdx)
     {
         _liveState.Exercises[exIdx].Sets[setIdx].IsCompleted = false;
         _liveState.Exercises[exIdx].Sets[setIdx].IsSkipped = true;
@@ -1301,7 +1333,19 @@ else
         StateHasChanged();
     }
 
-    private async void SkipExercise(int exIdx)
+    private void SkipExercise(int exIdx)
+    {
+        if (_confirmBeforeSkip)
+        {
+            _pendingSkipExIdx = exIdx;
+            _pendingSkipSetIdx = null;
+            _pendingSkipIsExercise = true;
+            return;
+        }
+        _ = DoSkipExerciseAsync(exIdx);
+    }
+
+    private async Task DoSkipExerciseAsync(int exIdx)
     {
         var exercise = _liveState.Exercises[exIdx];
         if (HasCompletedSets(exercise))
@@ -1504,6 +1548,33 @@ else
             }
             await InvokeAsync(StateHasChanged);
         }, null, 1000, 1000);
+    }
+
+    private void MaybeStartRest(int seconds)
+    {
+        if (_autoStartRest && seconds > 0)
+            StartRest(seconds);
+    }
+
+    private async Task ConfirmSkip()
+    {
+        var exIdx = _pendingSkipExIdx;
+        var setIdx = _pendingSkipSetIdx;
+        var isExercise = _pendingSkipIsExercise;
+        _pendingSkipExIdx = null;
+        _pendingSkipSetIdx = null;
+        if (exIdx is null) return;
+
+        if (isExercise)
+            await DoSkipExerciseAsync(exIdx.Value);
+        else if (setIdx is not null)
+            await DoSkipSetAsync(exIdx.Value, setIdx.Value);
+    }
+
+    private void CancelSkip()
+    {
+        _pendingSkipExIdx = null;
+        _pendingSkipSetIdx = null;
     }
 
     private void SkipRest()

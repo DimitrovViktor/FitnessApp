@@ -11,7 +11,6 @@ public class UserSettings
     public string EnergyUnit { get; set; } = "kcal";
     public string CalendarStart { get; set; } = "monday";
     public int RestTimerDefault { get; set; } = 60;
-    public bool RestTimerSound { get; set; } = true;
     public bool AutoStartRestTimer { get; set; } = true;
     public bool ShowWeightInSets { get; set; } = true;
     public bool ConfirmBeforeSkip { get; set; } = true;

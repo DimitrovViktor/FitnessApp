@@ -211,7 +211,6 @@ using (var scope = app.Services.CreateScope())
             EnergyUnit TEXT NOT NULL DEFAULT 'kcal',
             CalendarStart TEXT NOT NULL DEFAULT 'monday',
             RestTimerDefault INTEGER NOT NULL DEFAULT 60,
-            RestTimerSound INTEGER NOT NULL DEFAULT 1,
             AutoStartRestTimer INTEGER NOT NULL DEFAULT 1,
             ShowWeightInSets INTEGER NOT NULL DEFAULT 1,
             ConfirmBeforeSkip INTEGER NOT NULL DEFAULT 1,
