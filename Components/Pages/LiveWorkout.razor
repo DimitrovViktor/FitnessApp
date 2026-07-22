@@ -20,11 +20,22 @@ else if (_session is null)
         <div class="live-header">
             <div>
                 <span class="live-kicker">Live Session</span>
-                <h1>Start a workout</h1>
-                <p class="live-start-sub">Quick start one of your workouts, or search any workout to begin training right now.</p>
+                <h1>Start a session</h1>
+                <p class="live-start-sub">Choose a workout to train, or track a cardio session right now.</p>
             </div>
         </div>
 
+        <div style="display:flex;gap:8px;margin:0 0 20px;">
+            <button type="button" style='@ModeStyle("workout")' @onclick='() => _liveMode = "workout"'>Workout</button>
+            <button type="button" style='@ModeStyle("cardio")' @onclick='() => _liveMode = "cardio"'>Cardio</button>
+        </div>
+
+        @if (_liveMode == "cardio")
+        {
+            <CardioPanel UserId="_userId" OnExit="ExitCardio" />
+        }
+        else
+        {
         <section class="live-start-card">
             <div class="live-start-head">
                 <div>
@@ -78,6 +89,7 @@ else if (_session is null)
                 }
             </div>
         </section>
+        }
     </div>
 }
 else
@@ -471,6 +483,7 @@ else
     private string _weightUnit = "kg";
     private string _energyUnit = "kcal";
     private int _restTimerDefault = 60;
+    private string _liveMode = "workout";
     private bool _autoStartRest = true;
     private bool _showWeightInSets = true;
     private bool _confirmBeforeSkip = true;
@@ -1556,6 +1569,20 @@ else
             StartRest(seconds);
     }
 
+    private string ModeStyle(string mode)
+    {
+        var active = _liveMode == mode;
+        var border = active ? "var(--accent-border)" : "var(--border)";
+        var bg = active ? "var(--accent-dim)" : "var(--bg)";
+        var color = active ? "var(--accent)" : "var(--t2)";
+        return $"flex:1;padding:13px;border-radius:12px;font-family:inherit;font-size:14px;font-weight:800;cursor:pointer;border:1px solid {border};background:{bg};color:{color};";
+    }
+
+    private void ExitCardio()
+    {
+        _liveMode = "workout";
+    }
+
     private async Task ConfirmSkip()
     {
         var exIdx = _pendingSkipExIdx;
@@ -1610,8 +1637,12 @@ else
                 var exercises = BuildExerciseLogEntries();
                 await LogService.SaveWorkoutLogAsync(_userId, _session.WorkoutId, _startTime, DateTime.UtcNow, _estCalBurned, exercises, WorkoutLogStatus.Partial);
                 await LogService.CheckAndSavePersonalRecordsAsync(_userId, exercises);
+                await DashService.CancelScheduleAsync(_session.Id, _userId);
             }
-            await DashService.CancelScheduleAsync(_session.Id, _userId);
+            else
+            {
+                await DashService.DeleteScheduleAsync(_session.Id, _userId);
+            }
         }
         _showCancelConfirm = false;
         try { Navigation.NavigateTo("/dashboard"); } catch { }
@@ -1632,7 +1663,7 @@ else
             }
             else
             {
-                await DashService.CancelScheduleAsync(_session.Id, _userId);
+                await DashService.DeleteScheduleAsync(_session.Id, _userId);
             }
         }
 

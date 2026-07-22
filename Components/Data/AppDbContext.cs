@@ -25,6 +25,7 @@ public class AppDbContext : DbContext
     public DbSet<ExerciseLog> ExerciseLogs => Set<ExerciseLog>();
     public DbSet<ExerciseSetLog> ExerciseSetLogs => Set<ExerciseSetLog>();
     public DbSet<CardioLog> CardioLogs => Set<CardioLog>();
+    public DbSet<CardioActivity> CardioActivities => Set<CardioActivity>();
     public DbSet<Food> Foods => Set<Food>();
     public DbSet<FoodPreparation> FoodPreparations => Set<FoodPreparation>();
     public DbSet<FoodLog> FoodLogs => Set<FoodLog>();
@@ -196,6 +197,13 @@ public class AppDbContext : DbContext
             e.Property(cl => cl.CaloriesBurned).HasPrecision(8, 2);
             e.Property(cl => cl.Notes).HasMaxLength(500);
             e.HasOne(cl => cl.User).WithMany(u => u.CardioLogs).HasForeignKey(cl => cl.UserId);
+        });
+
+        mb.Entity<CardioActivity>(e =>
+        {
+            e.HasIndex(ca => ca.UserId);
+            e.Property(ca => ca.Name).HasMaxLength(200).IsRequired();
+            e.HasOne(ca => ca.User).WithMany().HasForeignKey(ca => ca.UserId);
         });
 
         mb.Entity<Food>(e =>

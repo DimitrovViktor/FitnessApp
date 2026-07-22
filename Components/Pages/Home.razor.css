@@ -4,7 +4,7 @@
 .dash-header h1 { font-size:26px; font-weight:800; color:var(--t1); margin:0 0 4px; }
 .accent { color:var(--accent); }
 .dash-sub { font-size:14px; color:var(--t2); margin:0; }
-.stats-grid { display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:14px; margin-bottom:24px; }
+.stats-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(140px,1fr)); gap:14px; margin-bottom:24px; }
 .stat-card { background:var(--s2); border:1px solid var(--border); border-radius:12px; padding:15px 18px; display:flex; flex-direction:column; gap:2px; min-width:0; }
 .stat-card:hover { border-color:var(--border-strong); }
 .stat-label { font-size:11.5px; font-weight:500; color:var(--t3); text-transform:uppercase; letter-spacing:.07em; margin-bottom:8px; }

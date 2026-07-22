@@ -16,6 +16,7 @@ builder.Services.AddScoped<AuthService>();
 builder.Services.AddScoped<ProfileService>();
 builder.Services.AddScoped<AdminService>();
 builder.Services.AddScoped<WorkoutService>();
+builder.Services.AddScoped<CardioService>();
 builder.Services.AddScoped<DashboardService>();
 builder.Services.AddScoped<LoggingService>();
 builder.Services.AddScoped<SettingsService>();
@@ -396,6 +397,46 @@ using (var scope = app.Services.CreateScope())
     }
     catch { }
     try { db.Database.ExecuteSqlRaw("CREATE UNIQUE INDEX IF NOT EXISTS IX_CommentReactions_CommentId_UserId ON CommentReactions (CommentId, UserId)"); } catch { }
+
+    try
+    {
+        db.Database.ExecuteSqlRaw(@"CREATE TABLE IF NOT EXISTS CardioActivities (
+            Id INTEGER PRIMARY KEY AUTOINCREMENT,
+            UserId INTEGER NOT NULL,
+            Name TEXT NOT NULL DEFAULT '',
+            Intensity INTEGER NOT NULL DEFAULT 1,
+            SortOrder INTEGER NOT NULL DEFAULT 0,
+            CreatedAt TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (UserId) REFERENCES Users(Id))");
+    }
+    catch { }
+    try
+    {
+        db.Database.ExecuteSqlRaw(@"CREATE TABLE IF NOT EXISTS CardioLogs (
+            Id INTEGER PRIMARY KEY AUTOINCREMENT,
+            UserId INTEGER NOT NULL,
+            CardioActivityId INTEGER NULL,
+            Date TEXT NOT NULL,
+            ActivityName TEXT NOT NULL DEFAULT '',
+            Intensity INTEGER NOT NULL DEFAULT 1,
+            ActiveTimeSec INTEGER NOT NULL DEFAULT 0,
+            RestTimeSec INTEGER NOT NULL DEFAULT 0,
+            Laps INTEGER NOT NULL DEFAULT 0,
+            LapSplitsCsv TEXT NULL,
+            DistanceKm NUMERIC NULL,
+            CaloriesBurned NUMERIC NOT NULL DEFAULT 0,
+            Notes TEXT NULL,
+            StartedAt TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            CreatedAt TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (UserId) REFERENCES Users(Id))");
+    }
+    catch { }
+    try { db.Database.ExecuteSqlRaw("CREATE INDEX IF NOT EXISTS IX_CardioActivities_UserId ON CardioActivities (UserId)"); } catch { }
+    try { db.Database.ExecuteSqlRaw("CREATE INDEX IF NOT EXISTS IX_CardioLogs_UserId_Date ON CardioLogs (UserId, Date)"); } catch { }
+    try { db.Database.ExecuteSqlRaw("ALTER TABLE CardioLogs ADD COLUMN CardioActivityId INTEGER NULL"); } catch { }
+    try { db.Database.ExecuteSqlRaw("ALTER TABLE CardioLogs ADD COLUMN Laps INTEGER NOT NULL DEFAULT 0"); } catch { }
+    try { db.Database.ExecuteSqlRaw("ALTER TABLE CardioLogs ADD COLUMN LapSplitsCsv TEXT NULL"); } catch { }
+    try { db.Database.ExecuteSqlRaw("ALTER TABLE CardioLogs ADD COLUMN StartedAt TEXT NULL"); } catch { }
 
     var auth = scope.ServiceProvider.GetRequiredService<AuthService>();
     var adminUser = db.Users.FirstOrDefault(u => u.Username == "admin");

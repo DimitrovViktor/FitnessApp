@@ -463,6 +463,8 @@ else
     private List<Workout> _premadeWorkouts = new();
     private List<Workout> _schedulableWorkouts = new();
     private List<WorkoutLog> _dayLogs = new();
+    private List<CardioLog> _dayCardioLogs = new();
+    private string? _deletingLogKey;
     private List<FitnessApp.Models.Program> _programs = new();
     private List<Food> _schedulableFoods = new();
     private List<DietPlan> _dietPlans = new();
@@ -574,12 +576,14 @@ else
         _selectedDateSchedules = await DashService.GetSchedulesForDateAsync(_userId, _selectedDate);
         _selectedDateDietSchedules = await DietSvc.GetDietSchedulesForDateAsync(_userId, _selectedDate);
         _dayLogs = await LogService.GetWorkoutLogsForDateAsync(_userId, _selectedDate);
+        _dayCardioLogs = await DashService.GetCardioLogsForDateAsync(_userId, _selectedDate);
         var daily = await LogService.GetDailyLogAsync(_userId, _selectedDate);
         _notesText = daily?.Notes;
         _energy = daily?.EnergyLevel;
         _mood = daily?.MoodRating;
         _notesMsg = null;
         _expandedLogId = -1;
+        _deletingLogKey = null;
     }
 
     private async Task SetView(string view)
@@ -719,20 +723,43 @@ else
         GoToLiveWorkout();
     }
 
-    private async Task CancelSchedule(int id)
-    {
-        await DashService.CancelScheduleAsync(id, _userId);
-        await LoadMonth();
-        await LoadWeek();
-        await LoadSelectedDate();
-    }
-
     private async Task DeleteSchedule(int id)
     {
         await DashService.DeleteScheduleAsync(id, _userId);
         await LoadMonth();
         await LoadWeek();
         await LoadSelectedDate();
+    }
+
+    private async Task DeleteScheduleSession(int scheduleId)
+    {
+        await DashService.DeleteWorkoutSessionByScheduleAsync(scheduleId, _userId);
+        await LoadMonth();
+        await LoadWeek();
+        await LoadSelectedDate();
+    }
+
+    private async Task DeleteWorkoutLog(int logId)
+    {
+        await DashService.DeleteWorkoutSessionAsync(logId, _userId);
+        await LoadMonth();
+        await LoadWeek();
+        await LoadSelectedDate();
+    }
+
+    private async Task DeleteDayCardio(int logId)
+    {
+        await DashService.DeleteCardioSessionAsync(logId, _userId);
+        await LoadMonth();
+        await LoadWeek();
+        await LoadSelectedDate();
+    }
+
+    private static string FormatCardioDuration(int totalSeconds)
+    {
+        if (totalSeconds < 0) totalSeconds = 0;
+        var ts = TimeSpan.FromSeconds(totalSeconds);
+        return ts.TotalHours >= 1 ? $"{(int)ts.TotalHours}h {ts.Minutes}m" : $"{ts.Minutes}m {ts.Seconds:D2}s";
     }
 
     private async Task CompleteDietSchedule(int id)
@@ -933,7 +960,7 @@ else
         builder.AddContent(seq++, "Completed");
         builder.CloseElement();
 
-        if (_dayLogs.Count == 0)
+        if (_dayLogs.Count == 0 && _dayCardioLogs.Count == 0)
         {
             builder.OpenElement(seq++, "div");
             builder.AddAttribute(seq++, "class", "empty-sm");
@@ -995,6 +1022,41 @@ else
                 builder.CloseElement();
                 builder.CloseElement();
 
+                var wkey = $"w{wl.Id}";
+                builder.OpenElement(seq++, "div");
+                builder.AddAttribute(seq++, "class", "log-actions");
+                builder.AddAttribute(seq++, "style", "display:flex;gap:8px;align-items:center;flex-wrap:wrap;padding:2px 15px 12px;");
+                if (_deletingLogKey == wkey)
+                {
+                    builder.OpenElement(seq++, "span");
+                    builder.AddAttribute(seq++, "class", "log-del-confirm");
+                    builder.AddAttribute(seq++, "style", "font-size:12px;color:var(--danger);font-weight:600;");
+                    builder.AddContent(seq++, "Delete this session?");
+                    builder.CloseElement();
+                    builder.OpenElement(seq++, "button");
+                    builder.AddAttribute(seq++, "type", "button");
+                    builder.AddAttribute(seq++, "class", "btn-danger-sm");
+                    builder.AddAttribute(seq++, "onclick", EventCallback.Factory.Create(this, () => DeleteWorkoutLog(wlRef.Id)));
+                    builder.AddContent(seq++, "Delete");
+                    builder.CloseElement();
+                    builder.OpenElement(seq++, "button");
+                    builder.AddAttribute(seq++, "type", "button");
+                    builder.AddAttribute(seq++, "class", "btn-ghost btn-sm");
+                    builder.AddAttribute(seq++, "onclick", EventCallback.Factory.Create(this, () => { _deletingLogKey = null; }));
+                    builder.AddContent(seq++, "Cancel");
+                    builder.CloseElement();
+                }
+                else
+                {
+                    builder.OpenElement(seq++, "button");
+                    builder.AddAttribute(seq++, "type", "button");
+                    builder.AddAttribute(seq++, "class", "btn-danger-xs");
+                    builder.AddAttribute(seq++, "onclick", EventCallback.Factory.Create(this, () => { _deletingLogKey = wkey; }));
+                    builder.AddContent(seq++, "Remove session");
+                    builder.CloseElement();
+                }
+                builder.CloseElement();
+
                 if (isExpanded)
                 {
                     builder.OpenElement(seq++, "div");
@@ -1038,6 +1100,93 @@ else
                     }
                     builder.CloseElement();
                 }
+                builder.CloseElement();
+            }
+
+            foreach (var cl in _dayCardioLogs)
+            {
+                var clRef = cl;
+                var ckey = $"c{cl.Id}";
+                builder.OpenElement(seq++, "div");
+                builder.AddAttribute(seq++, "class", "log-card");
+                builder.OpenElement(seq++, "div");
+                builder.AddAttribute(seq++, "class", "log-header static");
+                builder.AddAttribute(seq++, "style", "cursor:default;");
+                builder.OpenElement(seq++, "div");
+                builder.AddAttribute(seq++, "class", "log-header-left");
+                builder.OpenElement(seq++, "div");
+                builder.AddAttribute(seq++, "class", "log-status-bar log-st-complete");
+                builder.CloseElement();
+                builder.OpenElement(seq++, "div");
+                builder.OpenElement(seq++, "span");
+                builder.AddAttribute(seq++, "class", "log-name");
+                builder.AddContent(seq++, cl.ActivityName);
+                builder.CloseElement();
+                builder.OpenElement(seq++, "span");
+                builder.AddAttribute(seq++, "class", "log-meta");
+                builder.AddContent(seq++, $"{cl.StartedAt.ToLocalTime():HH:mm} · Cardio · {FormatCardioDuration(cl.ActiveTimeSec)}");
+                builder.CloseElement();
+                builder.CloseElement();
+                builder.CloseElement();
+                builder.OpenElement(seq++, "div");
+                builder.AddAttribute(seq++, "class", "log-header-right");
+                builder.OpenElement(seq++, "span");
+                builder.AddAttribute(seq++, "class", "log-status-tag log-st-tag-complete");
+                builder.AddContent(seq++, "Cardio");
+                builder.CloseElement();
+                builder.OpenElement(seq++, "span");
+                builder.AddAttribute(seq++, "class", "log-cal");
+                builder.AddContent(seq++, FormatEnergyValue(cl.CaloriesBurned));
+                builder.CloseElement();
+                builder.CloseElement();
+                builder.CloseElement();
+                builder.OpenElement(seq++, "div");
+                builder.AddAttribute(seq++, "class", "log-chips");
+                builder.OpenElement(seq++, "span");
+                builder.AddAttribute(seq++, "class", "log-chip");
+                builder.AddContent(seq++, cl.DistanceKm.HasValue ? $"{cl.DistanceKm.Value:0.##} km" : "No distance");
+                builder.CloseElement();
+                if (cl.Laps > 0)
+                {
+                    builder.OpenElement(seq++, "span");
+                    builder.AddAttribute(seq++, "class", "log-chip");
+                    builder.AddContent(seq++, $"{cl.Laps} laps");
+                    builder.CloseElement();
+                }
+                builder.CloseElement();
+                builder.OpenElement(seq++, "div");
+                builder.AddAttribute(seq++, "class", "log-actions");
+                builder.AddAttribute(seq++, "style", "display:flex;gap:8px;align-items:center;flex-wrap:wrap;padding:2px 15px 12px;");
+                if (_deletingLogKey == ckey)
+                {
+                    builder.OpenElement(seq++, "span");
+                    builder.AddAttribute(seq++, "class", "log-del-confirm");
+                    builder.AddAttribute(seq++, "style", "font-size:12px;color:var(--danger);font-weight:600;");
+                    builder.AddContent(seq++, "Delete this session?");
+                    builder.CloseElement();
+                    builder.OpenElement(seq++, "button");
+                    builder.AddAttribute(seq++, "type", "button");
+                    builder.AddAttribute(seq++, "class", "btn-danger-sm");
+                    builder.AddAttribute(seq++, "onclick", EventCallback.Factory.Create(this, () => DeleteDayCardio(clRef.Id)));
+                    builder.AddContent(seq++, "Delete");
+                    builder.CloseElement();
+                    builder.OpenElement(seq++, "button");
+                    builder.AddAttribute(seq++, "type", "button");
+                    builder.AddAttribute(seq++, "class", "btn-ghost btn-sm");
+                    builder.AddAttribute(seq++, "onclick", EventCallback.Factory.Create(this, () => { _deletingLogKey = null; }));
+                    builder.AddContent(seq++, "Cancel");
+                    builder.CloseElement();
+                }
+                else
+                {
+                    builder.OpenElement(seq++, "button");
+                    builder.AddAttribute(seq++, "type", "button");
+                    builder.AddAttribute(seq++, "class", "btn-danger-xs");
+                    builder.AddAttribute(seq++, "onclick", EventCallback.Factory.Create(this, () => { _deletingLogKey = ckey; }));
+                    builder.AddContent(seq++, "Remove session");
+                    builder.CloseElement();
+                }
+                builder.CloseElement();
                 builder.CloseElement();
             }
         }
@@ -1087,12 +1236,6 @@ else
                 builder.CloseElement();
                 builder.OpenElement(seq++, "button");
                 builder.AddAttribute(seq++, "type", "button");
-                builder.AddAttribute(seq++, "class", "btn-ghost btn-xs");
-                builder.AddAttribute(seq++, "onclick", EventCallback.Factory.Create(this, () => CancelSchedule(s.Id)));
-                builder.AddContent(seq++, "Skip");
-                builder.CloseElement();
-                builder.OpenElement(seq++, "button");
-                builder.AddAttribute(seq++, "type", "button");
                 builder.AddAttribute(seq++, "class", "btn-danger-xs");
                 builder.AddAttribute(seq++, "onclick", EventCallback.Factory.Create(this, () => DeleteSchedule(s.Id)));
                 builder.AddContent(seq++, (MarkupString)"<span class=\"icon icon-x\" aria-hidden=\"true\"></span>");
@@ -1106,6 +1249,34 @@ else
                 builder.AddAttribute(seq++, "onclick", EventCallback.Factory.Create(this, GoToLiveWorkout));
                 builder.AddContent(seq++, "Continue");
                 builder.CloseElement();
+            }
+            if (s.Status == ScheduleStatus.Completed || s.Status == ScheduleStatus.Cancelled)
+            {
+                var skey = $"sch{s.Id}";
+                if (_deletingLogKey == skey)
+                {
+                    builder.OpenElement(seq++, "button");
+                    builder.AddAttribute(seq++, "type", "button");
+                    builder.AddAttribute(seq++, "class", "btn-danger-xs");
+                    builder.AddAttribute(seq++, "onclick", EventCallback.Factory.Create(this, () => DeleteScheduleSession(s.Id)));
+                    builder.AddContent(seq++, (MarkupString)"<span class=\"icon icon-x\" aria-hidden=\"true\"></span>");
+                    builder.CloseElement();
+                    builder.OpenElement(seq++, "button");
+                    builder.AddAttribute(seq++, "type", "button");
+                    builder.AddAttribute(seq++, "class", "btn-ghost btn-sm");
+                    builder.AddAttribute(seq++, "onclick", EventCallback.Factory.Create(this, () => { _deletingLogKey = null; }));
+                    builder.AddContent(seq++, "Cancel");
+                    builder.CloseElement();
+                }
+                else
+                {
+                    builder.OpenElement(seq++, "button");
+                    builder.AddAttribute(seq++, "type", "button");
+                    builder.AddAttribute(seq++, "class", "btn-danger-xs");
+                    builder.AddAttribute(seq++, "onclick", EventCallback.Factory.Create(this, () => { _deletingLogKey = skey; }));
+                    builder.AddContent(seq++, (MarkupString)"<span class=\"icon icon-x\" aria-hidden=\"true\"></span>");
+                    builder.CloseElement();
+                }
             }
             builder.CloseElement();
             builder.CloseElement();

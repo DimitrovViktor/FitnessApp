@@ -241,6 +241,120 @@ public class DashboardService
         return streak;
     }
 
+    public async Task<int> GetWeeklyCardioCountAsync(int userId)
+    {
+        var today = DateOnly.FromDateTime(DateTime.Now);
+        var weekStart = today.AddDays(-(int)today.DayOfWeek);
+
+        return await _db.CardioLogs
+            .CountAsync(cl => cl.UserId == userId && cl.Date >= weekStart && cl.Date <= today);
+    }
+
+    public async Task<decimal> GetBurnedCaloriesForDateAsync(int userId, DateOnly date)
+    {
+        var workoutBurned = await _db.WorkoutLogs
+            .Where(wl => wl.UserId == userId && wl.Date == date)
+            .SumAsync(wl => (decimal?)wl.TotalCaloriesBurned) ?? 0m;
+
+        var cardioBurned = await _db.CardioLogs
+            .Where(cl => cl.UserId == userId && cl.Date == date)
+            .SumAsync(cl => (decimal?)cl.CaloriesBurned) ?? 0m;
+
+        return workoutBurned + cardioBurned;
+    }
+
+    public async Task<List<WorkoutLog>> GetWorkoutLogsForDateAsync(int userId, DateOnly date)
+    {
+        return await _db.WorkoutLogs
+            .Include(wl => wl.Workout)
+            .Where(wl => wl.UserId == userId && wl.Date == date)
+            .OrderByDescending(wl => wl.StartedAt)
+            .ToListAsync();
+    }
+
+    public async Task<List<CardioLog>> GetCardioLogsForDateAsync(int userId, DateOnly date)
+    {
+        return await _db.CardioLogs
+            .Where(cl => cl.UserId == userId && cl.Date == date)
+            .OrderByDescending(cl => cl.StartedAt)
+            .ToListAsync();
+    }
+
+    public async Task<bool> DeleteWorkoutSessionAsync(int workoutLogId, int userId)
+    {
+        var log = await _db.WorkoutLogs
+            .Include(wl => wl.ExerciseLogs).ThenInclude(el => el.SetLogs)
+            .FirstOrDefaultAsync(wl => wl.Id == workoutLogId && wl.UserId == userId);
+        if (log is null) return false;
+
+        if (log.WorkoutId is not null)
+        {
+            var schedule = await _db.WorkoutSchedules
+                .Where(ws => ws.UserId == userId && ws.WorkoutId == log.WorkoutId && ws.ScheduledDate == log.Date && ws.Status == ScheduleStatus.Completed)
+                .OrderByDescending(ws => ws.CompletedAt)
+                .FirstOrDefaultAsync();
+            if (schedule is not null) _db.WorkoutSchedules.Remove(schedule);
+        }
+
+        foreach (var el in log.ExerciseLogs)
+            _db.ExerciseSetLogs.RemoveRange(el.SetLogs);
+        _db.ExerciseLogs.RemoveRange(log.ExerciseLogs);
+        _db.WorkoutLogs.Remove(log);
+        await _db.SaveChangesAsync();
+
+        var daily = await _db.DailyLogs.FirstOrDefaultAsync(dl => dl.UserId == userId && dl.Date == log.Date);
+        if (daily is not null)
+        {
+            daily.TotalCaloriesBurned = await _db.WorkoutLogs
+                .Where(wl => wl.UserId == userId && wl.Date == log.Date)
+                .SumAsync(wl => (decimal?)wl.TotalCaloriesBurned) ?? 0m;
+            await _db.SaveChangesAsync();
+        }
+
+        return true;
+    }
+
+    public async Task<bool> DeleteCardioSessionAsync(int cardioLogId, int userId)
+    {
+        var log = await _db.CardioLogs.FirstOrDefaultAsync(cl => cl.Id == cardioLogId && cl.UserId == userId);
+        if (log is null) return false;
+        _db.CardioLogs.Remove(log);
+        await _db.SaveChangesAsync();
+        return true;
+    }
+
+    public async Task<bool> DeleteWorkoutSessionByScheduleAsync(int scheduleId, int userId)
+    {
+        var schedule = await _db.WorkoutSchedules.FirstOrDefaultAsync(ws => ws.Id == scheduleId && ws.UserId == userId);
+        if (schedule is null) return false;
+
+        var logs = await _db.WorkoutLogs
+            .Include(wl => wl.ExerciseLogs).ThenInclude(el => el.SetLogs)
+            .Where(wl => wl.UserId == userId && wl.WorkoutId == schedule.WorkoutId && wl.Date == schedule.ScheduledDate)
+            .ToListAsync();
+
+        foreach (var log in logs)
+        {
+            foreach (var el in log.ExerciseLogs)
+                _db.ExerciseSetLogs.RemoveRange(el.SetLogs);
+            _db.ExerciseLogs.RemoveRange(log.ExerciseLogs);
+        }
+        _db.WorkoutLogs.RemoveRange(logs);
+        _db.WorkoutSchedules.Remove(schedule);
+        await _db.SaveChangesAsync();
+
+        var daily = await _db.DailyLogs.FirstOrDefaultAsync(dl => dl.UserId == userId && dl.Date == schedule.ScheduledDate);
+        if (daily is not null)
+        {
+            daily.TotalCaloriesBurned = await _db.WorkoutLogs
+                .Where(wl => wl.UserId == userId && wl.Date == schedule.ScheduledDate)
+                .SumAsync(wl => (decimal?)wl.TotalCaloriesBurned) ?? 0m;
+            await _db.SaveChangesAsync();
+        }
+
+        return true;
+    }
+
     public async Task<WorkoutSchedule> QuickStartWorkoutAsync(int userId, int workoutId)
     {
         var today = DateOnly.FromDateTime(DateTime.Now);

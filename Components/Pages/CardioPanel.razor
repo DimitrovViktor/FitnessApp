@@ -1,0 +1,298 @@
+@implements IDisposable
+@inject CardioService Cardio
+@inject SettingsService SettingsSvc
+
+<div class="cardio-panel">
+    @if (_phase == "ready")
+    {
+        <div class="cs-card">
+            <span class="cs-eyebrow">Cardio</span>
+
+            @if (_activityLocked)
+            {
+                <h1 class="cs-title">@_name</h1>
+                <span class="cs-intensity-badge">@_intensity intensity</span>
+                <button type="button" class="cs-change" @onclick="ClearActivity">Change activity</button>
+            }
+            else
+            {
+                <h1 class="cs-title">New cardio session</h1>
+                @if (_activities.Count > 0)
+                {
+                    <div class="cs-picker">
+                        @foreach (var a in _activities)
+                        {
+                            <button type="button" class="cs-pick" @onclick="() => SelectActivity(a)">
+                                <span class="cs-pick-name">@a.Name</span>
+                                <span class="cs-pick-int">@a.Intensity</span>
+                            </button>
+                        }
+                    </div>
+                    <span class="cs-hint">or set up a new one</span>
+                }
+                <input class="cs-name-input" @bind="_name" placeholder="Activity name (e.g. Morning Jog)" maxlength="60" />
+                <div class="cs-seg">
+                    @foreach (var opt in Intensities)
+                    {
+                        <button type="button" class="cs-seg-btn @(_intensity == opt ? "active" : "")" @onclick="() => _intensity = opt">@opt</button>
+                    }
+                </div>
+            }
+
+            <div class="cs-clock big">@FormatClock(0)</div>
+
+            <div class="cs-actions">
+                <button type="button" class="cs-btn cs-btn-primary" @onclick="Start">Start</button>
+                <button type="button" class="cs-btn cs-btn-ghost" @onclick="Exit">Back</button>
+            </div>
+        </div>
+    }
+    else if (_phase == "running")
+    {
+        <div class="cs-card">
+            <h1 class="cs-title">@_name</h1>
+            <div class="cs-clock big @(_running ? "" : "paused")">@FormatClock(ActiveSeconds)</div>
+            <span class="cs-clock-label">@(_running ? "Running" : "Paused")</span>
+
+            <div class="cs-actions">
+                @if (_running)
+                {
+                    <button type="button" class="cs-btn cs-btn-warn" @onclick="Pause">Pause</button>
+                    <button type="button" class="cs-btn cs-btn-secondary" @onclick="Lap">Lap</button>
+                }
+                else
+                {
+                    <button type="button" class="cs-btn cs-btn-primary" @onclick="Resume">Resume</button>
+                }
+                <button type="button" class="cs-btn cs-btn-finish" @onclick="Stop">Finish</button>
+            </div>
+
+            @if (_laps.Count > 0)
+            {
+                <div class="cs-laps">
+                    <div class="cs-laps-head">
+                        <span>Lap</span>
+                        <span>Split</span>
+                        <span>Total</span>
+                    </div>
+                    @for (int i = _laps.Count - 1; i >= 0; i--)
+                    {
+                        var split = i == 0 ? _laps[i] : _laps[i] - _laps[i - 1];
+                        <div class="cs-lap-row">
+                            <span>@(i + 1)</span>
+                            <span>@FormatClock(split)</span>
+                            <span>@FormatClock(_laps[i])</span>
+                        </div>
+                    }
+                </div>
+            }
+        </div>
+    }
+    else if (_phase == "finish")
+    {
+        <div class="cs-card">
+            <span class="cs-eyebrow">Finish @_name</span>
+            <h1 class="cs-title">Nice work</h1>
+
+            <div class="cs-field">
+                <label class="cs-label">Time</label>
+                <div class="cs-time-edit">
+                    <input type="number" class="cs-time-input" min="0" @bind="_editMinutes" @bind:after="Recalc" />
+                    <span class="cs-time-colon">:</span>
+                    <input type="number" class="cs-time-input" min="0" max="59" @bind="_editSeconds" @bind:after="Recalc" />
+                </div>
+                <span class="cs-hint">minutes : seconds of active time</span>
+            </div>
+
+            <div class="cs-field">
+                <label class="cs-label">Approximate distance (@_distanceLabel)</label>
+                <input type="number" class="cs-dist-input" min="0" step="0.01" placeholder="0.00" @bind="_distanceInput" @bind:after="Recalc" />
+            </div>
+
+            <div class="cs-summary">
+                <div class="cs-summary-item">
+                    <span class="cs-summary-val">@_estCalories</span>
+                    <span class="cs-summary-key">calories</span>
+                </div>
+                <div class="cs-summary-item">
+                    <span class="cs-summary-val">@_laps.Count</span>
+                    <span class="cs-summary-key">laps</span>
+                </div>
+                <div class="cs-summary-item">
+                    <span class="cs-summary-val">@FormatClock(_restSeconds)</span>
+                    <span class="cs-summary-key">rest</span>
+                </div>
+            </div>
+            <span class="cs-hint">Estimated from your weight (@_weightKg kg), time and distance.</span>
+
+            <div class="cs-actions">
+                <button type="button" class="cs-btn cs-btn-primary" @onclick="Save" disabled="@_saving">@(_saving ? "Saving..." : "Save")</button>
+                <button type="button" class="cs-btn cs-btn-ghost" @onclick="Exit">Discard</button>
+            </div>
+        </div>
+    }
+</div>
+
+@code {
+    [Parameter] public int UserId { get; set; }
+    [Parameter] public EventCallback OnExit { get; set; }
+
+    private bool _loaded;
+    private string _phase = "ready";
+    private string _name = "Cardio";
+    private CardioIntensity _intensity = CardioIntensity.Moderate;
+    private bool _activityLocked;
+    private int? _selectedActivityId;
+    private List<CardioActivity> _activities = new();
+
+    private readonly System.Diagnostics.Stopwatch _stopwatch = new();
+    private System.Threading.Timer? _uiTimer;
+    private bool _running;
+    private DateTime _startedAt;
+    private DateTime _pauseStart;
+    private int _restSeconds;
+    private readonly List<int> _laps = new();
+
+    private int _editMinutes;
+    private int _editSeconds;
+    private decimal? _distanceInput;
+    private decimal _estCalories;
+    private decimal _weightKg = 70m;
+    private string _distanceUnit = "km";
+    private string _distanceLabel = "km";
+    private bool _saving;
+
+    private static readonly CardioIntensity[] Intensities =
+        { CardioIntensity.Low, CardioIntensity.Moderate, CardioIntensity.High, CardioIntensity.Interval };
+
+    private int ActiveSeconds => (int)_stopwatch.Elapsed.TotalSeconds;
+
+    protected override async Task OnParametersSetAsync()
+    {
+        if (_loaded || UserId <= 0) return;
+        _loaded = true;
+
+        var settings = await SettingsSvc.GetSettingsAsync(UserId);
+        _distanceUnit = settings.DistanceUnit;
+        _distanceLabel = SettingsService.DistanceLabel(_distanceUnit);
+        _weightKg = await Cardio.GetCurrentWeightKgAsync(UserId);
+        _activities = await Cardio.GetActivitiesAsync(UserId);
+    }
+
+    private void SelectActivity(CardioActivity a)
+    {
+        _selectedActivityId = a.Id;
+        _name = a.Name;
+        _intensity = a.Intensity;
+        _activityLocked = true;
+    }
+
+    private void ClearActivity()
+    {
+        _selectedActivityId = null;
+        _activityLocked = false;
+    }
+
+    private void Start()
+    {
+        _startedAt = DateTime.UtcNow;
+        _stopwatch.Start();
+        _running = true;
+        _phase = "running";
+        StartUiTimer();
+    }
+
+    private void Pause()
+    {
+        if (!_running) return;
+        _stopwatch.Stop();
+        _running = false;
+        _pauseStart = DateTime.UtcNow;
+        StopUiTimer();
+    }
+
+    private void Resume()
+    {
+        if (_running) return;
+        _restSeconds += (int)(DateTime.UtcNow - _pauseStart).TotalSeconds;
+        _stopwatch.Start();
+        _running = true;
+        StartUiTimer();
+    }
+
+    private void Lap()
+    {
+        _laps.Add(ActiveSeconds);
+    }
+
+    private void Stop()
+    {
+        _stopwatch.Stop();
+        if (!_running)
+            _restSeconds += (int)(DateTime.UtcNow - _pauseStart).TotalSeconds;
+        _running = false;
+        StopUiTimer();
+
+        var total = ActiveSeconds;
+        _editMinutes = total / 60;
+        _editSeconds = total % 60;
+        _phase = "finish";
+        Recalc();
+    }
+
+    private void Recalc()
+    {
+        if (_editMinutes < 0) _editMinutes = 0;
+        if (_editSeconds < 0) _editSeconds = 0;
+        if (_editSeconds > 59) _editSeconds = 59;
+
+        var active = _editMinutes * 60 + _editSeconds;
+        var km = _distanceInput is > 0 ? SettingsService.ToKm(_distanceInput.Value, _distanceUnit) : (decimal?)null;
+        _estCalories = CardioService.EstimateCalories(_weightKg, active, km, _intensity);
+    }
+
+    private async Task Save()
+    {
+        _saving = true;
+        var active = _editMinutes * 60 + _editSeconds;
+        var km = _distanceInput is > 0 ? SettingsService.ToKm(_distanceInput.Value, _distanceUnit) : (decimal?)null;
+        var splits = _laps.Count > 0 ? string.Join(",", _laps) : null;
+
+        await Cardio.SaveCardioLogAsync(UserId, _selectedActivityId, _name, _intensity,
+            active, _restSeconds, _laps.Count, splits, km, _estCalories, _startedAt);
+
+        _saving = false;
+        await Exit();
+    }
+
+    private async Task Exit()
+    {
+        await OnExit.InvokeAsync();
+    }
+
+    private void StartUiTimer()
+    {
+        _uiTimer?.Dispose();
+        _uiTimer = new System.Threading.Timer(async _ => await InvokeAsync(StateHasChanged), null, 0, 250);
+    }
+
+    private void StopUiTimer()
+    {
+        _uiTimer?.Dispose();
+        _uiTimer = null;
+    }
+
+    private static string FormatClock(int totalSeconds)
+    {
+        if (totalSeconds < 0) totalSeconds = 0;
+        var ts = TimeSpan.FromSeconds(totalSeconds);
+        return ts.TotalHours >= 1
+            ? $"{(int)ts.TotalHours}:{ts.Minutes:D2}:{ts.Seconds:D2}"
+            : $"{ts.Minutes:D2}:{ts.Seconds:D2}";
+    }
+
+    public void Dispose()
+    {
+        _uiTimer?.Dispose();
+    }
+}
