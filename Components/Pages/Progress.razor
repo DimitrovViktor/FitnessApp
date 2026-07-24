@@ -180,12 +180,12 @@ else
                             @{ var maxKcal = _weeklyCalories.Count > 0 ? Math.Max(_weeklyCalories.Max(w => w.Kcal), 1) : 1; }
                             @foreach (var w in _weeklyCalories)
                             {
-                                var h = w.HasLogs ? (int)((double)w.Kcal / maxKcal * 140) : 0;
+                                var h = w.HasLogs ? (int)((double)w.Kcal / maxKcal * 100) : 0;
                                 var isLatest = w == _weeklyCalories.LastOrDefault();
                                 <div class="cal-bar-col">
-                                    <span class="cal-bar-val @(isLatest ? "cal-bar-latest" : "")">@(w.HasLogs ? FormatEnergyValue(w.Kcal) : "No log")</span>
                                     <div class="cal-bar-track">
-                                        <div class="cal-bar @(isLatest ? "cal-bar-active" : "")" style="height:@(h)px"></div>
+                                        <span class="cal-bar-val @(isLatest ? "cal-bar-latest" : "")">@(w.HasLogs ? FormatEnergyValue(w.Kcal) : "No log")</span>
+                                        <div class="cal-bar @(isLatest ? "cal-bar-active" : "")" style="flex-basis:@(h)%"></div>
                                     </div>
                                     <span class="cal-bar-label">@w.Label</span>
                                 </div>
@@ -385,12 +385,12 @@ else
                             @{ var maxCalories = _weeklyNutrition.Count > 0 ? Math.Max(_weeklyNutrition.Max(d => d.Calories), 1m) : 1m; }
                             @foreach (var day in _weeklyNutrition)
                             {
-                                var height = day.HasLogs ? (int)Math.Round(day.Calories / maxCalories * 140) : 0;
+                                var height = day.HasLogs ? (int)Math.Round(day.Calories / maxCalories * 100) : 0;
                                 var isToday = day.Date == DateOnly.FromDateTime(DateTime.Now);
                                 <div class="nutrition-bar-col">
-                                    <span class="nutrition-bar-val @(isToday ? "nutrition-bar-latest" : "")">@(day.HasLogs ? FormatCalories(day.Calories) : "No log")</span>
                                     <div class="nutrition-bar-track">
-                                        <div class="nutrition-bar @(isToday ? "nutrition-bar-active" : "")" style="height:@(height)px"></div>
+                                        <span class="nutrition-bar-val @(isToday ? "nutrition-bar-latest" : "")">@(day.HasLogs ? FormatCalories(day.Calories) : "No log")</span>
+                                        <div class="nutrition-bar @(isToday ? "nutrition-bar-active" : "")" style="flex-basis:@(height)%"></div>
                                     </div>
                                     <span class="nutrition-bar-label">@day.Label</span>
                                 </div>
@@ -507,6 +507,18 @@ else
                 <label>Waist (cm)</label>
                 <input type="number" step="0.1" @bind="_logWaist" />
             </div>
+            <div class="log-field">
+                <label>Arms (cm)</label>
+                <input type="number" step="0.1" @bind="_logBiceps" />
+            </div>
+            <div class="log-field">
+                <label>Thighs (cm)</label>
+                <input type="number" step="0.1" @bind="_logThighs" />
+            </div>
+            <div class="log-field">
+                <label>Hips (cm)</label>
+                <input type="number" step="0.1" @bind="_logHips" />
+            </div>
         </div>
         <div class="log-actions">
             <button type="button" class="btn-ghost" @onclick="() => _showLogModal = false">Cancel</button>
@@ -532,6 +544,9 @@ else
                         <span class="history-col">Body Fat</span>
                         <span class="history-col">Chest</span>
                         <span class="history-col">Waist</span>
+                        <span class="history-col">Arms</span>
+                        <span class="history-col">Thighs</span>
+                        <span class="history-col">Hips</span>
                         <span class="history-col-action"></span>
                     </div>
                     @foreach (var m in _allMeasurements)
@@ -546,14 +561,20 @@ else
                                 <span class="history-col"><input type="number" step="0.1" class="history-input" @bind="_editBodyFat" /></span>
                                 <span class="history-col"><input type="number" step="0.1" class="history-input" @bind="_editChest" /></span>
                                 <span class="history-col"><input type="number" step="0.1" class="history-input" @bind="_editWaist" /></span>
+                                <span class="history-col"><input type="number" step="0.1" class="history-input" @bind="_editBiceps" /></span>
+                                <span class="history-col"><input type="number" step="0.1" class="history-input" @bind="_editThighs" /></span>
+                                <span class="history-col"><input type="number" step="0.1" class="history-input" @bind="_editHips" /></span>
                                 <span class="history-col-action">
-                                    <button type="button" class="history-btn history-save" @onclick="SaveEdit" aria-label="Save"><span class="icon icon-check" aria-hidden="true"></span></button>
-                                    <button type="button" class="history-btn history-cancel" @onclick="() => _editingMeasId = -1" aria-label="Cancel"><span class="icon icon-x" aria-hidden="true"></span></button>
+                                    <button type="button" class="history-btn history-save" @onclick="SaveEdit">Save</button>
+                                    <button type="button" class="history-btn history-cancel" @onclick="() => _editingMeasId = -1">Cancel</button>
                                 </span>
                             }
                             else if (_deletingMeasId == m.Id)
                             {
                                 <span class="history-col history-confirm-text">Delete this entry?</span>
+                                <span class="history-col"></span>
+                                <span class="history-col"></span>
+                                <span class="history-col"></span>
                                 <span class="history-col"></span>
                                 <span class="history-col"></span>
                                 <span class="history-col"></span>
@@ -568,6 +589,9 @@ else
                                 <span class="history-col">@(m.BodyFatPercent.HasValue ? $"{m.BodyFatPercent:F1}%" : "-")</span>
                                 <span class="history-col">@(m.ChestCm.HasValue ? $"{m.ChestCm:F0}" : "-")</span>
                                 <span class="history-col">@(m.WaistCm.HasValue ? $"{m.WaistCm:F0}" : "-")</span>
+                                <span class="history-col">@(m.BicepsCm.HasValue ? $"{m.BicepsCm:F0}" : "-")</span>
+                                <span class="history-col">@(m.ThighsCm.HasValue ? $"{m.ThighsCm:F0}" : "-")</span>
+                                <span class="history-col">@(m.HipsCm.HasValue ? $"{m.HipsCm:F0}" : "-")</span>
                                 <span class="history-col-action">
                                     <button type="button" class="history-btn history-edit" @onclick="() => StartEdit(mRef)">Edit</button>
                                     <button type="button" class="history-btn history-remove" @onclick="() => _deletingMeasId = mRef.Id">Delete</button>
@@ -622,6 +646,9 @@ else
     private decimal? _logBodyFat;
     private decimal? _logChest;
     private decimal? _logWaist;
+    private decimal? _logBiceps;
+    private decimal? _logThighs;
+    private decimal? _logHips;
 
     private bool _showHistoryModal;
     private List<BodyMeasurement> _allMeasurements = new();
@@ -631,6 +658,9 @@ else
     private decimal? _editBodyFat;
     private decimal? _editChest;
     private decimal? _editWaist;
+    private decimal? _editBiceps;
+    private decimal? _editThighs;
+    private decimal? _editHips;
 
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
@@ -747,7 +777,10 @@ else
             new ChartSeries { Key = "weight", Label = $"Weight ({WeightUnitLabel})", Color = "#38bdf8" },
             new ChartSeries { Key = "bodyfat", Label = "Body Fat (%)", Color = "#2ab8a0" },
             new ChartSeries { Key = "chest", Label = "Chest (cm)", Color = "#a78bfa" },
-            new ChartSeries { Key = "waist", Label = "Waist (cm)", Color = "#f0c050" }
+            new ChartSeries { Key = "waist", Label = "Waist (cm)", Color = "#f0c050" },
+            new ChartSeries { Key = "biceps", Label = "Arms (cm)", Color = "#e06c9f" },
+            new ChartSeries { Key = "thighs", Label = "Thighs (cm)", Color = "#6ea8fe" },
+            new ChartSeries { Key = "hips", Label = "Hips (cm)", Color = "#7bd88f" }
         };
 
         var exerciseColors = new[] { "#38bdf8", "#2ab8a0", "#a78bfa", "#f0c050", "#e05c6a", "#f472b6", "#34d399", "#fb923c" };
@@ -765,12 +798,16 @@ else
         "bodyfat" => m.BodyFatPercent,
         "chest" => m.ChestCm,
         "waist" => m.WaistCm,
+        "biceps" => m.BicepsCm,
+        "thighs" => m.ThighsCm,
+        "hips" => m.HipsCm,
         _ => null
     };
 
     private string GetMeasUnit(string key) => key switch
     {
-        "weight" => WeightUnitLabel, "bodyfat" => "%", "chest" => "cm", "waist" => "cm", _ => ""
+        "weight" => WeightUnitLabel, "bodyfat" => "%", "chest" => "cm", "waist" => "cm",
+        "biceps" => "cm", "thighs" => "cm", "hips" => "cm", _ => ""
     };
 
     private List<ChartPoint> GetMeasPoints(string key, int w, int h, ChartPad pad)
@@ -887,12 +924,12 @@ else
 
     private async Task SaveMeasurement()
     {
-        await ProgressSvc.SaveMeasurementAsync(_userId, _logWeight, _logBodyFat, _logChest, _logWaist);
+        await ProgressSvc.SaveMeasurementAsync(_userId, _logWeight, _logBodyFat, _logChest, _logWaist, _logBiceps, _logThighs, _logHips);
         _measurements = await ProgressSvc.GetRecentMeasurementsAsync(_userId);
         _chartMeasurements = await ProgressSvc.GetMeasurementsForChartAsync(_userId);
         BuildChartData();
         _showLogModal = false;
-        _logWeight = null; _logBodyFat = null; _logChest = null; _logWaist = null;
+        _logWeight = null; _logBodyFat = null; _logChest = null; _logWaist = null; _logBiceps = null; _logThighs = null; _logHips = null;
     }
 
     private async Task OpenHistory()
@@ -910,11 +947,14 @@ else
         _editBodyFat = m.BodyFatPercent;
         _editChest = m.ChestCm;
         _editWaist = m.WaistCm;
+        _editBiceps = m.BicepsCm;
+        _editThighs = m.ThighsCm;
+        _editHips = m.HipsCm;
     }
 
     private async Task SaveEdit()
     {
-        await ProgressSvc.UpdateMeasurementAsync(_editingMeasId, _userId, _editWeight, _editBodyFat, _editChest, _editWaist);
+        await ProgressSvc.UpdateMeasurementAsync(_editingMeasId, _userId, _editWeight, _editBodyFat, _editChest, _editWaist, _editBiceps, _editThighs, _editHips);
         _allMeasurements = await ProgressSvc.GetAllMeasurementsAsync(_userId);
         _measurements = await ProgressSvc.GetRecentMeasurementsAsync(_userId);
         _chartMeasurements = await ProgressSvc.GetMeasurementsForChartAsync(_userId);
@@ -937,14 +977,16 @@ else
     {
         var latest = _measurements.FirstOrDefault();
         var prev = _measurements.Count > 1 ? _measurements[1] : null;
-        if (latest is null) return new() { ("Weight", "-", "", "down"), ("Body Fat", "-", "", "down"), ("Chest", "-", "", "up"), ("Waist", "-", "", "down") };
+        if (latest is null) return new() { ("Weight", "-", "", "down"), ("Body Fat", "-", "", "down"), ("Chest", "-", "", "up"), ("Waist", "-", "", "down"), ("Arms", "-", "", "up"), ("Thighs", "-", "", "up") };
 
         return new()
         {
             ("Weight", FormatWeightValue(latest.WeightKg), FormatWeightChange(latest.WeightKg, prev?.WeightKg), latest.WeightKg < prev?.WeightKg ? "down" : "up"),
             ("Body Fat", latest.BodyFatPercent.HasValue ? $"{latest.BodyFatPercent:F1}%" : "-", FormatChange(latest.BodyFatPercent, prev?.BodyFatPercent, "%"), latest.BodyFatPercent < prev?.BodyFatPercent ? "down" : "up"),
             ("Chest", latest.ChestCm.HasValue ? $"{latest.ChestCm:F0} cm" : "-", FormatChange(latest.ChestCm, prev?.ChestCm, "cm"), latest.ChestCm > prev?.ChestCm ? "up" : "down"),
-            ("Waist", latest.WaistCm.HasValue ? $"{latest.WaistCm:F0} cm" : "-", FormatChange(latest.WaistCm, prev?.WaistCm, "cm"), latest.WaistCm < prev?.WaistCm ? "down" : "up")
+            ("Waist", latest.WaistCm.HasValue ? $"{latest.WaistCm:F0} cm" : "-", FormatChange(latest.WaistCm, prev?.WaistCm, "cm"), latest.WaistCm < prev?.WaistCm ? "down" : "up"),
+            ("Arms", latest.BicepsCm.HasValue ? $"{latest.BicepsCm:F0} cm" : "-", FormatChange(latest.BicepsCm, prev?.BicepsCm, "cm"), latest.BicepsCm > prev?.BicepsCm ? "up" : "down"),
+            ("Thighs", latest.ThighsCm.HasValue ? $"{latest.ThighsCm:F0} cm" : "-", FormatChange(latest.ThighsCm, prev?.ThighsCm, "cm"), latest.ThighsCm > prev?.ThighsCm ? "up" : "down")
         };
     }
 

@@ -1,0 +1,186 @@
+@implements IDisposable
+@using FitnessApp.Models
+@inject NotificationService NotificationSvc
+@inject NotificationBroker Broker
+@inject CustomAuthStateProvider AuthState
+@inject NavigationManager Navigation
+
+<div class="notif-wrap">
+    <button type="button" class="notif-bell" title="Notifications" aria-label="Notifications" @onclick="OpenPanel">
+        <span class="icon icon-bell" aria-hidden="true"></span>
+        @if (_unread > 0)
+        {
+            <span class="notif-badge">@(_unread > 9 ? "9+" : _unread.ToString())</span>
+        }
+    </button>
+</div>
+
+<Modal IsOpen="_panelOpen" OnClose="ClosePanel" Size="md">
+    <div class="notif-modal">
+        <div class="notif-modal-head">
+            <div>
+                <h2>Notifications</h2>
+                <p>@(_items.Count == 0 ? "You're all caught up" : $"{_items.Count} recent")</p>
+            </div>
+            @if (_items.Count > 0)
+            {
+                <button type="button" class="btn-ghost btn-xs" @onclick="ClearAll">Clear all</button>
+            }
+        </div>
+
+        <div class="notif-list">
+            @if (_items.Count == 0)
+            {
+                <div class="notif-empty">No notifications yet. You'll see messages, likes and upcoming sessions here.</div>
+            }
+            else
+            {
+                @foreach (var n in _items)
+                {
+                    var item = n;
+                    <button type="button" class="notif-item @(item.IsRead ? "" : "notif-unread")" @onclick="() => OpenItem(item)">
+                        <span class="notif-icon notif-@item.Kind"><span class="icon @IconFor(item.Kind)" aria-hidden="true"></span></span>
+                        <span class="notif-body">
+                            <span class="notif-title">@item.Title</span>
+                            <span class="notif-text">@item.Body</span>
+                            <span class="notif-time">@Ago(item.CreatedAt)</span>
+                        </span>
+                    </button>
+                }
+            }
+        </div>
+    </div>
+</Modal>
+
+<div class="toast-stack">
+    @foreach (var t in _toasts)
+    {
+        var toast = t;
+        <div class="toast">
+            <span class="notif-icon notif-@toast.Kind"><span class="icon @IconFor(toast.Kind)" aria-hidden="true"></span></span>
+            <span class="toast-body">
+                <span class="toast-title">@toast.Title</span>
+                <span class="toast-text">@toast.Body</span>
+            </span>
+            <button type="button" class="toast-close" aria-label="Dismiss" @onclick="() => DismissToast(toast)">
+                <span class="icon icon-x" aria-hidden="true"></span>
+            </button>
+        </div>
+    }
+</div>
+
+@code {
+    private int _userId;
+    private int _unread;
+    private bool _panelOpen;
+    private List<Notification> _items = new();
+    private readonly List<Notification> _toasts = new();
+    private IDisposable? _subscription;
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            var state = await AuthState.GetAuthenticationStateAsync();
+            if (state.User.Identity is { IsAuthenticated: true })
+            {
+                _userId = int.Parse(state.User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)!.Value);
+            }
+        }
+        catch { }
+
+        if (_userId <= 0) return;
+
+        _subscription = Broker.Subscribe(_userId, OnPushed);
+
+        try
+        {
+            await NotificationSvc.SyncScheduleRemindersAsync(_userId);
+            _unread = await NotificationSvc.UnreadCountAsync(_userId);
+        }
+        catch { }
+
+    }
+
+    private void OnPushed(Notification n)
+    {
+        _ = InvokeAsync(async () =>
+        {
+            _unread++;
+            _toasts.Add(n);
+            if (_panelOpen) _items.Insert(0, n);
+            StateHasChanged();
+
+            await Task.Delay(5000);
+            _toasts.Remove(n);
+            await InvokeAsync(StateHasChanged);
+        });
+    }
+
+    private void DismissToast(Notification n)
+    {
+        _toasts.Remove(n);
+    }
+
+    private async Task OpenPanel()
+    {
+        _panelOpen = true;
+        if (_userId > 0)
+        {
+            try
+            {
+                _items = await NotificationSvc.GetAsync(_userId);
+                await NotificationSvc.MarkAllReadAsync(_userId);
+                _unread = 0;
+            }
+            catch { }
+        }
+    }
+
+    private void ClosePanel() => _panelOpen = false;
+
+    private async Task ClearAll()
+    {
+        if (_userId <= 0) return;
+        try
+        {
+            await NotificationSvc.ClearAsync(_userId);
+            _items = new List<Notification>();
+            _unread = 0;
+        }
+        catch { }
+    }
+
+    private void OpenItem(Notification n)
+    {
+        _panelOpen = false;
+        if (!string.IsNullOrWhiteSpace(n.Link))
+        {
+            try { Navigation.NavigateTo(n.Link); } catch { }
+        }
+    }
+
+    private static string IconFor(string kind) => kind switch
+    {
+        "message" => "icon-chat",
+        "like" => "icon-star",
+        "repost" => "icon-repeat",
+        "schedule" => "icon-clock",
+        _ => "icon-info"
+    };
+
+    private static string Ago(DateTime utc)
+    {
+        var diff = DateTime.UtcNow - utc;
+        if (diff.TotalMinutes < 1) return "Just now";
+        if (diff.TotalMinutes < 60) return $"{(int)diff.TotalMinutes}m ago";
+        if (diff.TotalHours < 24) return $"{(int)diff.TotalHours}h ago";
+        if (diff.TotalDays < 7) return $"{(int)diff.TotalDays}d ago";
+        return utc.ToLocalTime().ToString("d MMM");
+    }
+
+    public void Dispose()
+    {
+        _subscription?.Dispose();
+    }
+}

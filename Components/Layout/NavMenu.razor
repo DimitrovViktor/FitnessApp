@@ -3,6 +3,8 @@
 <div class="top-row ps-3 navbar navbar-dark">
     <div class="container-fluid">
         <a class="navbar-brand" href="dashboard">Fitness App</a>
+        <div class="nav-top-actions">
+        <NotificationCenter />
         <div class="theme-menu" @onclick:stopPropagation>
             <button type="button" class="theme-toggle" title="Theme" aria-label="Theme" aria-expanded="@_themesOpen" @onclick="ToggleThemes">
                 <span class="icon @ThemeIconClass" aria-hidden="true"></span>
@@ -24,6 +26,7 @@
                     }
                 </div>
             }
+        </div>
         </div>
     </div>
 </div>

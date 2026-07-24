@@ -146,30 +146,29 @@ else
                 </div>
             </div>
 
-            <div class="setting-row setting-row-last">
+        </div>
+
+        <div class="settings-section">
+            <span class="section-label">Notifications</span>
+
+            <div class="setting-row">
                 <div class="setting-info">
-                    <span class="setting-name">Workout Reminders (placeholder)</span>
-                    <span class="setting-desc">Stored for future reminder notifications</span>
+                    <span class="setting-name">Workout Reminders</span>
+                    <span class="setting-desc">Notify me about workouts and meals scheduled in the next 24 hours</span>
                 </div>
                 <button type="button" class="toggle @(_settings.WorkoutReminders ? "toggle-on" : "")" @onclick="ToggleWorkoutReminders" aria-label="Toggle workout reminders">
                     <span class="toggle-knob"></span>
                 </button>
             </div>
-        </div>
-
-        <div class="settings-section">
-            <span class="section-label">Privacy</span>
 
             <div class="setting-row setting-row-last">
                 <div class="setting-info">
-                    <span class="setting-name">Profile Visibility (placeholder)</span>
-                    <span class="setting-desc">Stored for future profile sharing controls</span>
+                    <span class="setting-name">Social Notifications</span>
+                    <span class="setting-desc">Notify me about direct messages, likes and reposts</span>
                 </div>
-                <select class="setting-select" @bind="_settings.SocialVisibility" @bind:after="Save">
-                    <option value="public">Public</option>
-                    <option value="friends">Friends Only</option>
-                    <option value="private">Private</option>
-                </select>
+                <button type="button" class="toggle @(_settings.SocialNotifications ? "toggle-on" : "")" @onclick="ToggleSocialNotifications" aria-label="Toggle social notifications">
+                    <span class="toggle-knob"></span>
+                </button>
             </div>
         </div>
 
@@ -285,6 +284,12 @@ else
     private Task ToggleConfirmBeforeSkip()
     {
         _settings.ConfirmBeforeSkip = !_settings.ConfirmBeforeSkip;
+        return Save();
+    }
+
+    private Task ToggleSocialNotifications()
+    {
+        _settings.SocialNotifications = !_settings.SocialNotifications;
         return Save();
     }
 

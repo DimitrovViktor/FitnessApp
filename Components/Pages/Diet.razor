@@ -40,6 +40,16 @@ else
                 <span class="diet-stat-sub">grams</span>
             </div>
             <div class="diet-stat-card">
+                <span class="diet-stat-label">Carbs</span>
+                <span class="diet-stat-value">@FormatMacro(TotalCarbs)</span>
+                <span class="diet-stat-sub">grams</span>
+            </div>
+            <div class="diet-stat-card">
+                <span class="diet-stat-label">Fat</span>
+                <span class="diet-stat-value">@FormatMacro(TotalFat)</span>
+                <span class="diet-stat-sub">grams</span>
+            </div>
+            <div class="diet-stat-card">
                 <span class="diet-stat-label">Meals</span>
                 <span class="diet-stat-value">@_logs.Count</span>
                 <span class="diet-stat-sub">logged</span>
@@ -55,10 +65,6 @@ else
         {
             <div class="diet-message @(_messageIsError ? "error" : "success")">@_message</div>
         }
-
-        <div class="tab-bar training-tabs diet-tabs">
-            <button type="button" class="tab active">Today</button>
-        </div>
 
         <div class="diet-layout today-layout">
                 <section class="diet-panel library-panel">
@@ -244,6 +250,8 @@ else
     private List<DietPlan> BrowsePlans => _plans.Where(p => p.IsPreBuilt && p.DietCategory == _selectedCategory).OrderBy(p => p.Name).ToList();
     private decimal TotalCalories => _logs.Sum(l => l.CaloriesConsumed);
     private decimal TotalProtein => _logs.Sum(l => Macro(l.Food.ProteinPer100g, l.QuantityGrams));
+    private decimal TotalCarbs => _logs.Sum(l => Macro(l.Food.CarbsPer100g, l.QuantityGrams));
+    private decimal TotalFat => _logs.Sum(l => Macro(l.Food.FatPer100g, l.QuantityGrams));
 
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {

@@ -159,7 +159,7 @@ public class ProgressService
             .ToListAsync();
     }
 
-    public async Task<bool> UpdateMeasurementAsync(int id, int userId, decimal? weight, decimal? bodyFat, decimal? chest, decimal? waist)
+    public async Task<bool> UpdateMeasurementAsync(int id, int userId, decimal? weight, decimal? bodyFat, decimal? chest, decimal? waist, decimal? biceps = null, decimal? thighs = null, decimal? hips = null)
     {
         var m = await _db.BodyMeasurements.FirstOrDefaultAsync(bm => bm.Id == id && bm.UserId == userId);
         if (m is null) return false;
@@ -167,7 +167,11 @@ public class ProgressService
         m.BodyFatPercent = bodyFat;
         m.ChestCm = chest;
         m.WaistCm = waist;
+        m.BicepsCm = biceps;
+        m.ThighsCm = thighs;
+        m.HipsCm = hips;
         await _db.SaveChangesAsync();
+        await SyncUserWeightAsync(userId);
         return true;
     }
 
@@ -177,10 +181,11 @@ public class ProgressService
         if (m is null) return false;
         _db.BodyMeasurements.Remove(m);
         await _db.SaveChangesAsync();
+        await SyncUserWeightAsync(userId);
         return true;
     }
 
-    public async Task SaveMeasurementAsync(int userId, decimal? weight, decimal? bodyFat, decimal? chest, decimal? waist)
+    public async Task SaveMeasurementAsync(int userId, decimal? weight, decimal? bodyFat, decimal? chest, decimal? waist, decimal? biceps = null, decimal? thighs = null, decimal? hips = null)
     {
         _db.BodyMeasurements.Add(new BodyMeasurement
         {
@@ -189,8 +194,29 @@ public class ProgressService
             WeightKg = weight,
             BodyFatPercent = bodyFat,
             ChestCm = chest,
-            WaistCm = waist
+            WaistCm = waist,
+            BicepsCm = biceps,
+            ThighsCm = thighs,
+            HipsCm = hips
         });
+        await _db.SaveChangesAsync();
+        await SyncUserWeightAsync(userId);
+    }
+
+    public async Task SyncUserWeightAsync(int userId)
+    {
+        var latest = await _db.BodyMeasurements
+            .Where(bm => bm.UserId == userId && bm.WeightKg != null)
+            .OrderByDescending(bm => bm.Date)
+            .ThenByDescending(bm => bm.Id)
+            .FirstOrDefaultAsync();
+
+        if (latest?.WeightKg is null) return;
+
+        var user = await _db.Users.FirstOrDefaultAsync(u => u.Id == userId);
+        if (user is null || user.WeightKg == latest.WeightKg) return;
+
+        user.WeightKg = latest.WeightKg;
         await _db.SaveChangesAsync();
     }
 

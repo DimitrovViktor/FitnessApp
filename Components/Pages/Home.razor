@@ -31,6 +31,35 @@ else
             <div class="stat-card"><span class="stat-label">Calories</span><span class="stat-val">@FormatWhole(_todayCalories)</span><span class="stat-hint">Consumed</span></div>
         </div>
 
+        <section class="quick-actions">
+            <div class="quick-actions-head">
+                <h2>Quick Actions</h2>
+                <p>Jump straight to what you want to do</p>
+            </div>
+            <div class="quick-actions-grid">
+                <button type="button" class="quick-action" @onclick="GoToLiveWorkout">
+                    <span class="qa-name">Start Workout</span>
+                    <span class="qa-desc">Begin a live training session</span>
+                </button>
+                <button type="button" class="quick-action" @onclick="GoToLiveWorkout">
+                    <span class="qa-name">Log Cardio</span>
+                    <span class="qa-desc">Track a run, ride or walk</span>
+                </button>
+                <button type="button" class="quick-action" @onclick="GoToDiet">
+                    <span class="qa-name">Log Food</span>
+                    <span class="qa-desc">Add a meal to today</span>
+                </button>
+                <button type="button" class="quick-action" @onclick="GoToProgress">
+                    <span class="qa-name">Log Measurement</span>
+                    <span class="qa-desc">Record body weight or size</span>
+                </button>
+                <button type="button" class="quick-action" @onclick="GoToSchedule">
+                    <span class="qa-name">Schedule Session</span>
+                    <span class="qa-desc">Plan a workout or meal ahead</span>
+                </button>
+            </div>
+        </section>
+
         @if (_dueSchedule is not null && !_dueDismissed)
         {
             <div class="due-banner">
@@ -41,7 +70,7 @@ else
                 <div class="due-actions">
                     <button type="button" class="btn-glow btn-sm" @onclick="StartDueWorkout">Start Now</button>
                     <button type="button" class="btn-ghost btn-sm" @onclick="() => _showPostpone = true">Postpone</button>
-                    <button type="button" class="btn-danger-sm" @onclick="CancelDueWorkout">Skip</button>
+                    <button type="button" class="btn-danger btn-sm" @onclick="CancelDueWorkout">Skip</button>
                 </div>
             </div>
         }
@@ -100,13 +129,12 @@ else
                                     {
                                         @if (_deletingKey == skey)
                                         {
-                                            <span style="font-size:12px;color:var(--danger);font-weight:600;">Delete?</span>
-                                            <button type="button" class="btn-danger-sm" @onclick="() => DeleteWorkoutSchedule(s.Id)">Delete</button>
+                                            <button type="button" class="btn-danger btn-sm" @onclick="() => DeleteWorkoutSchedule(s.Id)">Delete</button>
                                             <button type="button" class="btn-ghost btn-sm" @onclick="() => _deletingKey = null">Cancel</button>
                                         }
                                         else
                                         {
-                                            <button type="button" class="btn-danger-xs" @onclick="() => _deletingKey = skey">Remove</button>
+                                            <button type="button" class="btn-danger-xs btn-icon" aria-label="Remove" @onclick="() => _deletingKey = skey"><span class="icon icon-x" aria-hidden="true"></span></button>
                                         }
                                     }
                                 </div>
@@ -123,13 +151,12 @@ else
                                 <div class="sched-actions">
                                     @if (_deletingKey == ckey)
                                     {
-                                        <span style="font-size:12px;color:var(--danger);font-weight:600;">Delete?</span>
-                                        <button type="button" class="btn-danger-sm" @onclick="() => DeleteCardioSession(cl.Id)">Delete</button>
+                                        <button type="button" class="btn-danger btn-sm" @onclick="() => DeleteCardioSession(cl.Id)">Delete</button>
                                         <button type="button" class="btn-ghost btn-sm" @onclick="() => _deletingKey = null">Cancel</button>
                                     }
                                     else
                                     {
-                                        <button type="button" class="btn-danger-xs" @onclick="() => _deletingKey = ckey">Remove</button>
+                                        <button type="button" class="btn-danger-xs btn-icon" aria-label="Remove" @onclick="() => _deletingKey = ckey"><span class="icon icon-x" aria-hidden="true"></span></button>
                                     }
                                 </div>
                             </div>
@@ -227,7 +254,7 @@ else
                 }
             </section>
 
-            <section class="summary-card">
+            <section class="summary-card span-full">
                 <div class="summary-head">
                     <div>
                         <h2>Readiness</h2>
@@ -472,5 +499,10 @@ else
     private void GoToDiet()
     {
         try { Navigation.NavigateTo("/diet"); } catch { }
+    }
+
+    private void GoToProgress()
+    {
+        try { Navigation.NavigateTo("/progress"); } catch { }
     }
 }

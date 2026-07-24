@@ -11,13 +11,15 @@ public class DirectMessageService
     private readonly FriendService _friends;
     private readonly ActivityShareService _activities;
     private readonly PresenceTracker _presence;
+    private readonly NotificationService _notifications;
 
-    public DirectMessageService(AppDbContext db, FriendService friends, ActivityShareService activities, PresenceTracker presence)
+    public DirectMessageService(AppDbContext db, FriendService friends, ActivityShareService activities, PresenceTracker presence, NotificationService notifications)
     {
         _db = db;
         _friends = friends;
         _activities = activities;
         _presence = presence;
+        _notifications = notifications;
     }
 
     public async Task<List<UserSearchResult>> SearchUsersAsync(int meId, string? query, int limit = 8)
@@ -273,6 +275,14 @@ public class DirectMessageService
         _db.DirectMessages.Add(message);
         conversation.LastMessageAt = message.CreatedAt;
         await _db.SaveChangesAsync();
+
+        try
+        {
+            var recipientId = conversation.User1Id == meId ? conversation.User2Id : conversation.User1Id;
+            var sender = await _db.Users.AsNoTracking().FirstOrDefaultAsync(u => u.Id == meId);
+            await _notifications.NotifyDirectMessageAsync(recipientId, meId, sender?.Username ?? "Someone", message.Id, content ?? "Sent an attachment");
+        }
+        catch { }
 
         return ToDto(message, await _activities.GetSummaryAsync(message.SharedWorkoutId, message.SharedProgramId));
     }

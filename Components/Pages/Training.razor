@@ -274,7 +274,7 @@ else
                                     <span class="sel-name">@entry.Exercise?.Name</span>
                                     <span class="sel-meta">@(entry.Exercise is not null ? MuscleStr(entry.Exercise) : "")@SupersetEntryMeta(entry)</span>
                                 </div>
-                                <button type="button" class="sel-rm" @onclick:stopPropagation @onclick="() => RemoveEntry(idx)" aria-label="Remove exercise"><span class="icon icon-x" aria-hidden="true"></span></button>
+                                <button type="button" class="btn-danger-xs" @onclick:stopPropagation @onclick="() => RemoveEntry(idx)">Remove</button>
                             </div>
                             <div class="sel-fields">
                                 <div class="sf"><label>Sets</label><input type="number" @bind="entry.Sets" @bind:after="Recalc" min="1" @onclick:stopPropagation /></div>

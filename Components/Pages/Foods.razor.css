@@ -789,67 +789,6 @@
     margin-top: 16px;
 }
 
-.btn-glow {
-    padding: 10px 20px;
-    font-size: 13.5px;
-    font-weight: 700;
-    color: var(--on-accent);
-    background: var(--accent);
-    border: none;
-    border-radius: 9px;
-    cursor: pointer;
-    transition: opacity .15s ease, transform .15s ease;
-    font-family: inherit;
-}
-
-.btn-glow:hover {
-    opacity: .9;
-}
-
-.btn-glow:disabled {
-    opacity: .5;
-    cursor: not-allowed;
-}
-
-.btn-glow.btn-sm,
-.btn-ghost.btn-sm {
-    padding: 7px 14px;
-    font-size: 12.5px;
-}
-
-.btn-glow.btn-xs,
-.btn-ghost.btn-xs,
-.btn-danger-xs {
-    padding: 6px 10px;
-    font-size: 12px;
-    border-radius: 7px;
-}
-
-.btn-ghost {
-    padding: 10px 18px;
-    font-size: 13px;
-    font-weight: 700;
-    color: var(--t1);
-    background: var(--s2);
-    border: 1px solid var(--border);
-    border-radius: 9px;
-    cursor: pointer;
-    font-family: inherit;
-}
-
-.btn-ghost:hover {
-    border-color: var(--accent-border);
-    background: var(--bg-hover-faint);
-}
-
-.btn-danger-xs {
-    color: var(--danger);
-    background: var(--danger-tint);
-    border: 1px solid var(--danger-border);
-    cursor: pointer;
-    font-family: inherit;
-}
-
 .icon {
     display: inline-block;
     width: 14px;
@@ -1025,11 +964,6 @@
 
 .food-modal-actions {
     align-items: center;
-}
-
-.btn-glow:disabled {
-    opacity: .5;
-    cursor: not-allowed;
 }
 
 @media (max-width: 760px) {

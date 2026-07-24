@@ -38,8 +38,6 @@ main {
         width: 220px;
         min-width: 220px;
         height: 100vh;
-        position: sticky;
-        top: 0;
     }
 }
 

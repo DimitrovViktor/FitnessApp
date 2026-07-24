@@ -132,7 +132,7 @@ else if (_detail is not null)
                                                 </label>
                                                 <div class="inline-action-stack">
                                                     <button type="button" class="btn-ghost btn-xs" @onclick="() => SavePlanFood(item.Id)">Update</button>
-                                                    <button type="button" class="btn-danger-xs" @onclick="() => RemovePlanFood(item.Id)" aria-label="Remove food"><span class="icon icon-x" aria-hidden="true"></span></button>
+                                                    <button type="button" class="btn-danger-xs" @onclick="() => RemovePlanFood(item.Id)">Remove</button>
                                                 </div>
                                             </div>
                                         </div>
@@ -469,7 +469,7 @@ else
                                         <input type="number" min="1" step="1" @bind="item.QuantityGrams" />
                                     </label>
                                     <div class="inline-action-stack">
-                                        <button type="button" class="btn-danger-xs" @onclick="() => RemoveBuilderFood(item)" aria-label="Remove food"><span class="icon icon-x" aria-hidden="true"></span></button>
+                                        <button type="button" class="btn-danger-xs" @onclick="() => RemoveBuilderFood(item)">Remove</button>
                                     </div>
                                 </div>
                             </div>

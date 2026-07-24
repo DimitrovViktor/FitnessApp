@@ -91,8 +91,6 @@
 .sel-info { flex:1; min-width:0; }
 .sel-name { font-size:13.5px; font-weight:700; color:var(--t1); display:block; }
 .sel-meta { font-size:11.5px; color:var(--t3); display:block; margin-top:1px; }
-.sel-rm { background:none; border:none; color:var(--t3); font-size:14px; cursor:pointer; padding:4px; flex-shrink:0; }
-.sel-rm:hover { color:var(--danger); }
 .sel-fields { display:flex; gap:10px; align-items:flex-end; flex-wrap:wrap; }
 .sf { display:flex; flex-direction:column; gap:4px; }
 .sf label { font-size:10px; font-weight:600; color:var(--t3); text-transform:uppercase; letter-spacing:.07em; }

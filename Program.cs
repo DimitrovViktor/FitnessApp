@@ -33,6 +33,8 @@ builder.Services.AddScoped<ActivityShareService>();
 builder.Services.AddScoped<FeedService>();
 builder.Services.AddScoped<DirectMessageService>();
 builder.Services.AddSingleton<ChatBroker>();
+builder.Services.AddSingleton<NotificationBroker>();
+builder.Services.AddScoped<NotificationService>();
 
 var app = builder.Build();
 
@@ -40,6 +42,34 @@ using (var scope = app.Services.CreateScope())
 {
     var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
     db.Database.EnsureCreated();
+
+    try
+    {
+        db.Database.ExecuteSqlRaw(@"CREATE TABLE IF NOT EXISTS Notifications (
+            Id INTEGER NOT NULL CONSTRAINT PK_Notifications PRIMARY KEY AUTOINCREMENT,
+            UserId INTEGER NOT NULL,
+            Kind TEXT NOT NULL DEFAULT 'system',
+            Title TEXT NOT NULL DEFAULT '',
+            Body TEXT NOT NULL DEFAULT '',
+            Link TEXT NULL,
+            DedupeKey TEXT NOT NULL DEFAULT '',
+            IsRead INTEGER NOT NULL DEFAULT 0,
+            CreatedAt TEXT NOT NULL
+        )");
+    }
+    catch { }
+
+    try
+    {
+        db.Database.ExecuteSqlRaw("CREATE INDEX IF NOT EXISTS IX_Notifications_UserId ON Notifications (UserId)");
+    }
+    catch { }
+
+    try
+    {
+        db.Database.ExecuteSqlRaw("ALTER TABLE UserSettings ADD COLUMN SocialNotifications INTEGER NOT NULL DEFAULT 1");
+    }
+    catch { }
 
     try
     {

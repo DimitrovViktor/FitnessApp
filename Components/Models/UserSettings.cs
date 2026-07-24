@@ -15,5 +15,6 @@ public class UserSettings
     public bool ShowWeightInSets { get; set; } = true;
     public bool ConfirmBeforeSkip { get; set; } = true;
     public bool WorkoutReminders { get; set; } = true;
+    public bool SocialNotifications { get; set; } = true;
     public string SocialVisibility { get; set; } = "public";
 }

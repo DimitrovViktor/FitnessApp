@@ -10,13 +10,15 @@ public class FeedService
     private readonly DirectMessageService _dm;
     private readonly ActivityShareService _activities;
     private readonly PresenceTracker _presence;
+    private readonly NotificationService _notifications;
 
-    public FeedService(AppDbContext db, DirectMessageService dm, ActivityShareService activities, PresenceTracker presence)
+    public FeedService(AppDbContext db, DirectMessageService dm, ActivityShareService activities, PresenceTracker presence, NotificationService notifications)
     {
         _db = db;
         _dm = dm;
         _activities = activities;
         _presence = presence;
+        _notifications = notifications;
     }
 
     public async Task<PostDto?> CreatePostAsync(int meId, string? content, string? imageData, int? sharedWorkoutId, int? sharedProgramId)
@@ -110,11 +112,24 @@ public class FeedService
         if (!await _db.Posts.AnyAsync(p => p.Id == postId)) return null;
 
         var existing = await _db.PostShares.FirstOrDefaultAsync(s => s.PostId == postId && s.UserId == meId);
+        var isNewShare = existing is null;
         if (existing is null)
             _db.PostShares.Add(new PostShare { PostId = postId, UserId = meId, CreatedAt = DateTime.UtcNow });
         else
             _db.PostShares.Remove(existing);
         await _db.SaveChangesAsync();
+
+        if (isNewShare)
+        {
+            try
+            {
+                var sharedPost = await _db.Posts.AsNoTracking().FirstOrDefaultAsync(p => p.Id == postId);
+                var actor = await _db.Users.AsNoTracking().FirstOrDefaultAsync(u => u.Id == meId);
+                if (sharedPost is not null)
+                    await _notifications.NotifyPostRepostedAsync(sharedPost.AuthorId, meId, actor?.Username ?? "Someone", postId);
+            }
+            catch { }
+        }
 
         var shares = await _db.PostShares.Where(s => s.PostId == postId).Select(s => s.UserId).ToListAsync();
         return new PostShareDto(postId, shares.Count, shares.Contains(meId));
@@ -185,9 +200,11 @@ public class FeedService
         if (post is null) return null;
 
         var existing = await _db.PostReactions.FirstOrDefaultAsync(r => r.PostId == postId && r.UserId == meId);
+        var likeAdded = false;
         if (existing is null)
         {
             _db.PostReactions.Add(new PostReaction { PostId = postId, UserId = meId, IsLike = isLike });
+            likeAdded = isLike;
         }
         else if (existing.IsLike == isLike)
         {
@@ -196,8 +213,19 @@ public class FeedService
         else
         {
             existing.IsLike = isLike;
+            likeAdded = isLike;
         }
         await _db.SaveChangesAsync();
+
+        if (likeAdded)
+        {
+            try
+            {
+                var actor = await _db.Users.AsNoTracking().FirstOrDefaultAsync(u => u.Id == meId);
+                await _notifications.NotifyPostLikedAsync(post.AuthorId, meId, actor?.Username ?? "Someone", postId);
+            }
+            catch { }
+        }
 
         var reactions = await _db.PostReactions.Where(r => r.PostId == postId)
             .Select(r => new { r.UserId, r.IsLike }).ToListAsync();

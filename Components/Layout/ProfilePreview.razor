@@ -6,7 +6,7 @@
 {
     <div class="pp-overlay" @onclick="Close">
         <div class="pp" @onclick:stopPropagation="true">
-            <button type="button" class="pp-close" @onclick="Close" aria-label="Close">Close</button>
+            <button type="button" class="pp-close" @onclick="Close" aria-label="Close"><span class="icon icon-x" aria-hidden="true"></span></button>
 
             @if (_loading || _preview is null)
             {

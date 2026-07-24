@@ -33,6 +33,7 @@ public class AppDbContext : DbContext
     public DbSet<DietPlanFood> DietPlanFoods => Set<DietPlanFood>();
     public DbSet<DietSchedule> DietSchedules => Set<DietSchedule>();
     public DbSet<UserSettings> UserSettings => Set<UserSettings>();
+    public DbSet<Notification> Notifications => Set<Notification>();
     public DbSet<ProfileSettings> ProfileSettings => Set<ProfileSettings>();
     public DbSet<Conversation> Conversations => Set<Conversation>();
     public DbSet<DirectMessage> DirectMessages => Set<DirectMessage>();
