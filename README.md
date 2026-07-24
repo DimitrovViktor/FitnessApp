@@ -1,6 +1,15 @@
-# FitnessApp
+# <div align = "center"> FitnessApp </div>
+
+<div align = "center">
+
+[![C#](https://custom-icon-badges.demolab.com/badge/C%23-%23239120.svg?logo=cshrp&logoColor=white)](#)
+[![.NET](https://img.shields.io/badge/.NET-512BD4?logo=dotnet&logoColor=fff)](#)
+[![Blazor](https://img.shields.io/badge/Blazor-512BD4?logo=blazor&logoColor=fff)](#)
+[![MIT License](https://img.shields.io/badge/License-MIT-green.svg)](https://choosealicense.com/licenses/mit/)
 
 C# Blazor fitness appplication with custom workouts and exercise selections, calorie counting and run/walk tracking
+
+</div>
 
 ## Authentication System + Onboarding
 
@@ -67,14 +76,3 @@ Users can add each other as friends and look each other up
 ### Global
 
 Users can make posts and share their workouts with everyone
-
-## To-do
-
-### Features and functionality
-
-- Add functionality to settings placeholders
-
-### UI
-
-- Make UI simpler, more intuitive
-- Improve UI for mobile users
