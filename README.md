@@ -35,7 +35,7 @@ CRUD functionality over the database
 
 ### Workouts page
 
-Personal workout creation with exercise library, premade workouts and programs browsing
+Personal workout creation with exercise library, premade workouts, programs browsing and live workouts/cardio
 
 ### Exercise library page
 
