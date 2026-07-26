@@ -17,7 +17,7 @@ Registration with information collection and login authentication.
 
 ## Dashboard
 
-Calendar with activities and workout details
+Activity overview and scheduling
 
 ## Schedule
 
