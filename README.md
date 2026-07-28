@@ -11,6 +11,12 @@ C# Blazor fitness appplication with custom workouts and exercise selections, cal
 
 </div>
 
+---
+
+![Application](https://github.com/user-attachments/assets/e5c94e15-70f6-4ff7-b6a1-004d345f42bb)
+
+---
+
 ## Authentication System + Onboarding
 
 Registration with information collection and login authentication.
