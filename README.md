@@ -7,7 +7,7 @@
 [![Blazor](https://img.shields.io/badge/Blazor-512BD4?logo=blazor&logoColor=fff)](#)
 [![MIT License](https://img.shields.io/badge/License-MIT-green.svg)](https://choosealicense.com/licenses/mit/)
 
-C# Blazor fitness appplication with custom workouts and exercise selections, calorie counting and run/walk tracking
+C# Blazor fitness appplication with custom workouts and exercise selections, calorie counting, cardio tracking, and workout sharing
 
 </div>
 
