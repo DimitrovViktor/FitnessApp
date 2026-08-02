@@ -21,7 +21,7 @@ A full stack fitness application built with Blazor and SQLite. Build custom work
 
 ## Login and Onboarding
 
-![Login Page]()
+![Login Page](https://github.com/user-attachments/assets/5fec8c86-7326-421c-bcac-04bd0af30348)
 
 Users register with an email and password, then go through onboarding. Onboarding collects the details the app needs for its calculations, such as body weight and height.
 
@@ -39,7 +39,7 @@ Four presets are included: Night, Midnight, Day and Lavender. The switcher sits 
 
 ### Notifications
 
-![Notifications]()
+![Notifications](https://github.com/user-attachments/assets/9dd93b8e-5cbe-45d0-82a7-916c629932d9)
 
 A bell in the nav bar opens the notifications modal with everything recent. New events also appear as popups in the top right corner, and those close on their own.
 
@@ -58,7 +58,7 @@ Weight, distance and energy units are set once in settings. Every page follows t
 
 ## Dashboard
 
-![Dashboard]()
+![Dashboard](https://github.com/user-attachments/assets/beaf925a-af0f-4166-aaed-dc243ab38482)
 
 The landing page after login. It shows the day at a glance.
 
@@ -74,7 +74,7 @@ The landing page after login. It shows the day at a glance.
 
 ## Schedule
 
-![Schedule]()
+![Schedule](https://github.com/user-attachments/assets/67bb788a-106f-46a3-bb5f-5482a2bd00da)
 
 Planning view for workouts and meals.
 
@@ -91,7 +91,7 @@ Planning view for workouts and meals.
 
 ### Workouts Page
 
-![Workouts]()
+![Workouts](https://github.com/user-attachments/assets/362dc8b1-a73f-4bd7-9192-6d6a8de1fd7e)
 
  - Build custom workouts from the exercise library
  - Set sets, reps, weight and rest per exercise
@@ -101,7 +101,7 @@ Planning view for workouts and meals.
 
 ### Programs Library Page
 
-![Programs]()
+![Programs](https://github.com/user-attachments/assets/8066bb41-a514-49b5-8cad-4eac4907fad1)
 
  - Multi week programs with descriptions
  - The workouts inside each program
@@ -111,7 +111,7 @@ Planning view for workouts and meals.
 
 ### Exercise Library Page
 
-![Exercise Library]()
+![Exercise Library](https://github.com/user-attachments/assets/0c68e17e-ed52-48dd-9e08-f9baa3f84aa4)
 
  - Exercises sorted by muscle group and equipment
  - Descriptions and instructions
@@ -120,7 +120,7 @@ Planning view for workouts and meals.
 
 ### Live Session
 
-![Live Session]()
+![Live Session](https://github.com/user-attachments/assets/100961b3-1d3c-4579-ac5c-dd5d68406df8)
 
  - Run a workout set by set and tick sets off as you go
  - Rest timer between sets, with an auto start option
@@ -132,7 +132,7 @@ Planning view for workouts and meals.
 
 ## Progress Page
 
-![Progress]()
+![Progress](https://github.com/user-attachments/assets/89c41600-4349-436c-b0e1-5d988ab9d935)
 
 Split into Body, Training and Diet.
 
