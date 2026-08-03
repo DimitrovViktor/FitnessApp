@@ -160,7 +160,7 @@ Split into Body, Training and Diet.
 
 ### Diet Page
 
-![Diet]()
+![Diet](https://github.com/user-attachments/assets/11c26296-cb56-4e16-a03c-128256ca9c91)
 
  - Search foods and log them by weight
  - Daily totals for calories, protein, carbs and fat
@@ -169,7 +169,7 @@ Split into Body, Training and Diet.
 
 ### Diet Plans Page
 
-![Diet Plans]()
+![Diet Plans](https://github.com/user-attachments/assets/f8e1b625-78b6-4c4e-a1d0-ee6639c3c232)
 
  - Build plans for cutting, maintenance or bulking
  - Add foods with target amounts
@@ -177,7 +177,7 @@ Split into Body, Training and Diet.
 
 ### Foods Page
 
-![Foods]()
+![Foods](https://github.com/user-attachments/assets/d2d2ad82-bd66-45da-9918-bd778325ce87)
 
  - Foods sorted into categories
  - Calories and macros per 100g
@@ -189,7 +189,7 @@ Split into Body, Training and Diet.
 
 ### Direct Messages
 
-![Direct Messages]()
+![Direct Messages](https://github.com/user-attachments/assets/517a5ae0-2a24-4669-8e34-4ce1597e4610)
 
  - Private messaging with live delivery
  - Image and file attachments
@@ -198,7 +198,7 @@ Split into Body, Training and Diet.
 
 ### Friends
 
-![Friends]()
+![Friends](https://github.com/user-attachments/assets/ef8d274a-a3ac-43cc-8d15-8d1c2e86a72d)
 
  - Search users by username
  - Send, accept and decline friend requests
@@ -206,7 +206,7 @@ Split into Body, Training and Diet.
 
 ### Global
 
-![Global Feed]()
+![Global Feed](https://github.com/user-attachments/assets/7a37d2ff-9aea-4ec9-af70-af4a4bed71c9)
 
  - Post to everyone
  - Attach a completed workout or a program to a post
@@ -216,7 +216,7 @@ Split into Body, Training and Diet.
 
 ## Profile Page
 
-![Profile]()
+![Profile](https://github.com/user-attachments/assets/7ab87572-94d7-45e6-8f2e-5037bf237d31)
 
  - Display name, username and bio
  - Body details used by the app's calculations
@@ -227,7 +227,7 @@ Split into Body, Training and Diet.
 
 ## Settings Page
 
-![Settings]()
+![Settings](https://github.com/user-attachments/assets/83b88136-9c69-4fc4-9ef7-02a523fd9b7d)
 
  - Theme selection
  - Units for weight, distance and energy
@@ -239,7 +239,7 @@ Split into Body, Training and Diet.
 
 ## Admin Page
 
-![Admin]()
+![Admin](https://github.com/user-attachments/assets/48d27e6c-4ec3-4df8-99f8-40b968d368bf)
 
 Staff only. Full CRUD over the database.
 
