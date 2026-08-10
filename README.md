@@ -8,7 +8,7 @@
 [![SQLite](https://img.shields.io/badge/SQLite-%2307405e.svg?logo=sqlite&logoColor=white)](#)
 [![MIT License](https://img.shields.io/badge/License-MIT-green.svg)](https://choosealicense.com/licenses/mit/)
 
-A full stack fitness application built with Blazor and SQLite. Build custom workouts, run live training sessions, log meals and macros, track body progress, and share it with friends.
+A full stack fitness application built with Blazor and SQLite.
 
 </div>
 
